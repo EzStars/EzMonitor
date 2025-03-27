@@ -5,7 +5,24 @@
   "main": "index.js",
   "scripts": {
     "dev": "father dev",
-    "build:all": "turbo run build"
+    "build:all": "turbo run build",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.vue": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.css": [
+      "stylelint --fix"
+    ],
+    "*.md": [
+      "prettier --write"
+    ]
   },
   "keywords": [
     "前端监控",
@@ -21,6 +38,9 @@
   },
   "devDependencies": {
     "father": "^4.5.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.0",
+    "prettier": "^3.5.3",
     "turbo": "^2.4.4"
   }
 }
