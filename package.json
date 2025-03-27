@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "father dev",
-    "build:all": "pnpm run -r build"
+    "build:all": "turbo run build"
   },
   "keywords": [
     "前端监控",
