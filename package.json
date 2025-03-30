@@ -7,13 +7,19 @@
     "dev": "father dev",
     "build:all": "turbo run build",
     "prepare": "husky",
-    "lint": "eslint --ext .js,.jsx,.ts,.tsx ."
+    "lint": "eslint --ext .js,.jsx,.ts,.tsx .",
+    "commit": "git add . && git-cz"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
       "eslint --fix --quiet",
       "prettier --write"
     ]
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-git"
+    }
   },
   "keywords": [
     "前端监控",
@@ -28,6 +34,10 @@
     "typescript": "^5.8.2"
   },
   "devDependencies": {
+    "@commitlint/cli": "^19.8.0",
+    "@commitlint/config-conventional": "^19.8.0",
+    "commitizen": "^4.3.1",
+    "cz-git": "^1.11.1",
     "eslint": "^9.23.0",
     "father": "^4.5.2",
     "globals": "^16.0.0",
