@@ -4,11 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "commit": "git add . && git-cz",
     "dev": "father dev",
     "build:all": "turbo run build",
     "prepare": "husky",
-    "lint": "eslint --ext .js,.jsx,.ts,.tsx .",
-    "commit": "git add . && git-cz"
+    "lint": "eslint --ext .js,.jsx,.ts,.tsx ."
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

@@ -5,6 +5,11 @@
     "skipLibCheck": true,
     "baseUrl": "./",
     "moduleDetection": "auto",
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "lib": [
+      // 编译过程中需要引入的库文件的列表
+      "es6",
+      "dom"
+    ]
   }
 }
