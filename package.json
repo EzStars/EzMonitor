@@ -6,21 +6,12 @@
   "scripts": {
     "dev": "father dev",
     "build:all": "turbo run build",
-    "prepare": "husky"
+    "prepare": "husky",
+    "lint": "eslint --ext .js,.jsx,.ts,.tsx ."
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.vue": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.css": [
-      "stylelint --fix"
-    ],
-    "*.md": [
+      "eslint --fix --quiet",
       "prettier --write"
     ]
   },
@@ -37,10 +28,13 @@
     "typescript": "^5.8.2"
   },
   "devDependencies": {
+    "eslint": "^9.23.0",
     "father": "^4.5.2",
+    "globals": "^16.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.5.0",
     "prettier": "^3.5.3",
-    "turbo": "^2.4.4"
+    "turbo": "^2.4.4",
+    "typescript-eslint": "^8.28.0"
   }
 }
