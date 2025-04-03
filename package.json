@@ -8,7 +8,10 @@
     "dev": "father dev",
     "build:all": "turbo run build",
     "prepare": "husky",
-    "lint": "eslint --ext .js,.jsx,.ts,.tsx ."
+    "lint": "eslint --ext .js,.jsx,.ts,.tsx .",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -45,6 +48,7 @@
     "lint-staged": "^15.5.0",
     "prettier": "^3.5.3",
     "turbo": "^2.4.4",
-    "typescript-eslint": "^8.28.0"
+    "typescript-eslint": "^8.28.0",
+    "vitepress": "^1.6.3"
   }
 }
