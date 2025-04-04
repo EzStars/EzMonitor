@@ -9,6 +9,10 @@ interface SidebarItem {
   collapsed?: boolean;
 }
 
+interface SidebarConfig {
+  [key: string]: SidebarItem[];
+}
+
 const EXCLUDE_FILES = [
   '.vitepress',
   'node_modules',
@@ -17,49 +21,45 @@ const EXCLUDE_FILES = [
   'assets',
 ];
 
-export function generateSidebar(): SidebarItem[] {
+export function generateSidebar(): SidebarConfig {
   const docsPath = path.resolve(__dirname, '../../');
-  const items: SidebarItem[] = [];
+  const sidebarConfig: SidebarConfig = {};
 
-  // 读取docs目录
+  // 获取所有一级目录
+  const directories = fs.readdirSync(docsPath).filter(file => {
+    const filePath = path.join(docsPath, file);
+    return fs.statSync(filePath).isDirectory() && !EXCLUDE_FILES.includes(file);
+  });
+
+  // 为每个一级目录生成侧边栏配置
+  directories.forEach(dir => {
+    const dirPath = path.join(docsPath, dir);
+    sidebarConfig[`/${dir}/`] = walkDir(dirPath);
+  });
+
+  // 根目录的侧边栏配置
+  sidebarConfig['/'] = generateRootSidebar(docsPath);
+
+  return sidebarConfig;
+}
+
+function generateRootSidebar(docsPath: string): SidebarItem[] {
+  const items: SidebarItem[] = [];
   const files = fs
     .readdirSync(docsPath)
-    .filter(file => !EXCLUDE_FILES.includes(file))
-    .sort((a, b) => {
-      // 目录优先，同类型按字母排序
-      const aStats = fs.statSync(path.join(docsPath, a));
-      const bStats = fs.statSync(path.join(docsPath, b));
-      if (aStats.isDirectory() && !bStats.isDirectory()) return -1;
-      if (!aStats.isDirectory() && bStats.isDirectory()) return 1;
-      return a.localeCompare(b);
-    });
+    .filter(
+      file =>
+        !EXCLUDE_FILES.includes(file) &&
+        file.endsWith('.md') &&
+        file !== 'README.md',
+    )
+    .sort();
 
   files.forEach(file => {
-    const filePath = path.join(docsPath, file);
-    const stat = fs.statSync(filePath);
-
-    // 忽略以.开头的文件和README.md
-    if (file.startsWith('.') || file === 'README.md') {
-      return;
-    }
-
-    if (stat.isDirectory()) {
-      const children = walkDir(filePath);
-      // 只有当目录非空时才添加
-      if (children.length > 0) {
-        items.push({
-          text: formatText(file),
-          items: children,
-          collapsible: true,
-          collapsed: false,
-        });
-      }
-    } else if (file.endsWith('.md')) {
-      items.push({
-        text: formatText(file.replace('.md', '')),
-        link: `/${file.replace('.md', '')}`,
-      });
-    }
+    items.push({
+      text: formatText(file.replace('.md', '')),
+      link: `/${file.replace('.md', '')}`,
+    });
   });
 
   return items;
@@ -108,7 +108,6 @@ function walkDir(dir: string): SidebarItem[] {
 }
 
 function formatText(text: string): string {
-  // 将文件名转换为更友好的显示文本
   return text
     .replace(/-/g, ' ')
     .split(' ')

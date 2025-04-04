@@ -15,7 +15,7 @@ export default defineConfig({
     sidebar: generateSidebar(),
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/vuejs/vitepress' }
+      { icon: 'github', link: 'https://github.com/EzStars' }
     ]
   },
   base: '/EzMonitor/', // 部署到github时需要设置
