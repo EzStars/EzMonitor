@@ -17,5 +17,6 @@ export default defineConfig({
     socialLinks: [
       { icon: 'github', link: 'https://github.com/vuejs/vitepress' }
     ]
-  }
+  },
+  base: '/EzMonitor/', // 部署到github时需要设置
 })
