@@ -8,18 +8,18 @@ hero:
   tagline: My great project tagline
   actions:
     - theme: brand
-      text: Markdown Examples
-      link: /markdown-examples
+      text: 快速开始
+      link: /使用文档/快速开始.md
     - theme: alt
-      text: API Examples
-      link: /api-examples
+      text: 文档
+      link: /使用文档
 
 features:
-  - title: 性能监控
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
-  - title: 错误监控
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
-  - title: UV统计
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
+  - title: Web监控
+    details: 提供全面的Web应用监控能力
+  - title: Node监控
+    details: 针对Node.js应用的专业监控方案
+  - title: SDK扩展
+    details: 灵活的SDK支持自定义监控需求
 ---
 
