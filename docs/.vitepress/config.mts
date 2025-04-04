@@ -11,6 +11,7 @@ export default defineConfig({
     nav: [
       { text: '首页', link: '/' },
       { text: '介绍', link: '/使用文档' },
+      { text: '参与贡献', link: '/贡献文档' },
       { text: '关于我们', link: '/about' },
     ],
     // 直接使用相对于 public 目录的路径
