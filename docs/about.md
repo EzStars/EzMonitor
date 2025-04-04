@@ -12,7 +12,7 @@ const members = [
   {
     avatar: 'https://avatars.githubusercontent.com/u/146628596?v=4',
     name: 'Ni0duann',
-    title: 'Creator',
+    title: 'EzMonitor menbers',
     links: [
       { icon: 'github', link: 'https://github.com/Ni0duann' },
     //   { icon: 'twitter', link: 'https://twitter.com/youyuxi' }
@@ -21,7 +21,7 @@ const members = [
   {
     avatar: 'https://avatars.githubusercontent.com/u/109895777?v=4',
     name: 'Zero1017',
-    title: '职位头衔',
+    title: 'EzMonitor menbers',
     links: [
       { icon: 'github', link: 'https://github.com/Eomnational' }
     ]
