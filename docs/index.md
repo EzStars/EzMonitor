@@ -12,7 +12,7 @@ hero:
       link: /使用文档/快速开始.md
     - theme: alt
       text: 文档
-      link: /使用文档
+      link: /使用文档/快速开始
 
 features:
   - title: Web监控

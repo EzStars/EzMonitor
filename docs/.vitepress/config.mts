@@ -10,7 +10,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: '首页', link: '/' },
-      { text: '介绍', link: '/使用文档' },
+      { text: '介绍', link: '/使用文档/快速开始' },
       { text: '参与贡献', link: '/贡献文档' },
       { text: '关于我们', link: '/about' },
     ],

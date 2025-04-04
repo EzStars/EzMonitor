@@ -33,10 +33,10 @@ const members = [
 <VPTeamPage>
   <VPTeamPageTitle>
     <template #title>
-      我们的团队
+      关于我们的团队
     </template>
     <template #lead>
-      EzMonitor 由一群充满热情的开发者构建，以下是我们的核心团队成员。
+      EzMonitor 由一群充满热情的在读大学生开发者构建，以下是我们的核心团队成员。
     </template>
   </VPTeamPageTitle>
   <VPTeamMembers
