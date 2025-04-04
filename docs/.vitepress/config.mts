@@ -9,10 +9,10 @@ export default defineConfig({
   ],
   themeConfig: {
     nav: [
-      { text: '首页', link: '/' },
-      { text: '介绍', link: '/使用文档/快速开始' },
-      { text: '参与贡献', link: '/贡献文档' },
-      { text: '关于我们', link: '/about' },
+      { text: '💭 首页', link: '/' },
+      { text: '🦄 介绍', link: '/使用文档/快速开始' },
+      { text: '👫 参与贡献', link: '/贡献文档' },
+      { text: '👋 关于我们', link: '/about' },
     ],
     // 直接使用相对于 public 目录的路径
     logo: '/logo.png',
@@ -30,4 +30,6 @@ export default defineConfig({
     ]
   },
   base: '/EzMonitor/',
+  // 自定义主题颜色
+  appearance: true
 })

@@ -8,10 +8,13 @@ hero:
   tagline: My great project tagline
   actions:
     - theme: brand
-      text: 快速开始
+      text: 🚀🚀🚀 快速开始
       link: /使用文档/快速开始.md
+    - theme: sponsor
+      text: ⭐⭐⭐ 项目亮点
+      link: /项目亮点/index
     - theme: alt
-      text: 文档
+      text: 😋😋😋 食用文档
       link: /使用文档/快速开始
 
 features:
