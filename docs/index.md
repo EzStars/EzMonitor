@@ -18,11 +18,11 @@ hero:
       link: /使用文档/快速开始
 
 features:
-  - title: Web监控
-    details: 提供全面的Web应用监控能力
-  - title: Node监控
-    details: 针对Node.js应用的专业监控方案
-  - title: SDK扩展
-    details: 灵活的SDK支持自定义监控需求
+  - title: 开箱即用
+    details: 简单的配置即可实现前端监控功能，快速接入您的应用
+  - title: 功能丰富
+    details: 支持性能监控、错误监控、请求监控、资源监控等多种监控能力
+  - title: 可扩展性
+    details: 提供插件机制，支持自定义监控指标和监控行为
 ---
 
