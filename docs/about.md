@@ -12,7 +12,7 @@ const members = [
   {
     avatar: 'https://avatars.githubusercontent.com/u/146628596?v=4',
     name: 'Ni0duann',
-    title: 'EzStars member',
+    title: '💻 Frontend Developer',
     links: [
       { icon: 'github', link: 'https://github.com/Ni0duann' },
     //   { icon: 'twitter', link: 'https://twitter.com/youyuxi' }
@@ -21,9 +21,17 @@ const members = [
   {
     avatar: 'https://avatars.githubusercontent.com/u/109895777?v=4',
     name: 'Zero1017',
-    title: 'EzStars member',
+    title: '🎨 Frontend Designer',
     links: [
       { icon: 'github', link: 'https://github.com/Eomnational' }
+    ]
+  },
+  {
+    avatar: 'https://avatars.githubusercontent.com/u/122375177?v=4',
+    name: 'zihuv',
+    title: '🛠️ Backend Developer',
+    links: [
+      { icon: 'github', link: 'https://github.com/zihuv' }
     ]
   }
   // 可以继续添加更多成员
