@@ -1,5 +1,5 @@
 import { observeLCP } from './lcp';
-import { observePaint } from './fcp&fp';
+import { observePaint } from './fp';
 import { observeResourceLoading } from './resource';
 import { observeNavigationTiming } from './navagation';
 import { checkWhiteScreenWithFeedback } from './whitescreen';
