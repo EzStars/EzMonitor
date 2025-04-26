@@ -15,5 +15,5 @@ export default defineConfig([
       '@typescript-eslint/no-explicit-any': 'off', // 可以设置为 "error" 完全禁止使用
     },
   },
-  globalIgnores(['node_modules', '.turbo', '**/dist/']),
+  globalIgnores(['node_modules', '.turbo', '**/dist/', 'docs']),
 ]);
