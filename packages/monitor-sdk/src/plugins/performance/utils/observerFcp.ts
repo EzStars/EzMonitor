@@ -4,7 +4,7 @@
  *
  */
 
-export default function observeFcp() {
+export default function observerFCP() {
   const entryHandler = (list: PerformanceObserverEntryList) => {
     for (const entry of list.getEntries()) {
       if (entry.name === 'first-contentful-paint') {
