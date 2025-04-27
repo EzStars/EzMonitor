@@ -1,41 +1,68 @@
-//导入类型定义
-import { MonitorOptions, MonitorEvent } from './types';
-import reportData from '../report/index';
-import PerformanceMonitor from '../plugins/performance/index';
-import { dataInterface } from '../report/types';
+import performance from '../plugins/performance';
+import error from '../plugins/error';
+import { setConfig } from '../utils/config'; // Ensure setConfig is properly imported
 
-export class Monitor {
-  private options: MonitorOptions;
-  private performanceMonitor: PerformanceMonitor; // 持有性能监控实例
-  private queue: MonitorEvent[] = []; // 事件队列
-
-  constructor(options: MonitorOptions) {
-    this.options = {
-      delay: 1000,
-      ...options,
+// Initialize the global SDK object with type safety
+declare global {
+  interface Window {
+    __EzMonitorSDK__?: {
+      version: string;
+      vue?: boolean;
+      react?: boolean;
     };
-    this.performanceMonitor = new PerformanceMonitor(); // 初始化性能监控
-    this.init();
-  }
-
-  //初始化会发送数据到数据库
-  private init(): void {
-    console.log('初始化监听。。。');
-
-    // 延迟上报（确保性能数据已收集）
-    setTimeout(() => {
-      // 合并性能数据和其他数据（如错误）
-      const reportPayload: dataInterface = {
-        performance: this.performanceMonitor.getMetrics(),
-        event: this.queue,
-      };
-
-      reportData({
-        url: this.options.reportUrl,
-        data: reportPayload, // 包含性能数据+其他数据
-        delay: 0, // 立即发送（外层已有setTimeout）
-      });
-    }, this.options.delay);
-    // 其他初始化逻辑（如错误监听）
   }
 }
+
+window.__EzMonitorSDK__ = window.__EzMonitorSDK__ || {
+  version: '0.0.1',
+};
+
+// 针对 Vue 项目的错误捕获
+export function install(Vue, options) {
+  if (window.__EzMonitorSDK__?.vue) return;
+  window.__EzMonitorSDK__!.vue = true;
+  setConfig(options); // Ensure this function is defined and imported
+  const handler = Vue.config.errorHandler;
+  Vue.config.errorHandler = function (err, vm, info) {
+    if (handler) {
+      handler(err, vm, info);
+    }
+    const reportData = {
+      type: 'error',
+      subType: 'vue',
+      info,
+      startTime: window.performance.now(),
+      pageURL: window.location.href,
+    };
+    console.log('vue error', reportData);
+  };
+}
+
+// 针对 React 项目的错误捕获
+export function errorBoundary(err, info) {
+  if (window.__EzMonitorSDK__?.react) return;
+  window.__EzMonitorSDK__!.react = true;
+  const reportData = {
+    type: 'error',
+    subType: 'react',
+    info,
+    startTime: window.performance.now(),
+    pageURL: window.location.href,
+  };
+  console.log('react error', reportData);
+}
+
+// 初始化函数
+export function init(options) {
+  setConfig(options); // Ensure configuration is set
+  performance(); // Initialize performance monitoring
+  error(); // Initialize error monitoring
+}
+
+export default {
+  install,
+  errorBoundary,
+  init,
+  performance,
+  error,
+};
