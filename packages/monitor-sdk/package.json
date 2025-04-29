@@ -10,5 +10,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.4.1"
+  "packageManager": "pnpm@10.4.1",
+  "devDependencies": {
+    "@types/pako": "^2.0.3",
+    "js-base64": "^3.7.7"
+  }
 }

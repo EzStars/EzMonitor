@@ -57,7 +57,14 @@ importers:
 
   packages/monitor-node: {}
 
-  packages/monitor-sdk: {}
+  packages/monitor-sdk:
+    devDependencies:
+      '@types/pako':
+        specifier: ^2.0.3
+        version: 2.0.3
+      js-base64:
+        specifier: ^3.7.7
+        version: 3.7.7
 
   packages/monitor-web: {}
 
@@ -1229,6 +1236,9 @@ packages:
 
   '@types/node@22.13.10':
     resolution: {integrity: sha512-I6LPUvlRH+O6VRUqYOcMudhaIdUVWfsjnZavnsraHvpBwaEyMN29ry+0UVJhImYL16xsscu0aske3yA+uPOWfw==}
+
+  '@types/pako@2.0.3':
+    resolution: {integrity: sha512-bq0hMV9opAcrmE0Byyo0fY3Ew4tgOevJmQ9grUhpXQhYfyLJ1Kqg3P33JT5fdbT2AjeAjR51zqqVjAL/HMkx7Q==}
 
   '@types/parse-json@4.0.2':
     resolution: {integrity: sha512-dISoDXWWQwUquiKsyZ4Ng+HX2KsPL7LyHKHQwgGFEA3IaKac4Obd+h2a/a6waisAoepJlBcx9paWqjA8/HVjCw==}
@@ -2894,6 +2904,9 @@ packages:
 
   jju@1.4.0:
     resolution: {integrity: sha512-8wb9Yw966OSxApiCt0K3yNJL8pnNeIv+OEq2YMidz4FKP6nonSRoOXc80iXY4JaN2FC11B9qsNmDsm+ZOfMROA==}
+
+  js-base64@3.7.7:
+    resolution: {integrity: sha512-7rCnleh0z2CkXhH67J8K1Ytz0b2Y+yxTPL+/KOJoa20hfnVQ/3/T6W/KflYI4bRHRagNeXeU2bkNGI3v1oS/lw==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -5764,6 +5777,8 @@ snapshots:
     dependencies:
       undici-types: 6.20.0
 
+  '@types/pako@2.0.3': {}
+
   '@types/parse-json@4.0.2': {}
 
   '@types/stylis@4.2.5': {}
@@ -7855,6 +7870,8 @@ snapshots:
   jiti@2.4.2: {}
 
   jju@1.4.0: {}
+
+  js-base64@3.7.7: {}
 
   js-tokens@4.0.0: {}
 
