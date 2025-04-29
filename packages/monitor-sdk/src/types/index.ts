@@ -1,16 +1,16 @@
 export type ConfigType = {
-  url: string;
-  projectName: string;
-  appId: string;
-  userId: string;
-  batchSize: number;
-  isAjax: boolean;
-  containerElements: string[];
-  skeletonElements: string[];
-  reportBefore?: any;
-  reportAfter?: any;
-  reportSuccess?: any;
-  reportFail?: any;
+  url: string; // 上报地址
+  projectName: string; // 项目名称
+  appId: string; // 项目id
+  userId: string; // 用户id
+  batchSize: number; // 批量上报大小
+  isAjax: boolean; // 是否开启ajax上报
+  containerElements: string[]; // 容器元素
+  skeletonElements: string[]; // 骨架屏元素
+  reportBefore?: any; // 上报前的回调函数
+  reportAfter?: any; // 上报后的回调函数
+  reportSuccess?: any; // 上报成功的回调函数
+  reportFail?: any; // 上报失败的回调函数
   [key: string]: string | boolean | number | string[] | any; // 添加索引签名
 };
 
