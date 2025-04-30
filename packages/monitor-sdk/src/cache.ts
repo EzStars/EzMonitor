@@ -1,12 +1,12 @@
 import { deepClone } from './utils';
 
-const cache = [];
+const cache: any[] = [];
 
 export function clearCache() {
   cache.length = 0;
 }
 
-export function addCache(data) {
+export function addCache(data: any) {
   cache.push(data);
 }
 
