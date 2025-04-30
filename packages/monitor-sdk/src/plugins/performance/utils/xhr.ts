@@ -1,71 +1,71 @@
-export const originalProto = XMLHttpRequest.prototype;
-export const originalOpen = XMLHttpRequest.prototype.open;
-export const originalSend = XMLHttpRequest.prototype.send;
+import { TraceSubTypeEnum, TraceTypeEnum } from '../../../common/enum';
+import { lazyReportBatch } from '../../../common/report';
+import { urlToJson } from '../../../common/utils';
+import { AjaxType } from '../../../types';
 
-// Map to store metadata for each XMLHttpRequest instance
-const xhrMetadata = new WeakMap<
-  XMLHttpRequest,
-  {
-    url?: string | URL;
-    method?: string;
+export const originalProto = XMLHttpRequest.prototype;
+export const originalSend = originalProto.send;
+export const originalOpen = originalProto.open;
+
+// 扩展 XMLHttpRequest 类型，允许自定义属性
+declare global {
+  interface XMLHttpRequest {
     startTime?: number;
     endTime?: number;
     duration?: number;
-    status?: number;
+    method?: string;
+    url?: string;
   }
->();
+}
 
 function overwriteOpenAndSend() {
-  originalProto.open = function (
-    this: XMLHttpRequest,
+  originalProto.open = function newOpen(
     method: string,
     url: string | URL,
-    async?: boolean,
-    username?: string | null,
-    password?: string | null,
+    async: boolean = true,
+    username?: string,
+    password?: string,
   ) {
-    // Store metadata in the WeakMap
-    xhrMetadata.set(this, { url, method });
-    (originalOpen as any).call(this, method, url, async, username, password);
+    // 这将保留原始的 open 方法签名，并确保 async、username 和 password 可选
+    this.url = url.toString(); // 可能需要转为 string 类型
+    this.method = method;
+    originalOpen.apply(this, [method, url, async, username, password]);
   };
 
-  originalProto.send = function (...args) {
-    const startTime = performance.now();
-    const xhr = this as XMLHttpRequest;
+  originalProto.send = function newSend(
+    ...args: [Document | XMLHttpRequestBodyInit | null | undefined]
+  ) {
+    this.addEventListener('loadstart', () => {
+      this.startTime = Date.now();
+    });
 
-    // Update startTime in the metadata
-    const metadata = xhrMetadata.get(xhr) || {};
-    metadata.startTime = startTime;
-    xhrMetadata.set(xhr, metadata);
+    const onLoaded = () => {
+      this.endTime = Date.now();
+      this.duration = (this.endTime ?? 0) - (this.startTime ?? 0);
+      const { url, method, startTime, endTime, duration, status } = this;
+      const params = (args[0] ? args[0] : urlToJson(url as string)) as string;
 
-    const onloadEnd = () => {
-      const endTime = performance.now();
-      const duration = endTime - (metadata.startTime || 0);
-      const status = xhr.status;
-
-      // Update metadata with endTime, duration, and status
-      Object.assign(metadata, { endTime, duration, status });
-
-      const reportData = {
-        url: metadata.url,
-        method: metadata.method,
-        endTime: metadata.endTime,
-        duration: metadata.duration,
-        status: metadata.status,
-        type: 'performance',
-        success: (status >= 200 && status < 300) || status === 304,
-        subType: 'xhr',
+      const reportData: AjaxType = {
+        status,
+        duration,
+        startTime,
+        endTime,
+        url,
+        method: method?.toUpperCase(),
+        type: TraceTypeEnum.performance,
+        success: status >= 200 && status < 300,
+        subType: TraceSubTypeEnum.xhr,
+        pageUrl: window.location.href,
+        params,
+        timestamp: new Date().getTime(),
       };
-
-      // Remove the event listener to avoid memory leaks
-      xhr.removeEventListener('loadend', onloadEnd, true);
-
-      // You can now use `reportData` for reporting purposes
-      console.log(reportData); // Example: Replace with actual reporting logic
+      // todo: 发送数据
+      lazyReportBatch(reportData);
+      this.removeEventListener('loadend', onLoaded, true);
     };
 
-    xhr.addEventListener('loadend', onloadEnd, true);
-    (originalSend as any).call(xhr, ...args);
+    this.addEventListener('loadend', onLoaded, true);
+    originalSend.apply(this, args);
   };
 }
 
