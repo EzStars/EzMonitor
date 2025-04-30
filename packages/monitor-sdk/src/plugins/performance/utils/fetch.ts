@@ -1,48 +1,55 @@
-const originalFetch = window.fetch;
+import { TraceSubTypeEnum, TraceTypeEnum } from '../../../common/enum';
+import { lazyReportBatch } from '../../../common/report';
+import { urlToJson } from '../../../common/utils';
+import { AjaxType } from '../../../types';
 
-function owerwriteFetch() {
-  window.fetch = function newFetch(url, config) {
-    const startTime = performance.now();
-    const reportData = {
-      type: 'performance',
-      subType: 'fetch',
-      url,
-      startTime: startTime,
+const originalFetch: typeof window.fetch = window.fetch;
+
+function overwriteFetch(): void {
+  window.fetch = function newFetch(
+    url: any,
+    config?: RequestInit,
+  ): Promise<Response> {
+    const params = (
+      config?.body ? config.body : urlToJson(url as string)
+    ) as string;
+    const startTime = Date.now();
+    const urlString =
+      typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+    const reportData: AjaxType = {
+      type: TraceTypeEnum.performance,
+      subType: TraceSubTypeEnum.fetch,
+      url: urlString,
+      startTime,
       endTime: 0,
       duration: 0,
-      method: config?.method || 'GET',
       status: 0,
       success: false,
+      method: config?.method || 'GET',
+      pageUrl: window.location.href,
+      params,
+      timestamp: new Date().getTime(),
     };
     return originalFetch(url, config)
-      .then(response => {
-        const endTime = performance.now();
-        const duration = endTime - startTime;
-        reportData.endTime = endTime;
-        reportData.duration = duration;
-        reportData.status = response.status;
-        reportData.success = response.ok;
-        console.log('fetch', reportData);
-        // 这里可以添加上报逻辑
-        return response;
+      .then(res => {
+        reportData.status = res.status;
+        return res;
       })
-      .catch(error => {
-        const endTime = performance.now();
-        const duration = endTime - startTime;
+      .catch(err => {
+        reportData.status = err.status;
+        throw err;
+      })
+      .finally(() => {
+        const endTime = Date.now();
         reportData.endTime = endTime;
-        reportData.duration = duration;
-        reportData.status = error.status || 0;
+        reportData.duration = endTime - startTime;
         reportData.success = false;
-        console.log('fetch error', reportData);
-        // 这里可以添加上报逻辑
-        return Promise.reject(error);
+        // todo 上报数据
+        lazyReportBatch(reportData);
       });
   };
 }
-export default function fetch() {
-  if (window.fetch) {
-    owerwriteFetch();
-  } else {
-    console.warn('fetch is not supported in this browser');
-  }
+
+export default function fetch(): void {
+  overwriteFetch();
 }
