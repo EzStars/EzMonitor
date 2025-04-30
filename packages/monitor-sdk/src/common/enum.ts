@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 export enum TraceTypeEnum {
   performance = 'performance',
   exception = 'exception',
@@ -6,7 +5,6 @@ export enum TraceTypeEnum {
   behavior = 'behavior',
 }
 
-/* eslint-disable no-unused-vars */
 export enum TraceSubTypeEnum {
   fetch = 'fetch',
   load = 'load',

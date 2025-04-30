@@ -2,9 +2,7 @@
 const wr = (type: keyof History) => {
   const orig = history[type];
 
-  /* eslint-disable no-unused-vars */
   return function (this: unknown) {
-    // eslint-disable-next-line prefer-rest-params
     const rv = orig.apply(this, arguments);
     const e = new Event(type);
     window.dispatchEvent(e);
@@ -19,7 +17,6 @@ export const wrHistory = (): void => {
 };
 
 // 为 pushState 以及 replaceState 方法添加 Event 事件
-// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 export const proxyHistory = (handler: Function): void => {
   // 添加对 replaceState 的监听
   window.addEventListener('replaceState', e => handler(e), true);
@@ -27,7 +24,6 @@ export const proxyHistory = (handler: Function): void => {
   window.addEventListener('pushState', e => handler(e), true);
 };
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 export const proxyHash = (handler: Function): void => {
   // 添加对 hashchange 的监听
   // hash 变化除了触发 hashchange ,也会触发 popstate 事件,而且会先触发 popstate 事件，我们可以统一监听 popstate

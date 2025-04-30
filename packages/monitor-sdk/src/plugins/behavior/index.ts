@@ -24,7 +24,6 @@ export class Behavior {
 
   public breadcrumbs: any;
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   public customHandler!: Function;
 
   // 最大行为追踪记录数
@@ -59,7 +58,6 @@ export class Behavior {
   }
 
   // 初始化用户自定义埋点数据的获取上报
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   initCustomerHandler = (): Function => {
     const handler = (reportData: customAnalyticsData) => {
       // 自定义埋点的信息一般立即上报
