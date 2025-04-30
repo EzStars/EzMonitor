@@ -3,10 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
-    "dev": "father dev",
-    "build": "father build"
-  },
+  "scripts": {},
   "keywords": [],
   "author": "",
   "license": "ISC",

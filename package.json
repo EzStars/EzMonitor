@@ -5,7 +5,6 @@
   "main": "index.js",
   "scripts": {
     "commit": "git add . && git-cz",
-    "dev": "father dev",
     "build:all": "turbo run build",
     "prepare": "husky",
     "lint": "eslint --ext .js,.jsx,.ts,.tsx .",
@@ -45,11 +44,11 @@
     "commitizen": "^4.3.1",
     "cz-git": "^1.11.1",
     "eslint": "^9.23.0",
-    "father": "^4.5.2",
     "globals": "^16.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.5.0",
     "prettier": "^3.5.3",
+    "rollup": "^4.40.1",
     "turbo": "^2.4.4",
     "typescript-eslint": "^8.28.0",
     "vitepress": "^1.6.3"
