@@ -9,19 +9,21 @@ export default [
     input: 'index.ts',
     output: [
       {
-        file: 'dist/index.js',
-        format: 'esm',
-        exports: 'named',
+        dir: 'lib',
+        format: 'esm', // 选择 ESM 格式
+        entryFileNames: '[name].esm.js',
+        sourcemap: true,
       },
       {
-        file: 'dist/index.esm.js',
-        format: 'esm',
-        exports: 'named',
+        dir: 'lib',
+        format: 'cjs', // 选择 CJS 格式
+        entryFileNames: '[name].cjs.js',
+        sourcemap: true,
       },
     ],
     plugins: [
       peerDepsExternal(), // 排除 peerDependencies
-      typescript({ module: 'ESNext', sourceMap: false }), // 模块的输出格式为 ESNext
+      typescript({ module: 'ESNext', sourceMap: true, outDir: './lib' }), // 模块的输出格式为 ESNext
       commonjs(), // 处理 cjs 模块
       terser(), // 压缩代码
       resolve(), // 解析第三方依赖

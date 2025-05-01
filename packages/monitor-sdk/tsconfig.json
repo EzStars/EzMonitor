@@ -10,8 +10,9 @@
     "skipLibCheck": true,
     "strict": true,
     "declaration": true,
-    "outDir": "./dist",
-    "rootDir": "./src"
+    "outDir": "./lib",
+    "rootDir": "./src",
+    "sourceMap": true
   },
   "include": ["src/**/*"]
 }
