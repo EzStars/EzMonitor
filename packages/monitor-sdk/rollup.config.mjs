@@ -23,7 +23,7 @@ export default [
     ],
     plugins: [
       peerDepsExternal(), // 排除 peerDependencies
-      typescript({ module: 'ESNext', sourceMap: true, outDir: './lib' }), // 模块的输出格式为 ESNext
+      typescript({ module: 'ESNext', sourceMap: true }), // 模块的输出格式为 ESNext
       commonjs(), // 处理 cjs 模块
       terser(), // 压缩代码
       resolve(), // 解析第三方依赖

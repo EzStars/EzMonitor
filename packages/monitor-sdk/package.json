@@ -2,9 +2,13 @@
   "name": "@ezstars/monitor-sdk",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "type": "module",
+  "main": "./lib/index.cjs.js",
+  "module": "./lib/index.esm.js",
+  "types": "./lib/index.d.ts",
   "scripts": {
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "clean": "rimraf lib && rimraf .turbo"
   },
   "keywords": [],
   "author": "",
