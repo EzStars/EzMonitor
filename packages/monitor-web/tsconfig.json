@@ -4,10 +4,11 @@
     "module": "ESNext",
     "jsx": "react-jsx",
     "strict": true,
+    "allowArbitraryExtensions": true,
     "moduleResolution": "node",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src"]
+  "include": ["main.tsx"]
 }

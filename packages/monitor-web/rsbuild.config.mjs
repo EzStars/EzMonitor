@@ -4,7 +4,7 @@ import { pluginBabel } from '@rsbuild/plugin-babel';
 export default defineConfig({
   source: {
     entry: {
-      index: './src/index.tsx',
+      index: './main.tsx',
     },
   },
   html: {
@@ -16,14 +16,17 @@ export default defineConfig({
       exclude: /node_modules/,
       babelLoaderOptions: {
         presets: [
-          ['@babel/preset-react', { 
-            runtime: 'automatic',
-            importSource: 'react'
-          }],
+          [
+            '@babel/preset-react',
+            {
+              runtime: 'automatic',
+              importSource: 'react',
+            },
+          ],
           '@babel/preset-env',
-          '@babel/preset-typescript'
-        ]
-      }
-    })
-  ]
+          '@babel/preset-typescript',
+        ],
+      },
+    }),
+  ],
 });
