@@ -1,9 +1,11 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './src/app';
 import router from './src/router';
 import { RouterProvider } from 'react-router';
+import { ConfigProvider } from 'antd';
 
 createRoot(document.getElementById('root')!).render(
-  <RouterProvider router={router}></RouterProvider>,
+  <ConfigProvider>
+    <RouterProvider router={router}></RouterProvider>,
+  </ConfigProvider>,
 );
