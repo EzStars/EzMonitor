@@ -148,6 +148,12 @@ importers:
       '@types/react-dom':
         specifier: ^18.2.0
         version: 18.3.7(@types/react@18.3.20)
+      react-router:
+        specifier: ^7.5.3
+        version: 7.5.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react-router-dom:
+        specifier: ^7.5.3
+        version: 7.5.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       typescript:
         specifier: ^5.0.0
         version: 5.8.2
@@ -1989,6 +1995,10 @@ packages:
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
 
+  cookie@1.0.2:
+    resolution: {integrity: sha512-9Kr/j4O16ISv8zBBhJoi4bXOYNTkFLOqSL3UDB0njXxCXNezjeyVrJyGOWtgfs/q2km1gwBcfH8q1yEGoMYunA==}
+    engines: {node: '>=18'}
+
   copy-anything@3.0.5:
     resolution: {integrity: sha512-yCEafptTtb4bk7GLEQoM8KVJpxAfdBJYaXyzQEgQQQgYrZiDp8SJmGKlYza6CYjEDNstAdNdKA3UuoULlEbS6w==}
     engines: {node: '>=12.13'}
@@ -3017,6 +3027,23 @@ packages:
     peerDependencies:
       react: ^18.3.1
 
+  react-router-dom@7.5.3:
+    resolution: {integrity: sha512-cK0jSaTyW4jV9SRKAItMIQfWZ/D6WEZafgHuuCb9g+SjhLolY78qc+De4w/Cz9ybjvLzShAmaIMEXt8iF1Cm+A==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+
+  react-router@7.5.3:
+    resolution: {integrity: sha512-3iUDM4/fZCQ89SXlDa+Ph3MevBrozBAI655OAfWQlTm9nBR0IKlrmNwFow5lPHttbwvITZfkeeeZFP6zt3F7pw==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+    peerDependenciesMeta:
+      react-dom:
+        optional: true
+
   react@18.3.1:
     resolution: {integrity: sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==}
     engines: {node: '>=0.10.0'}
@@ -3160,6 +3187,9 @@ packages:
 
   serialize-javascript@4.0.0:
     resolution: {integrity: sha512-GaNA54380uFefWghODBWEGisLZFj00nS5ACs6yHa9nLqlLpVLO8ChDGeKRjZnV4Nh4n0Qi7nhYZD/9fCPzEqkw==}
+
+  set-cookie-parser@2.7.1:
+    resolution: {integrity: sha512-IOc8uWeOZgnb3ptbCURJWNjWUPcO3ZnTTdzsurqERrP6nPyv+paC55vJM0LpOlT2ne+Ix+9+CRG1MNLlyZ4GjQ==}
 
   shebang-command@2.0.0:
     resolution: {integrity: sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA==}
@@ -3341,6 +3371,9 @@ packages:
     resolution: {integrity: sha512-COXXwzRd3vslQIfJhXUklgEqlwq35uFUZ7hnN+AUyXx7hUOLIiD5NblL+ETrHnhY4TzWszrbwUMfe2BYWtaPQg==}
     cpu: [arm64]
     os: [linux]
+
+  turbo-stream@2.4.0:
+    resolution: {integrity: sha512-FHncC10WpBd2eOmGwpmQsWLDoK4cqsA/UT/GqNoaKOQnT8uzhtCbg3EoUDMvqpOSAI0S26mr0rkjzbOO6S3v1g==}
 
   turbo-windows-64@2.4.4:
     resolution: {integrity: sha512-PV9rYNouGz4Ff3fd6sIfQy5L7HT9a4fcZoEv8PKRavU9O75G7PoDtm8scpHU10QnK0QQNLbE9qNxOAeRvF0fJg==}
@@ -5726,6 +5759,8 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
+  cookie@1.0.2: {}
+
   copy-anything@3.0.5:
     dependencies:
       is-what: 4.1.16
@@ -6709,6 +6744,21 @@ snapshots:
       react: 18.3.1
       scheduler: 0.23.2
 
+  react-router-dom@7.5.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+      react-router: 7.5.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+
+  react-router@7.5.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      cookie: 1.0.2
+      react: 18.3.1
+      set-cookie-parser: 2.7.1
+      turbo-stream: 2.4.0
+    optionalDependencies:
+      react-dom: 18.3.1(react@18.3.1)
+
   react@18.3.1:
     dependencies:
       loose-envify: 1.4.0
@@ -6877,6 +6927,8 @@ snapshots:
     dependencies:
       randombytes: 2.1.0
 
+  set-cookie-parser@2.7.1: {}
+
   shebang-command@2.0.0:
     dependencies:
       shebang-regex: 3.0.0
@@ -7031,6 +7083,8 @@ snapshots:
 
   turbo-linux-arm64@2.4.4:
     optional: true
+
+  turbo-stream@2.4.0: {}
 
   turbo-windows-64@2.4.4:
     optional: true
