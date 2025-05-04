@@ -49,7 +49,9 @@ function overwriteFetch(): void {
       });
   };
 }
-
+/**
+ * 重写fetch
+ */
 export default function fetch(): void {
   overwriteFetch();
 }

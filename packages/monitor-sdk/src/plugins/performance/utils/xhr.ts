@@ -69,6 +69,9 @@ function overwriteOpenAndSend() {
   };
 }
 
+/**
+ * 重写xhr
+ */
 export default function xhr() {
   overwriteOpenAndSend();
 }

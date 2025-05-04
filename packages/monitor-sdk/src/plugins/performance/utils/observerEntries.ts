@@ -3,6 +3,9 @@ import { TraceSubTypeEnum, TraceTypeEnum } from '../../../common/enum';
 import { lazyReportBatch } from '../../../common/report';
 import { PerformanceResourceType, resourceType } from '../../../types';
 
+/**
+ * 监听所有资源加载情况
+ */
 export default function observerEntries() {
   if (document.readyState === 'complete') {
     observerEvent();

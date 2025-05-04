@@ -1,13 +1,11 @@
+import { TraceSubTypeEnum, TraceTypeEnum } from '../../../common/enum';
+import { lazyReportBatch } from '../../../common/report';
+import { PaintType } from '../../../types';
 /**
  * FCP（First Contentful Paint）：
  * 首次内容绘制时间，这个指标用于记录页面首次绘制文本、图片、非空白 Canvas 或 SVG 的时间。
  *
  */
-
-import { TraceSubTypeEnum, TraceTypeEnum } from '../../../common/enum';
-import { lazyReportBatch } from '../../../common/report';
-import { PaintType } from '../../../types';
-
 export default function observerFCP() {
   const entryHandler = (list: PerformanceObserverEntryList) => {
     for (const entry of list.getEntries()) {

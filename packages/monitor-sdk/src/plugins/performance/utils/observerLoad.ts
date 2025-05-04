@@ -1,7 +1,9 @@
 import { TraceSubTypeEnum, TraceTypeEnum } from '../../../common/enum';
 import { lazyReportBatch } from '../../../common/report';
 import { PaintType } from '../../../types';
-
+/**
+ * 监听页面加载时间
+ */
 export default function observePageLoadTime() {
   // 记录页面加载开始的时间
   const startTimestamp = performance.now();

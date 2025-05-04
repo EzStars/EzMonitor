@@ -1,13 +1,11 @@
+import { TraceSubTypeEnum, TraceTypeEnum } from '../../../common/enum';
+import { lazyReportBatch } from '../../../common/report';
+import { PaintType } from '../../../types';
 /**
  * LCP (Largest Contentful Paint)
  * Largest Contentful Paint（最大内容绘制）衡量的是页面上最大的可见元素（文字块或图像）变为可见所需的时间。
  * 这是用户感知页面加载完成的重要标志，直接影响到用户感受到的速度。LCP应该尽快发生，理想情况下在2.5秒内。
  */
-
-import { TraceSubTypeEnum, TraceTypeEnum } from '../../../common/enum';
-import { lazyReportBatch } from '../../../common/report';
-import { PaintType } from '../../../types';
-
 export default function observerLCP() {
   const entryHandler = (list: PerformanceObserverEntryList) => {
     if (observer) {
