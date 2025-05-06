@@ -17,13 +17,17 @@ import {
 } from '../../types';
 import BehaviorStore from './behaviorStore';
 import { proxyHash, proxyHistory, wrHistory } from './utils';
-
+/**
+ * 行为追踪
+ */
 export class Behavior {
   // 本地暂存数据在 Map 里 （也可以自己用对象来存储）
   public metrics: any;
 
+  // 行为追踪记录
   public breadcrumbs: any;
 
+  // 自定义埋点的信息一般立即上报
   public customHandler!: Function;
 
   // 最大行为追踪记录数
@@ -31,6 +35,8 @@ export class Behavior {
 
   // 允许捕获click事件的DOM标签 eg:button div img canvas
   public clickMountList!: Array<string>;
+
+  // 初始化单例模式
   static instance: any;
 
   constructor() {
@@ -57,7 +63,10 @@ export class Behavior {
     Behavior.instance = this;
   }
 
-  // 初始化用户自定义埋点数据的获取上报
+  /**
+   * 初始化用户自定义埋点数据的获取上报
+   * @param reportData 自定义埋点数据
+   */
   initCustomerHandler = (): Function => {
     const handler = (reportData: customAnalyticsData) => {
       // 自定义埋点的信息一般立即上报

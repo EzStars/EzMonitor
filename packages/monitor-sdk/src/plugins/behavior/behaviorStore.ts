@@ -2,6 +2,13 @@ export interface behaviorRecordsOptions {
   maxBehaviorRecords: number;
 }
 
+/**
+ * 行为记录的格式
+ * @param name 行为名称
+ * @param page 页面名称
+ * @param timestamp 时间戳
+ * @param value 行为参数
+ */
 export interface behaviorStack {
   name: string;
   page: string;
@@ -27,7 +34,7 @@ export default class BehaviorStore {
   // 从底部插入一个元素，且不超过 maxBehaviorRecords 限制数量
   push(value: behaviorStack) {
     if (this.length() === this.maxBehaviorRecords) {
-      this.shift();
+      this.shift(); // 超过最大数量，删除第一个元素
     }
     this.state.push(value);
   }

@@ -120,6 +120,12 @@ export type PerformanceResourceType = commonType & {
   pageUrl: string;
 };
 
+/**
+ * 错误信息
+ * @param errId 错误id
+ * @param state 错误状态
+ * @param timestamp 错误时间
+ */
 export type ErrorCommonType = {
   errId: string;
   state: any[];
@@ -133,6 +139,18 @@ export type ResourceErrorTarget = {
   outerHTML?: string;
 };
 
+/**
+ * 资源错误信息
+ * @param message 错误信息
+ * @param src 资源路径
+ * @param lineNo 错误行号
+ * @param columnNo 错误列号
+ * @param stack 错误堆栈
+ * @param pageUrl 页面路径
+ * @param tagName 标签名
+ * @param html 错误信息
+ * @param path 节点的dom位置
+ */
 export type ResourceErrorType = commonType &
   ErrorCommonType & {
     message: string | Event; // 错误信息
@@ -199,7 +217,10 @@ export type PageInformation = {
   pageLoadType: string;
 };
 
-// 这里参考了 谷歌GA 的自定义埋点上报数据维度结构
+/**
+ * 自定义埋点上报数据维度结构
+ * 这里参考了 谷歌GA 的自定义埋点上报数据维度结构
+ */
 export type customAnalyticsData = commonType & {
   // 埋点key
   eventKey: string;
