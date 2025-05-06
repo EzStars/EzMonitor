@@ -1,12 +1,10 @@
-import { defineConfig } from 'vitepress'
-import { generateSidebar } from './utils/gennerateSidebar'
+import { defineConfig } from 'vitepress';
+import { generateSidebar } from './utils/gennerateSidebar';
 
 export default defineConfig({
-  title: "EzMonitor",
-  description: "一个开源开箱即用的前端监控SDK",
-  head: [
-    ['link', { rel: 'icon', href: '/EzMonitor/logo.png' }],
-  ],
+  title: 'EzMonitor',
+  description: '一个开源开箱即用的前端监控SDK',
+  head: [['link', { rel: 'icon', href: '/EzMonitor/logo.png' }]],
   themeConfig: {
     nav: [
       { text: '💭 首页', link: '/' },
@@ -18,18 +16,18 @@ export default defineConfig({
     logo: '/logo.png',
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright © 2025-present EzStars'
+      copyright: 'Copyright © 2025-present EzStars',
     },
     // 是否启动搜索功能
     search: {
-      provider: 'local'
+      provider: 'local',
     },
     sidebar: generateSidebar(),
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/EzStars' }
-    ]
+      { icon: 'github', link: 'https://github.com/EzStars/EzMonitor' },
+    ],
   },
   base: '/EzMonitor/',
   // 自定义主题颜色
-  appearance: true
-})
+  appearance: true,
+});
