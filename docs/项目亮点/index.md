@@ -1,61 +1,70 @@
-# EzMonitor 监控平台
+# EzMonitor 前端监控平台
 
-EzMonitor 是一个开源的前端监控解决方案，提供开箱即用的 SDK，帮助开发者快速实现应用的性能监控、异常监控和用户行为分析。
+## 🌟 核心价值
 
-## 技术架构
+- 一站式前端监控解决方案，覆盖性能、异常、行为全链路监控
+- 开箱即用的轻量级SDK，接入成本低
+- 面向开发者友好的可视化分析平台
 
-- 🏗️ **分层设计**
-  - 采集层：基于 PerformanceObserver 和 Error 事件捕获原始数据
-  - 处理层：数据过滤、采样和聚合
-  - 上报层：支持批量上报和失败重试机制
+## 🛠 核心功能
 
-## 技术亮点
+### 性能监控
 
-- 🚀 **性能监控** 
-  - 基于最新的 Web 性能 API (PerformanceObserver) 实现精准监控
-  - 支持 FP、FCP、LCP、FID、CLS 等核心 Web Vitals 指标
-  - 自动检测白屏并提供详细诊断信息
+- ⏱️ **关键指标监控**：FP/FCP/LCP/FID/CLS等Web Vitals指标
+- 📊 **资源加载分析**：DNS/TCP/TTFB等详细时序数据
+- 🌐 **API监控**：AJAX/Fetch请求全链路追踪
 
-- ⚡ **持续集成**
-  - 采用 Turbo 实现增量构建，CI 时间减少 60%
-  - 通过 Changeset 实现自动化版本管理和发布流程
-  - 完善的 GitHub Actions 工作流
+### 错误监控
 
-- 📝 **规范管理**
-  - 通过 Husky + Commitlint 强制规范 Git 提交信息
-  - 使用 ESLint + Prettier 统一代码风格
-  - 基于 Conventional Commits 规范生成 changelog
+- 🐞 **JavaScript错误**：运行时错误、语法错误捕获
+- ⚠️ **资源错误**：脚本、图片等加载失败监控
+- 🔄 **Promise异常**：未捕获的Promise rejection
+- ⚪ **智能白屏检测**：基于DOM变化的自动检测算法
 
-- 🏗️ **工程化**
-  - 基于 Rollup 实现 SDK 打包，支持 ESM/CJS 双模块格式
-  - 使用 rsbuild 构建 Web 应用
-  - 支持 Tree Shaking 优化打包体积
-  - 完善的 TypeScript 类型定义
+### 用户行为
 
-## 核心特性
+- 👥 **访问统计**：PV/UV统计与分析
+- 🛣️ **路由追踪**：SPA路由跳转记录
+- 🖱️ **行为记录**：用户点击、滚动等交互行为
 
-- 📊 **全面的性能监控**
-  - 支持 FP、FCP、LCP 等核心性能指标
-  - 基于 PerformanceObserver 实现精准监控
-  - 白屏检测算法自动发现页面异常 
+## 🚀 技术优势
 
-- 🔍 **异常监控**
-  - JavaScript 异常捕获
-  - Promise 异常监控
-  - 资源加载异常监控
-  - 接口请求异常监控
+### 架构设计
 
-- 📈 **数据上报**
-  - 支持延时批量上报 
-  - 灵活的数据上报配置
-  - CDN引入支持
+- 🧩 **模块化插件**：各功能独立可插拔
+- 📦 **Monorepo管理**：基于pnpm workspace的多包管理
+- 🔗 **双模块支持**：ESM/CJS双模式输出
 
-## 开发协作
+### 工程化
 
-- 👥 **团队协作**
-  - 采用 Monorepo 架构管理多包依赖
-  - 使用 pnpm workspace 优化依赖安装速度
-  - 完善的代码审查和 PR 流程
+- ⚡ **高效构建**：Rollup + rsbuild双构建体系
+- 🌳 **Tree Shaking**：按需打包优化体积
+- 🛡️ **类型安全**：完整的TypeScript类型定义
 
+### 性能优化
 
-该项目由 [EzStars团队](https://ezstars.github.io/EzMonitor/about.html) 开发维护，采用 MIT 许可证开源。欢迎社区贡献和使用反馈。
+- 📦 **批量上报**：减少网络请求次数
+- ⏳ **失败重试**：自动重试失败的上报
+- 🔄 **缓存机制**：离线数据本地存储
+
+## ✨ 特色功能
+
+### 操作录屏
+
+- 🎥 **基于rrweb**：完整还原用户操作场景
+- ⏱️ **可配置时长**：灵活设置录屏时间
+- 📁 **分段存储**：优化大数据量处理
+
+### 智能分析
+
+- 📈 **健康评分**：综合性能指标计算应用健康度
+- 🔍 **根因分析**：自动关联异常与性能问题
+- 🛠️ **修复建议**：基于常见问题的解决方案推荐
+
+---
+
+📌 **开源信息**  
+项目由 [EzStars团队](https://ezstars.github.io/EzMonitor/about.html) 维护，采用 MIT 许可证  
+📧 反馈建议：contact@ezmonitor.com  
+🐞 Issue提交：GitHub Issues  
+📚 完整文档：https://ezstars.github.io/EzMonitor/docs
