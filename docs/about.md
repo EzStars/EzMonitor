@@ -33,6 +33,14 @@ const members = [
     links: [
       { icon: 'github', link: 'https://github.com/zihuv' }
     ]
+  },
+    {
+    avatar: 'https://avatars.githubusercontent.com/u/126047472?v=4',
+    name: 'fzr365',
+    title: '🛠️ Backend Developer',
+    links: [
+      { icon: 'github', link: 'https://github.com/fzr365' }
+    ]
   }
   // 可以继续添加更多成员
 ]
