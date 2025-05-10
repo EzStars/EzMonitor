@@ -41,6 +41,14 @@ const members = [
     links: [
       { icon: 'github', link: 'https://github.com/fzr365' }
     ]
+  },
+      {
+    avatar: 'https://avatars.githubusercontent.com/u/128409343?v=4',
+    name: 'wenhuilan',
+    title: '🍃 Frontend Developer',
+    links: [
+      { icon: 'github', link: 'https://github.com/wenhuilan' }
+    ]
   }
   // 可以继续添加更多成员
 ]
