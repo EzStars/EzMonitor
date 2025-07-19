@@ -2,16 +2,7 @@
 
 我们直接切入主题，看看这个API可以监测哪些性能数据（带 `*` 是比较常用的性能指标的条目）
 
-我们也可以通过 `PerformanceObserver.supportedEntryTypes` 来查看浏览器支持哪些性能条目，下面是我谷歌浏览器所输出的 `entryTypes`。
-
-![](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/5aa8b7759f9f479da94498f2545a502e~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgTmkwZHVhbm4=:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMzYzMTAyMzcwNjg2NTg5MiJ9&rk3s=e9ecf3d6&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1743864301&x-orig-sign=kSfEYxrDMQ%2Bfctu6OegNwS9LpPk%3D)
-
-  
-
-
-![](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/11fde7e7bc2b4aecb8057d79de9592bb~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgTmkwZHVhbm4=:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMzYzMTAyMzcwNjg2NTg5MiJ9&rk3s=e9ecf3d6&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1743864301&x-orig-sign=qFhjRKm6STRUY7rOYd7SvxvuyzE%3D)
-
-  
+我们也可以通过 `PerformanceObserver.supportedEntryTypes` 来查看浏览器支持哪些性能条目，下面是我谷歌浏览器所输出的 `entryTypes`。  
 
 
 

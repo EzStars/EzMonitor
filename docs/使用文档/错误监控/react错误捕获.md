@@ -3,7 +3,7 @@ React16开始，官方提供ErrorBoundary错误边界，被该组件包裹的子
 
 这种情况下，可以通过componentDidCatch将捕获的错误上报
 
-```
+```javascript
 import React, { ReactNode } from 'react'
 import { lazyReportBatch } from '../common/report'
 import {
