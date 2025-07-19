@@ -18,6 +18,9 @@ declare global {
   }
 }
 
+/**
+ * 重写 XMLHttpRequest 的 open 和 send 方法，以便在发送请求时记录相关性能数据。
+ */
 function overwriteOpenAndSend() {
   originalProto.open = function newOpen(
     method: string,
@@ -39,6 +42,9 @@ function overwriteOpenAndSend() {
       this.startTime = Date.now();
     });
 
+    /**
+     * 页面加载完成后触发的回调函数
+     */
     const onLoaded = () => {
       this.endTime = Date.now();
       this.duration = (this.endTime ?? 0) - (this.startTime ?? 0);
