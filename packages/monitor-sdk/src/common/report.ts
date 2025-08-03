@@ -58,7 +58,11 @@ const sendServe = (reportData: any) => {
     });
 };
 
-// 批量上报数据
+/**
+ * 延迟批量上报数据
+ *
+ * @param data 需要上报的数据
+ */
 export function lazyReportBatch(data: any) {
   addCache(data);
   const dataCache = getCache();

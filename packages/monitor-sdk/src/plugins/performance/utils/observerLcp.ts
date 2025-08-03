@@ -20,7 +20,7 @@ export default function observerLCP() {
         pageUrl: window.location.href,
         timestamp: new Date().getTime(),
       };
-      // 发送数据 todo;
+      // 发送数据 ;
       lazyReportBatch(reportData);
     }
   };

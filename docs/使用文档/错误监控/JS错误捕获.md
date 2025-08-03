@@ -1,6 +1,6 @@
 ## js错误捕获
 
-```
+```javascript
 window.addEventListener(
     'error',
     (e: ErrorEvent | Event) => {

@@ -2,7 +2,7 @@
 
 你还可以通过CDN获取构建好的文件。将以下代码添加到 HTML 文件的 `<script>` 标签中：
 
-```
+```javascript
 <script src="https://cdn.jsdelivr.net/npm/@ni0duann/monitor-sdk@1.0.1/dist/index.min.js"></script>
 ```
 
@@ -10,7 +10,7 @@
 
 通过直接在 HTML 文件中添加 `<script>` 标签，引入构建好的文件：
 
-```
+```javascript
 <!DOCTYPE html>
 <html>
   <head>

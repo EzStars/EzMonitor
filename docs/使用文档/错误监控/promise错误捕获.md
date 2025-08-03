@@ -1,7 +1,7 @@
 ## promise错误捕获
 promise的错误是通过监听unhandledrejection事件捕获的，但捕获到的错误是无法获取到错误文件还是错误行列数的
 
-```
+```javascript
 window.addEventListener(
     'unhandledrejection',
     (e: PromiseRejectionEvent) => {
