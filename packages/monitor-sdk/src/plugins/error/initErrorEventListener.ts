@@ -5,7 +5,9 @@ import {
   getErrorUid,
   getPathToElement,
   parseStackFrames,
+  parseStackFramesWithSourceMap,
 } from '../../common/utils';
+import { getConfig } from '../../common/config';
 import {
   JsErrorType,
   PromiseErrorType,
@@ -51,7 +53,7 @@ const initResourceError = (e: Event) => {
   lazyReportBatch(reportData);
 };
 
-const initJsError = (e: ErrorEvent) => {
+const initJsError = async (e: ErrorEvent) => {
   const {
     colno: columnNo,
     lineno: lineNo,
@@ -61,7 +63,24 @@ const initJsError = (e: ErrorEvent) => {
     error,
   } = e;
   const subType = TraceSubTypeEnum.js;
-  const stack = parseStackFrames(error);
+  const config = getConfig();
+
+  // 根据配置选择堆栈解析方式
+  let stack;
+  if (config.enableSourceMap) {
+    try {
+      stack = await parseStackFramesWithSourceMap(error);
+    } catch (sourceMapError) {
+      console.warn(
+        'SourceMap parsing failed, fallback to basic parsing:',
+        sourceMapError,
+      );
+      stack = parseStackFrames(error);
+    }
+  } else {
+    stack = parseStackFrames(error);
+  }
+
   const behavior = getBehaviour();
   const state = behavior?.breadcrumbs?.state || [];
   const eventData = getRecordScreenData();
@@ -117,8 +136,25 @@ const initErrorEventListener = () => {
   );
   window.addEventListener(
     'unhandledrejection',
-    (e: PromiseRejectionEvent) => {
-      const stack = parseStackFrames(e.reason);
+    async (e: PromiseRejectionEvent) => {
+      const config = getConfig();
+
+      // 根据配置选择堆栈解析方式
+      let stack;
+      if (config.enableSourceMap) {
+        try {
+          stack = await parseStackFramesWithSourceMap(e.reason);
+        } catch (sourceMapError) {
+          console.warn(
+            'SourceMap parsing failed for Promise error, fallback to basic parsing:',
+            sourceMapError,
+          );
+          stack = parseStackFrames(e.reason);
+        }
+      } else {
+        stack = parseStackFrames(e.reason);
+      }
+
       const behavior = getBehaviour();
       const state = behavior?.breadcrumbs?.state || [];
       const eventData = getRecordScreenData();

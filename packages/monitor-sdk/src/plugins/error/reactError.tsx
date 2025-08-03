@@ -4,7 +4,9 @@ import {
   getErrorUid,
   getReactComponentInfo,
   parseStackFrames,
+  parseStackFramesWithSourceMap,
 } from '../../common/utils';
+import { getConfig } from '../../common/config';
 import { ReactErrorType } from '../../types';
 import { TraceSubTypeEnum, TraceTypeEnum } from '../../common/enum';
 import { getBehaviour, getRecordScreenData } from '../behavior';
@@ -26,13 +28,30 @@ class ErrorBoundary extends React.Component<
 > {
   state: ErrorBoundaryState = { hasError: false };
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  async componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     this.setState({ hasError: true });
     const { componentName, url: src } = getReactComponentInfo(errorInfo);
     const type = TraceTypeEnum.error;
     const subType = TraceSubTypeEnum.react;
     const message = error.message;
-    const stack = parseStackFrames(error);
+    const config = getConfig();
+
+    // 根据配置选择堆栈解析方式
+    let stack;
+    if (config.enableSourceMap) {
+      try {
+        stack = await parseStackFramesWithSourceMap(error);
+      } catch (sourceMapError) {
+        console.warn(
+          'SourceMap parsing failed for React error, fallback to basic parsing:',
+          sourceMapError,
+        );
+        stack = parseStackFrames(error);
+      }
+    } else {
+      stack = parseStackFrames(error);
+    }
+
     const pageUrl = window.location.href;
     const errId = getErrorUid(`${subType}-${message}-${src}`);
     const info = error.message;

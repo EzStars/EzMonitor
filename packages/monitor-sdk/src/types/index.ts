@@ -11,6 +11,11 @@ export type ConfigType = {
   reportAfter?: any; // 上报后的回调函数
   reportSuccess?: any; // 上报成功的回调函数
   reportFail?: any; // 上报失败的回调函数
+  // SourceMap 相关配置
+  enableSourceMap?: boolean; // 是否启用 SourceMap 解析，默认 false
+  sourceMapTimeout?: number; // SourceMap 获取超时时间（毫秒），默认 3000
+  sourceMapEndpoint?: string; // 自定义 SourceMap 服务端点
+  sourceMapCacheSize?: number; // SourceMap 缓存大小，默认 50
   [key: string]: string | boolean | number | string[] | any; // 添加索引签名
 };
 

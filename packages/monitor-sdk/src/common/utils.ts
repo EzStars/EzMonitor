@@ -2,6 +2,7 @@ import pako from 'pako';
 import { Base64 } from 'js-base64';
 import { PageInformation, originInfoType } from '../types';
 import { WebPageLoad } from './enum';
+import { getSourceMapResolver, StackFrame } from './sourceMapResolver';
 
 export function deepClone(obj: any, hash = new WeakMap()) {
   if (obj == null) {
@@ -71,8 +72,16 @@ export function getPathToElement(element: any) {
   return path.join(' > ');
 }
 
-// 解析错误堆栈
-export function parseStackFrames(error: Error) {
+// 解析错误堆栈（基础版本）
+export function parseStackFrames(
+  error: Error,
+): Omit<
+  StackFrame,
+  | 'originalFilename'
+  | 'originalLineno'
+  | 'originalColno'
+  | 'originalFunctionName'
+>[] {
   if (!error) {
     return [];
   }
@@ -113,6 +122,40 @@ export function parseStackFrames(error: Error) {
     }
   }
   return frames.slice(0, STACKTRACE_LIMIT);
+}
+
+/**
+ * 解析错误堆栈（增强版本，支持 SourceMap）
+ * @param error 错误对象
+ * @returns Promise<StackFrame[]> 增强的堆栈帧信息
+ */
+export async function parseStackFramesWithSourceMap(
+  error: Error,
+): Promise<StackFrame[]> {
+  // 首先获取基础堆栈信息
+  const basicFrames = parseStackFrames(error);
+
+  try {
+    // 使用 SourceMap 解析器增强堆栈信息
+    const resolver = getSourceMapResolver();
+    const enhancedFrames = await resolver.resolveStackFrames(basicFrames);
+
+    return enhancedFrames;
+  } catch (resolverError) {
+    console.warn(
+      'SourceMap resolution failed, fallback to basic frames:',
+      resolverError,
+    );
+    return basicFrames as StackFrame[];
+  }
+}
+
+/**
+ * 同步版本的堆栈解析（保持向后兼容）
+ * 注意：这个版本不包含 SourceMap 解析
+ */
+export function parseStackFramesSync(error: Error): StackFrame[] {
+  return parseStackFrames(error) as StackFrame[];
 }
 
 // 获取vue报错组件信息

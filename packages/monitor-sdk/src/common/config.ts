@@ -9,6 +9,10 @@ const config: ConfigType = {
   batchSize: 5, // 批量上报大小
   containerElements: ['html', 'body', '#app', '#root'], // 容器元素
   skeletonElements: [], // 骨架屏元素
+  // SourceMap 默认配置
+  enableSourceMap: false, // 默认关闭 SourceMap 解析
+  sourceMapTimeout: 3000, // 3秒超时
+  sourceMapCacheSize: 50, // 缓存50个 SourceMap 文件
 };
 
 export function setConfig(options: ConfigType = config) {
