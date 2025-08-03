@@ -1,67 +1,244 @@
 # EzMonitor SDK
 
-前端监控 SDK
+🚀 企业级前端监控 SDK，提供全方位的性能监控、错误捕获和用户行为分析解决方案。
 
-## 功能特性
+[![npm version](https://img.shields.io/npm/v/@ezstars/monitor-sdk.svg)](https://www.npmjs.com/package/@ezstars/monitor-sdk)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-- [x] 监控 JavaScript 异常
-- [x] 监控 Promise 异常
-- [x] 监控 resource 异常
-- [x] 监控跨域异常
-- [x] 监控白屏异常
-- [x] 监控接口异常
-- [x] 监控页面性能
-- [x] 监控网站信息
-- [x] 监控用户行为
+## ✨ 功能特性
 
-## 安装
+### 🎯 错误监控
+- **JavaScript 异常捕获**: 自动捕获运行时 JS 错误和堆栈信息
+- **Promise 异常监控**: 捕获未处理的 Promise rejection
+- **资源加载错误**: 监控图片、脚本、样式等资源加载失败
+- **跨域脚本错误**: 处理第三方脚本错误
+- **框架集成**: 支持 React ErrorBoundary 和 Vue errorHandler
 
-<font color="red"> 暂时还没发布，下面这行命令可以安装 </font>
+### 📊 性能监控  
+- **核心性能指标**: FP、FCP、LCP 等关键指标
+- **资源加载性能**: DNS、TCP、TTFB、传输时间等详细指标
+- **页面加载性能**: 完整的页面加载时序分析
+- **接口性能监控**: HTTP 请求耗时和状态监控
+
+### 👤 用户行为分析
+- **点击行为追踪**: 记录用户点击操作和路径
+- **页面访问分析**: PV/UV 统计
+- **路由跳转监控**: SPA 路由变化追踪  
+- **录屏回放**: 基于 rrweb 的错误现场重现
+- **自定义埋点**: 灵活的事件追踪能力
+
+### 🛡️ 异常检测
+- **白屏检测**: 智能判断页面白屏异常
+- **卡顿监控**: 页面性能异常检测
+- **崩溃监控**: 页面崩溃异常捕获
+
+### 📤 数据上报
+- **批量上报**: 减少网络请求，提升性能
+- **失败重试**: 确保数据可靠上报
+- **数据压缩**: 支持数据压缩减少传输开销
+- **上报策略**: 支持立即上报和延迟上报
+
+## 📦 安装
 
 ```bash
-npm i @ezstars/ezmonitor
+# npm
+npm install @ezstars/monitor-sdk
+
+# pnpm  
+pnpm add @ezstars/monitor-sdk
+
+# yarn
+yarn add @ezstars/monitor-sdk
 ```
 
-## 环境测试
+> 注意：当前版本还在开发完善中，暂未正式发布到 npm
 
-```bash
-pnpm run build
-node test/test.js
-```
+## 🚀 快速开始
 
-## 使用方法
+### 基础使用
 
 ```typescript
-import Monitor from 'monitor-sdk';
+import EzMonitor from '@ezstars/monitor-sdk';
 
-const monitor = new Monitor({
-  url: 'http://127.0.0.1:3000/api/data', // 上报地址
-  projectName: 'EzMonitor', // 项目名称
-  appId: 'your-app-id', // 项目 ID
-  userId: 'your-user-id', // 用户 ID
-  isAjax: true, // 是否开启 AJAX 上报
-  batchSize: 10, // 批量上报大小
+// 初始化配置
+EzMonitor.init({
+  url: 'https://your-api.com/monitor',  // 上报地址
+  projectName: 'your-project',          // 项目名称
+  appId: 'your-app-id',                 // 应用 ID
+  userId: 'user-123',                   // 用户 ID
+  batchSize: 5,                         // 批量上报大小
+  isAjax: false,                        // 是否启用 Ajax 监控
   containerElements: ['html', 'body', '#app'], // 容器元素
-  skeletonElements: ['.skeleton'], // 骨架屏元素
+  skeletonElements: []                  // 骨架屏元素
+});
+
+// 启动各个监控模块
+EzMonitor.Performance();  // 性能监控
+EzMonitor.Error.initErrorEventListener(); // 错误监控  
+EzMonitor.Behavior();     // 行为监控
+EzMonitor.Exception();    // 异常监控
+```
+
+### React 集成
+
+```tsx
+import EzMonitor from '@ezstars/monitor-sdk';
+
+// 使用 React ErrorBoundary
+function App() {
+  return (
+    <EzMonitor.Error.ErrorBoundary
+      fallback={<div>Something went wrong.</div>}
+    >
+      <YourComponent />
+    </EzMonitor.Error.ErrorBoundary>
+  );
+}
+```
+
+### Vue 集成
+
+```javascript
+import EzMonitor from '@ezstars/monitor-sdk';
+
+// Vue 2
+Vue.config.errorHandler = EzMonitor.Error.initVueError;
+
+// Vue 3  
+const app = createApp(App);
+app.config.errorHandler = EzMonitor.Error.initVueError;
+```
+
+### 自定义埋点
+
+```javascript
+import EzMonitor, { getBehaviour } from '@ezstars/monitor-sdk';
+
+// 获取行为实例
+const behavior = getBehaviour();
+
+// 自定义事件上报
+behavior.customHandler({
+  eventKey: 'button_click',
+  eventAction: 'click', 
+  eventValue: 'homepage_banner'
 });
 ```
 
-## 项目架构
+## 🏗️ 项目架构
 
-EzMonitor 采用 **Monorepo** 架构，包含以下模块：
+EzMonitor 采用 **Monorepo** 架构和模块化设计：
 
-- **monitor-sdk**: 核心 SDK，提供性能监控、异常捕获等功能。
-- **monitor-web**: Web 端监控插件。
-- **monitor-node**: Node.js 端监控插件。
+```
+EzMonitor/
+├── packages/
+│   ├── monitor-sdk/     # 核心 SDK 包
+│   │   ├── src/
+│   │   │   ├── plugins/
+│   │   │   │   ├── error/      # 错误监控模块
+│   │   │   │   ├── performance/ # 性能监控模块  
+│   │   │   │   ├── behavior/    # 行为分析模块
+│   │   │   │   └── exception/   # 异常检测模块
+│   │   │   ├── common/          # 公共工具
+│   │   │   └── types/           # TypeScript 类型定义
+│   │   └── package.json
+│   └── monitor-web/     # Web 管理后台
+├── docs/                # 项目文档
+└── package.json
+```
 
-## 贡献指南
+### 核心模块
 
-欢迎社区贡献代码！请参考 [贡献文档](docs/贡献文档/index.md) 了解如何提交 PR。
+- **采集层**: 各种监控插件负责数据采集
+- **处理层**: 数据标准化、过滤和采样  
+- **存储层**: 本地缓存和队列管理
+- **上报层**: 批量上报和失败重试
 
-## 技术支持
+## ⚙️ 配置选项
 
-如需技术支持，请访问 [EzMonitor 官方文档](https://ezstars.github.io/EzMonitor/) 或加入我们的开发者社区。
+```typescript
+interface ConfigType {
+  url: string;                    // 上报接口地址
+  projectName: string;            // 项目名称
+  appId: string;                  // 应用唯一标识
+  userId: string;                 // 用户唯一标识
+  batchSize: number;              // 批量上报条数，默认 5
+  isAjax: boolean;                // 是否监控 Ajax 请求，默认 false
+  containerElements: string[];     // 页面容器元素选择器
+  skeletonElements: string[];      // 骨架屏元素选择器
+  reportBefore?: Function;        // 上报前钩子函数
+  reportAfter?: Function;         // 上报后钩子函数  
+  reportSuccess?: Function;       // 上报成功钩子函数
+  reportFail?: Function;          // 上报失败钩子函数
+}
+```
 
-## 开源协议
+## 🛠️ 开发
 
-EzMonitor 基于 [MIT 许可证](LICENSE) 开源，欢迎自由使用和修改.
+### 环境要求
+
+- Node.js >= 16
+- pnpm >= 8
+
+### 本地开发  
+
+```bash
+# 安装依赖
+pnpm install
+
+# 构建所有包
+pnpm run build:all
+
+# 启动 Web 端开发
+pnpm run dev:monitor-web
+
+# 运行文档网站
+pnpm run docs:dev
+```
+
+### 构建
+
+```bash
+# 构建 SDK
+pnpm run build:all
+
+# 构建文档
+pnpm run docs:build
+```
+
+## 📚 文档
+
+完整的使用文档请访问：
+
+- [快速开始](docs/使用文档/快速开始.md)
+- [错误监控](docs/使用文档/错误监控/)
+- [性能监控](docs/使用文档/性能监控/)  
+- [行为监控](docs/使用文档/行为监控/)
+- [异常监控](docs/使用文档/异常监控/)
+- [数据上报](docs/使用文档/数据上报/)
+
+## 🤝 贡献
+
+欢迎社区贡献代码！
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'Add some amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)  
+5. 创建 Pull Request
+
+详细贡献指南请参考 [贡献文档](docs/贡献文档/index.md)
+
+## 📄 License
+
+本项目基于 [MIT](LICENSE) 协议开源
+
+## 📞 技术支持
+
+- 📧 邮箱: support@ezstars.com
+- 🐛 问题反馈: [GitHub Issues](https://github.com/EzStars/EzMonitor/issues)
+- 📖 文档网站: [https://ezstars.github.io/EzMonitor/](https://ezstars.github.io/EzMonitor/)
+
+---
+
+⭐ 如果这个项目对你有帮助，请给我们一个星标！

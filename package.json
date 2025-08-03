@@ -6,6 +6,8 @@
   "scripts": {
     "commit": "git add . && git-cz",
     "build:all": "turbo run build",
+    "dev:monitor-node": "pnpm run start --filter monitor-node",
+    "dev:monitor-web": "pnpm run dev --filter monitor-web",
     "prepare": "husky",
     "lint": "eslint --ext .js,.jsx,.ts,.tsx .",
     "docs:dev": "vitepress dev docs",
