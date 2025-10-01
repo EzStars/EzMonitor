@@ -1,5 +1,5 @@
 {
-  "name": "monitor-web",
+  "name": "@ezstars/monitor-web",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -9,10 +9,14 @@
     "preview": "rsbuild preview"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.1.0",
+    "antd": "^5.27.4",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.9.3"
   },
   "devDependencies": {
+    "@ezstars/monitor-sdk": "workspace:*",
     "@rsbuild/core": "^1.5.6",
     "@rsbuild/plugin-react": "^1.4.0",
     "@types/react": "^18.3.18",

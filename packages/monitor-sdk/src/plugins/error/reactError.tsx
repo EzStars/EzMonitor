@@ -18,9 +18,8 @@ interface ErrorBoundaryProps {
 
 interface ErrorBoundaryState {
   hasError: boolean;
+  error?: ReactErrorType; // 将错误信息存储在组件状态中
 }
-
-let err = {};
 
 class ErrorBoundary extends React.Component<
   ErrorBoundaryProps,
@@ -72,15 +71,15 @@ class ErrorBoundary extends React.Component<
       timestamp: new Date().getTime(),
       eventData,
     };
-    err = reportData;
+    this.setState({ error: reportData });
     lazyReportBatch(reportData);
   }
 
   render() {
     const { Fallback } = this.props;
-    if (this.state.hasError) {
+    if (this.state.hasError && this.state.error) {
       // @ts-ignore
-      return <Fallback error={err} />;
+      return <Fallback error={this.state.error} />;
     }
 
     return this.props.children;
