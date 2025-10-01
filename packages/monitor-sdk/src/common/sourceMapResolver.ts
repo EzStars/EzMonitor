@@ -1,6 +1,14 @@
 import { SourceMapConsumer } from 'source-map-js';
 import { getConfig } from './config';
 
+// 补充类型声明（source-map-js d.ts 里可能缺少 destroy）
+declare module 'source-map-js' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface SourceMapConsumer {
+    destroy?(): void;
+  }
+}
+
 export interface OriginalPosition {
   source: string | null;
   line: number | null;
@@ -160,7 +168,7 @@ export class SourceMapResolver {
         source: position.source,
         line: position.line,
         column: position.column,
-        name: position.name,
+        name: position.name ?? null,
       };
     } catch (error) {
       console.warn(`Failed to resolve original position:`, error);
@@ -225,7 +233,14 @@ export class SourceMapResolver {
    */
   clearCache(): void {
     this.cache.forEach(consumer => {
-      consumer.destroy();
+      try {
+        const destroyFn = (consumer as any).destroy;
+        if (typeof destroyFn === 'function') {
+          destroyFn.call(consumer);
+        }
+      } catch {
+        // 忽略销毁失败
+      }
     });
     this.cache.clear();
   }

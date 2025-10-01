@@ -97,7 +97,7 @@ export function parseStackFrames(
   function parseStackLine(line: string) {
     const lineMatch = line.match(FULL_MATCH);
     if (!lineMatch) {
-      return {};
+      return null;
     }
     const filename = lineMatch[2];
     const functionName = lineMatch[1] || '';

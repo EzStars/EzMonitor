@@ -1,6 +1,6 @@
 # EzMonitor SDK
 
-🚀 企业级前端监控 SDK，提供全方位的性能监控、错误捕获和用户行为分析解决方案。
+🚀 轻量级前端监控 SDK，提供全方位的性能监控、错误捕获和用户行为分析解决方案。
 
 [![npm version](https://img.shields.io/npm/v/@ezstars/monitor-sdk.svg)](https://www.npmjs.com/package/@ezstars/monitor-sdk)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
