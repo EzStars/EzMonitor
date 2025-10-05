@@ -1,64 +1,52 @@
 import Koa from 'koa';
 import cors from '@koa/cors';
-import logger from 'koa-logger';
-import { koaBody } from 'koa-body';
-import router from './routes';
+import bodyParser from 'koa-bodyparser';
+import performanceRoutes from './routes/performance';
 
 const app = new Koa();
-
-// 配置
 const PORT = process.env.PORT || 3001;
 
 // 中间件
-app.use(logger());
-app.use(
-  cors({
-    origin: '*', // 生产环境建议配置具体的域名
-    credentials: true,
-  }),
-);
-app.use(
-  koaBody({
-    jsonLimit: '10mb',
-    formLimit: '10mb',
-    textLimit: '10mb',
-  }),
-);
+app.use(cors());
+app.use(bodyParser());
+
+// 日志中间件
+app.use(async (ctx, next) => {
+  const start = Date.now();
+  await next();
+  const ms = Date.now() - start;
+  console.log(`${ctx.method} ${ctx.url} - ${ms}ms`);
+});
 
 // 路由
-app.use(router.routes());
-app.use(router.allowedMethods());
+app.use(performanceRoutes.routes());
+app.use(performanceRoutes.allowedMethods());
 
-// 错误处理
-app.on('error', (err, ctx) => {
-  console.error('服务器错误:', err);
+// 健康检查
+app.use(async ctx => {
+  if (ctx.path === '/health') {
+    ctx.body = { status: 'ok', timestamp: Date.now() };
+  }
+});
+
+// 启动服务器
+app.listen(PORT, () => {
+  console.log('\n🚀 EzMonitor 性能监控服务启动成功!\n');
+  console.log(`📊 HTTP 服务: http://127.0.0.1:${PORT}`);
+  console.log(
+    `� SSE 连接: http://127.0.0.1:${PORT}/api/performance/stream?appId=123456`,
+  );
+  console.log(`� 数据上报: http://127.0.0.1:${PORT}/api/performance/report`);
+  console.log(`💚 健康检查: http://127.0.0.1:${PORT}/health\n`);
 });
 
 // 优雅关闭
-const server = app.listen(PORT, () => {
-  console.log(`🚀 EzMonitor Server 运行在 http://127.0.0.1:${PORT}`);
-  console.log(
-    `📊 监控数据接收地址: http://127.0.0.1:${PORT}/api/monitor/report\n` +
-      `📖 API文档地址: http://127.0.0.1:${PORT}/api-docs`,
-  );
+process.on('SIGTERM', () => {
+  console.log('\n正在关闭服务器...');
+  process.exit(0);
 });
 
-// 处理进程退出
-const gracefulShutdown = () => {
+process.on('SIGINT', () => {
   console.log('\n正在关闭服务器...');
-  server.close(() => {
-    console.log('✅ 服务器已关闭');
-    process.exit(0);
-  });
-
-  // 如果10秒后还没关闭，强制退出
-  setTimeout(() => {
-    console.error('⚠️  强制关闭服务器');
-    process.exit(1);
-  }, 10000);
-};
-
-process.on('SIGTERM', gracefulShutdown);
-process.on('SIGINT', gracefulShutdown);
-
-export default app;
+  process.exit(0);
+});
