@@ -1,9 +1,51 @@
 import Router from '@koa/router';
 import monitorRouter from './monitor';
+import { koaSwagger } from 'koa2-swagger-ui';
+import swaggerJsdoc from 'swagger-jsdoc';
 
 const router = new Router();
 
-// 健康检查
+// Swagger 配置
+const swaggerOptions = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'EzMonitor API',
+      version: '1.0.0',
+      description: 'EzMonitor 监控系统 API 文档',
+    },
+    servers: [
+      {
+        url: 'http://localhost:3000',
+      },
+    ],
+  },
+  apis: ['./src/routes/**/*.ts'], // 路由文件路径
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions) as Record<string, unknown>;
+
+// Swagger UI 路由
+router.get(
+  '/api-docs',
+  koaSwagger({
+    routePrefix: false,
+    swaggerOptions: {
+      spec: swaggerSpec,
+    },
+  }),
+);
+
+/**
+ * @openapi
+ * /health:
+ *   get:
+ *     summary: 健康检查
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: 服务正常
+ */
 router.get('/health', ctx => {
   ctx.body = {
     status: 'ok',
