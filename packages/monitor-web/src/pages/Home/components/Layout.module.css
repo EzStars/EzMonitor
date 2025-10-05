@@ -1,0 +1,159 @@
+.layout {
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  height: 64px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  margin-right: 32px;
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.logoIcon {
+  margin-right: 12px;
+  font-size: 28px;
+}
+
+.headerMenu {
+  flex: 1;
+  min-width: 0;
+  border-bottom: none;
+}
+
+.sider {
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.1);
+  z-index: 999;
+  position: fixed;
+  left: 0;
+  top: 64px;
+  bottom: 0;
+  overflow-y: auto;
+}
+
+.siderMenu {
+  height: 100%;
+  border-inline-end: none;
+}
+
+.content {
+  padding: 24px;
+  margin: 0;
+  min-height: calc(100vh - 180px);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s;
+}
+
+.breadcrumb {
+  margin: 16px 0;
+  padding: 0 8px;
+}
+
+.mainContent {
+  margin-left: 220px;
+  margin-top: 64px;
+  padding: 0 24px 24px;
+  background: #f5f5f5;
+  min-height: calc(100vh - 64px);
+  overflow-y: auto;
+}
+
+.mainContent.collapsed {
+  margin-left: 80px;
+}
+
+.contentWrapper {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .header {
+    padding: 0 16px;
+  }
+  
+  .logo {
+    margin-right: 16px;
+    font-size: 20px;
+  }
+  
+  .logoIcon {
+    font-size: 24px;
+  }
+  
+  .mainContent {
+    margin-left: 0;
+    padding: 0 16px 16px;
+  }
+  
+  .mainContent.collapsed {
+    margin-left: 0;
+  }
+  
+  .sider {
+    position: fixed;
+    z-index: 1001;
+  }
+}
+
+/* 侧边栏过渡效果 */
+.sider {
+  transition: all 0.2s;
+}
+
+/* 主内容区过渡效果 */
+.mainContent {
+  transition: margin-left 0.2s;
+}
+
+/* 菜单项hover效果 */
+.siderMenu .ant-menu-item:hover,
+.siderMenu .ant-menu-submenu-title:hover {
+  background-color: #e6f7ff;
+  color: #1890ff;
+}
+
+.siderMenu .ant-menu-item-selected {
+  background-color: #e6f7ff;
+  color: #1890ff;
+  font-weight: 500;
+}
+
+/* 自定义滚动条 */
+.content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}

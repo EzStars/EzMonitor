@@ -1,7 +1,7 @@
 import { ConfigType } from '../types';
 
 const config: ConfigType = {
-  url: 'http://127.0.0.1:3000/api/data', // 上报地址
+  url: 'http://127.0.0.1:3000/monitor', // 上报地址
   projectName: 'monitor', // 项目名称
   appId: '123456', // 项目id
   userId: '123456', // 用户id

@@ -1,87 +1,166 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
-  LaptopOutlined,
-  NotificationOutlined,
+  HomeOutlined,
+  BugOutlined,
+  DashboardOutlined,
   UserOutlined,
+  MonitorOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
-import { Breadcrumb, Layout, Menu, theme } from 'antd';
+import { Breadcrumb, Layout, Menu, theme, Avatar, Dropdown, Space } from 'antd';
+import styles from './Layout.module.css';
 
 const { Header, Content, Sider } = Layout;
 
-const items1: MenuProps['items'] = ['1', '2', '3'].map(key => ({
-  key,
-  label: `nav ${key}`,
-}));
+// 菜单配置
+const menuItems: MenuProps['items'] = [
+  {
+    key: '/',
+    icon: <HomeOutlined />,
+    label: '首页',
+  },
+  {
+    key: '/error',
+    icon: <BugOutlined />,
+    label: '错误监控',
+  },
+  {
+    key: '/performance',
+    icon: <DashboardOutlined />,
+    label: '性能监控',
+  },
+  {
+    key: '/behavior',
+    icon: <UserOutlined />,
+    label: '行为监控',
+  },
+];
 
-const items2: MenuProps['items'] = [
-  UserOutlined,
-  LaptopOutlined,
-  NotificationOutlined,
-].map((icon, index) => {
-  const key = String(index + 1);
+// 用户下拉菜单
+const userMenuItems: MenuProps['items'] = [
+  {
+    key: 'profile',
+    label: '个人设置',
+  },
+  {
+    key: 'logout',
+    label: '退出登录',
+  },
+];
 
-  return {
-    key: `sub${key}`,
-    icon: React.createElement(icon),
-    label: `subnav ${key}`,
-    children: Array.from({ length: 4 }).map((_, j) => {
-      const subKey = index * 4 + j + 1;
-      return {
-        key: subKey,
-        label: `option${subKey}`,
-      };
-    }),
-  };
-});
+// 面包屑映射
+const breadcrumbMap: Record<string, string> = {
+  '/': '首页',
+  '/error': '错误监控',
+  '/performance': '性能监控',
+  '/behavior': '行为监控',
+};
 
-const App: React.FC = () => {
+const EzMonitorLayout: React.FC = () => {
   const {
-    token: { colorBgContainer, borderRadiusLG },
+    token: { colorBgContainer },
   } = theme.useToken();
 
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [collapsed, setCollapsed] = useState(false);
+
+  // 处理菜单点击
+  const handleMenuClick = ({ key }: { key: string }) => {
+    navigate(key);
+  };
+
+  // 处理用户菜单点击
+  const handleUserMenuClick = ({ key }: { key: string }) => {
+    if (key === 'logout') {
+      // 处理退出登录逻辑
+      console.log('退出登录');
+    } else if (key === 'profile') {
+      // 处理个人设置逻辑
+      console.log('个人设置');
+    }
+  };
+
+  // 生成面包屑项
+  const getBreadcrumbItems = () => {
+    const breadcrumbItems = [
+      {
+        title: (
+          <span>
+            <HomeOutlined style={{ marginRight: 4 }} />
+            首页
+          </span>
+        ),
+      },
+    ];
+
+    if (location.pathname !== '/') {
+      breadcrumbItems.push({
+        title: <span>{breadcrumbMap[location.pathname] || '未知页面'}</span>,
+      });
+    }
+
+    return breadcrumbItems;
+  };
+
   return (
-    <Layout>
-      <Header style={{ display: 'flex', alignItems: 'center' }}>
-        <div className="demo-logo" />
-        <Menu
-          theme="dark"
-          mode="horizontal"
-          defaultSelectedKeys={['2']}
-          items={items1}
-          style={{ flex: 1, minWidth: 0 }}
-        />
+    <Layout className={styles.layout}>
+      <Header className={styles.header}>
+        <div className={styles.logo}>
+          <MonitorOutlined className={styles.logoIcon} />
+          EzMonitor
+        </div>
+        <div style={{ flex: 1 }} />
+        <Space size="middle">
+          <Dropdown
+            menu={{
+              items: userMenuItems,
+              onClick: handleUserMenuClick,
+            }}
+            placement="bottomRight"
+          >
+            <Space style={{ cursor: 'pointer', color: 'white' }}>
+              <Avatar size="small" icon={<UserOutlined />} />
+              <span>管理员</span>
+            </Space>
+          </Dropdown>
+        </Space>
       </Header>
       <Layout>
-        <Sider width={200} style={{ background: colorBgContainer }}>
+        <Sider
+          width={220}
+          collapsedWidth={80}
+          style={{ background: colorBgContainer }}
+          className={styles.sider}
+          collapsible
+          collapsed={collapsed}
+          onCollapse={setCollapsed}
+        >
           <Menu
             mode="inline"
-            defaultSelectedKeys={['1']}
-            defaultOpenKeys={['sub1']}
-            style={{ height: '100%', borderInlineEnd: 0 }}
-            items={items2}
+            selectedKeys={[location.pathname]}
+            className={styles.siderMenu}
+            items={menuItems}
+            onClick={handleMenuClick}
           />
         </Sider>
-        <Layout style={{ padding: '0 24px 24px' }}>
+        <Layout
+          className={`${styles.mainContent} ${collapsed ? styles.collapsed : ''}`}
+        >
           <Breadcrumb
-            items={[{ title: 'Home' }, { title: 'List' }, { title: 'App' }]}
-            style={{ margin: '16px 0' }}
+            items={getBreadcrumbItems()}
+            className={styles.breadcrumb}
           />
-          <Content
-            style={{
-              padding: 24,
-              margin: 0,
-              minHeight: 280,
-              background: colorBgContainer,
-              borderRadius: borderRadiusLG,
-            }}
-          >
-            Content
-          </Content>
+          <div className={styles.contentWrapper}>
+            <Content className={styles.content}>
+              <Outlet />
+            </Content>
+          </div>
         </Layout>
       </Layout>
     </Layout>
   );
 };
 
-export default App;
+export default EzMonitorLayout;
