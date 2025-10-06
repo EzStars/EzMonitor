@@ -20,20 +20,42 @@ function onload(callback: any) {
 
 // 选中dom的名称
 function getSelector(element: Element) {
+  if (!element) return '';
+
   if (element.id) {
     return '#' + element.id;
   } else if (element.className) {
-    // div home => div.home
-    return (
-      '.' +
-      element.className
-        .split(' ')
-        .filter(item => !!item)
-        .join('.')
-    );
-  } else {
-    return element.nodeName.toLowerCase();
+    // 处理 className 的不同类型
+    let className = '';
+
+    // 优先使用 classList API（最安全）
+    if (element.classList && element.classList.length > 0) {
+      return '.' + Array.from(element.classList).join('.');
+    }
+
+    // 处理字符串类型的 className（普通 HTML 元素）
+    if (typeof element.className === 'string') {
+      className = element.className;
+    }
+    // 处理 SVGAnimatedString 类型（SVG 元素）
+    else if (
+      element.className &&
+      typeof element.className === 'object' &&
+      'baseVal' in element.className
+    ) {
+      className = (element.className as any).baseVal;
+    }
+
+    // 分割 className 并过滤空值
+    if (className && typeof className === 'string') {
+      const classes = className.split(/\s+/).filter(item => !!item);
+      if (classes.length > 0) {
+        return '.' + classes.join('.');
+      }
+    }
   }
+
+  return element.nodeName.toLowerCase();
 }
 // 监听页面白屏
 function whiteScreen() {
@@ -42,12 +64,27 @@ function whiteScreen() {
 
   // 是否为容器节点
   function isContainer(element: Element) {
+    if (!element || !element.tagName) {
+      return;
+    }
+
+    // 跳过特殊元素（SVG、script、style 等）
+    const tagName = element.tagName.toLowerCase();
+    if (tagName === 'svg' || tagName === 'script' || tagName === 'style') {
+      return;
+    }
+
     const selector = getSelector(element);
     if (
       containerElements.indexOf(selector) != -1 ||
-      skeletonElements.some(skeletonSelector =>
-        element.matches(skeletonSelector),
-      )
+      skeletonElements.some(skeletonSelector => {
+        try {
+          return element.matches(skeletonSelector);
+        } catch (error) {
+          console.warn('matches 选择器失败:', skeletonSelector, error);
+          return false;
+        }
+      })
     ) {
       emptyPoints++;
     }
