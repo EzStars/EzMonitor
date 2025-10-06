@@ -37,6 +37,8 @@ export const reportPerformance = async (ctx: Context) => {
         ...item,
       }));
 
+    console.log('📊 接收到性能数据:', performanceDataList);
+
     if (performanceDataList.length === 0) {
       ctx.body = {
         code: 400,

@@ -16,11 +16,11 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: 'http://localhost:3000',
+        url: 'http://localhost:3001',
       },
     ],
   },
-  apis: ['./src/routes/**/*.ts'], // 路由文件路径
+  apis: ['./src/routes/**/*.ts'],
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions) as Record<string, unknown>;
@@ -54,7 +54,10 @@ router.get('/health', ctx => {
   };
 });
 
-// 挂载监控路由
+// ✅ 挂载监控路由 - 直接挂载到 /monitor
+router.use('/monitor', monitorRouter.routes(), monitorRouter.allowedMethods());
+
+// ✅ 同时支持 /api/monitor (可选)
 router.use(
   '/api/monitor',
   monitorRouter.routes(),
