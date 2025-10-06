@@ -6,6 +6,7 @@ import {
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { Breadcrumb, Layout, Menu, theme } from 'antd';
+import styles from './Layout.module.scss';
 
 const { Header, Content, Sider } = Layout;
 
@@ -41,15 +42,15 @@ const App: React.FC = () => {
   } = theme.useToken();
 
   return (
-    <Layout>
-      <Header style={{ display: 'flex', alignItems: 'center' }}>
+    <Layout className={styles.container}>
+      <Header className={styles.header}>
         <div className="demo-logo" />
         <Menu
           theme="dark"
           mode="horizontal"
           defaultSelectedKeys={['2']}
           items={items1}
-          style={{ flex: 1, minWidth: 0 }}
+          className={styles.headerMenu}
         />
       </Header>
       <Layout>
@@ -58,23 +59,21 @@ const App: React.FC = () => {
             mode="inline"
             defaultSelectedKeys={['1']}
             defaultOpenKeys={['sub1']}
-            style={{ height: '100%', borderInlineEnd: 0 }}
+            className={styles.siderMenu}
             items={items2}
           />
         </Sider>
-        <Layout style={{ padding: '0 24px 24px' }}>
+        <Layout className={styles.contentWrapper}>
           <Breadcrumb
             items={[{ title: 'Home' }, { title: 'List' }, { title: 'App' }]}
-            style={{ margin: '16px 0' }}
+            className={styles.breadcrumb}
           />
           <Content
             style={{
-              padding: 24,
-              margin: 0,
-              minHeight: 280,
               background: colorBgContainer,
               borderRadius: borderRadiusLG,
             }}
+            className={styles.content}
           >
             Content
           </Content>

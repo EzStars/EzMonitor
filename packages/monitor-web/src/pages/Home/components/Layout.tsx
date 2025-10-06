@@ -21,14 +21,14 @@ const menuItems: MenuProps['items'] = [
     label: '首页',
   },
   {
-    key: '/error',
-    icon: <BugOutlined />,
-    label: '错误监控',
-  },
-  {
     key: '/performance',
     icon: <DashboardOutlined />,
     label: '性能监控',
+  },
+  {
+    key: '/error',
+    icon: <BugOutlined />,
+    label: '错误监控',
   },
   {
     key: '/behavior',

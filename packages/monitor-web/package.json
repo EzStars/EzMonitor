@@ -19,8 +19,10 @@
     "@ezstars/monitor-sdk": "workspace:*",
     "@rsbuild/core": "^1.5.6",
     "@rsbuild/plugin-react": "^1.4.0",
+    "@rsbuild/plugin-sass": "^1.4.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "sass": "^1.93.2",
     "typescript": "^5.9.2"
   }
 }

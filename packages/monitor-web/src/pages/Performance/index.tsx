@@ -26,6 +26,7 @@ import type {
   PerformanceData,
   PerformanceStats,
 } from '../../types/performance';
+import styles from './index.module.scss';
 
 const { Title } = Typography;
 
@@ -35,39 +36,82 @@ const PerformancePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [connected, setConnected] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
-  const appId = '123456'; // 这里使用默认appId，实际应该从配置或上下文获取
+  const appId = '123456';
+
+  // 📊 监听 performanceData 变化
+  useEffect(() => {
+    console.log('📊 performanceData 已更新:', performanceData);
+    console.log('📈 当前数据条数:', performanceData.length);
+  }, [performanceData]);
 
   // 获取初始数据
   const fetchInitialData = async () => {
     setLoading(true);
     try {
-      // 获取性能数据列表
       const listResponse = await getPerformanceList({
         appId,
         limit: 50,
       });
-      setPerformanceData(listResponse.list || []);
 
-      // 获取统计数据
+      const rawData = listResponse.list || [];
+      console.log('✅ API 返回原始数据:', rawData);
+
+      // 🔧 展平 resource 类型的数据
+      const flattenedData = flattenPerformanceData(rawData);
+      console.log('✅ 展平后的数据:', flattenedData);
+      console.log('📊 数据条数:', flattenedData.length);
+
+      setPerformanceData(flattenedData);
+
       const statsResponse = await getPerformanceStats({ appId });
+      console.log('📈 统计数据:', statsResponse);
       setStats(statsResponse);
-
-      message.success('数据加载成功');
     } catch (error) {
-      console.error('获取性能数据失败:', error);
+      console.error('❌ 获取性能数据失败:', error);
       message.error('数据加载失败');
     } finally {
       setLoading(false);
     }
   };
 
+  // 🔧 展平性能数据，处理 resource 类型的嵌套结构
+  const flattenPerformanceData = (data: any[]): PerformanceData[] => {
+    const flattened: PerformanceData[] = [];
+
+    data.forEach(item => {
+      if (item.subType === 'resource' && item.resourceList) {
+        // resource 类型：展开 resourceList
+        item.resourceList.forEach((resource: any) => {
+          flattened.push({
+            ...resource,
+            id:
+              resource.id ||
+              `${item.id}_${resource.name}_${resource.timestamp}`,
+            appId: item.appId,
+            userId: item.userId,
+            userAgent: item.userAgent,
+            ip: item.ip,
+          });
+        });
+      } else {
+        // 其他类型：直接添加
+        flattened.push(item);
+      }
+    });
+
+    return flattened;
+  };
+
   // 建立SSE连接
   const connectSSE = () => {
     if (eventSourceRef.current) {
+      console.log('⚠️  SSE 连接已存在');
       return;
     }
 
     const url = `${API_BASE_URL}/api/monitor/stream?appId=${appId}`;
+    console.log('🔌 正在连接 SSE:', url);
+
     const eventSource = new EventSource(url);
 
     eventSource.onopen = () => {
@@ -88,7 +132,6 @@ const PerformancePage: React.FC = () => {
     eventSource.addEventListener('connected', event => {
       const data = JSON.parse(event.data);
       console.log('🎉 SSE 连接成功:', data);
-      message.success('实时监控已连接');
     });
 
     // 监听心跳事件
@@ -110,18 +153,43 @@ const PerformancePage: React.FC = () => {
 
     performanceTypes.forEach(type => {
       eventSource.addEventListener(`performance:${type}`, event => {
-        const data = JSON.parse(event.data);
-        console.log(`📊 收到 ${type.toUpperCase()} 数据:`, data);
+        const rawData = JSON.parse(event.data);
+        console.log(`📊 收到 ${type.toUpperCase()} 原始数据:`, rawData);
+
+        // 🔧 处理 resource 类型的嵌套数据
+        let newItems: PerformanceData[] = [];
+
+        if (type === 'resource' && rawData.resourceList) {
+          // resource 类型：展开 resourceList
+          newItems = rawData.resourceList.map((resource: any) => ({
+            ...resource,
+            id:
+              resource.id ||
+              `${rawData.id}_${resource.name}_${resource.timestamp}`,
+            appId: rawData.appId,
+            userId: rawData.userId,
+            userAgent: rawData.userAgent,
+            ip: rawData.ip,
+          }));
+          console.log(`📦 展开 ${newItems.length} 个资源:`, newItems);
+        } else {
+          // 其他类型：直接使用
+          newItems = [rawData];
+        }
 
         // 添加到数据列表
         setPerformanceData(prev => {
-          const newData = [data, ...prev];
-          // 保持最多 100 条记录
-          return newData.slice(0, 100);
+          const newData = [...newItems, ...prev].slice(0, 100);
+          console.log(`🔄 更新后的数据列表 (${type}):`, newData.length, '条');
+          return newData;
         });
 
-        // 显示通知
-        message.info(`收到新的 ${type.toUpperCase()} 性能数据`);
+        const count = newItems.length;
+        message.info(
+          type === 'resource'
+            ? `收到 ${count} 个新资源加载数据`
+            : `收到新的 ${type.toUpperCase()} 性能数据`,
+        );
       });
     });
 
@@ -169,6 +237,7 @@ const PerformancePage: React.FC = () => {
       load: { good: 3000, needsImprovement: 5000 },
     };
 
+    // 获取性能指标阈值
     const threshold = thresholds[type] || {
       good: 1000,
       needsImprovement: 3000,
@@ -272,12 +341,13 @@ const PerformancePage: React.FC = () => {
     },
   ];
 
-  // 详细数据表格列
+  // 详细数据表格列 - 根据类型动态显示
   const detailColumns = [
     {
       title: '时间',
       dataIndex: 'timestamp',
       key: 'timestamp',
+      width: 180,
       render: (timestamp: number) =>
         new Date(timestamp).toLocaleString('zh-CN'),
     },
@@ -285,38 +355,116 @@ const PerformancePage: React.FC = () => {
       title: '类型',
       dataIndex: 'subType',
       key: 'subType',
-      render: (type: string) => <Tag color="blue">{type.toUpperCase()}</Tag>,
+      width: 120,
+      render: (type: string) => <Tag color="blue">{type?.toUpperCase()}</Tag>,
     },
     {
-      title: '值',
+      title: '名称/URL',
+      dataIndex: 'name',
+      key: 'name',
+      ellipsis: true,
+      render: (name: string, record: any) => {
+        // resource 类型显示资源名称
+        if (record.subType === 'resource') {
+          const fileName = name?.split('/').pop() || name;
+          return <span title={name}>{fileName || '-'}</span>;
+        }
+        // 其他类型显示页面 URL
+        return (
+          <span title={record.pageUrl}>{record.pageUrl || name || '-'}</span>
+        );
+      },
+    },
+    {
+      title: '资源类型',
+      dataIndex: 'sourceType',
+      key: 'sourceType',
+      width: 100,
+      render: (type: string, record: any) => {
+        if (record.subType === 'resource' && type) {
+          const colorMap: Record<string, string> = {
+            script: 'orange',
+            css: 'purple',
+            img: 'green',
+            fetch: 'blue',
+            xmlhttprequest: 'cyan',
+            link: 'geekblue',
+          };
+          return <Tag color={colorMap[type] || 'default'}>{type}</Tag>;
+        }
+        return '-';
+      },
+    },
+    {
+      title: '大小',
+      dataIndex: 'transferSize',
+      key: 'transferSize',
+      width: 100,
+      render: (size: number, record: any) => {
+        if (record.subType === 'resource' && size) {
+          return `${(size / 1024).toFixed(2)} KB`;
+        }
+        return '-';
+      },
+    },
+    {
+      title: '耗时',
       dataIndex: 'duration',
       key: 'duration',
-      render: (_: any, record: any) =>
-        formatTime(record.duration || record.startTime || 0),
+      width: 100,
+      render: (duration: number, record: any) => {
+        const value = duration || record.startTime || 0;
+        return formatTime(value);
+      },
     },
     {
-      title: '页面URL',
-      dataIndex: 'pageUrl',
-      key: 'pageUrl',
-      ellipsis: true,
+      title: 'DNS',
+      dataIndex: 'dns',
+      key: 'dns',
+      width: 80,
+      render: (dns: number, record: any) => {
+        if (record.subType === 'resource' && dns !== undefined) {
+          return `${dns.toFixed(0)}ms`;
+        }
+        return '-';
+      },
     },
     {
-      title: '用户ID',
-      dataIndex: 'userId',
-      key: 'userId',
+      title: 'TCP',
+      dataIndex: 'tcp',
+      key: 'tcp',
+      width: 80,
+      render: (tcp: number, record: any) => {
+        if (record.subType === 'resource' && tcp !== undefined) {
+          return `${tcp.toFixed(0)}ms`;
+        }
+        return '-';
+      },
+    },
+    {
+      title: 'TTFB',
+      dataIndex: 'ttfb',
+      key: 'ttfb',
+      width: 100,
+      render: (ttfb: number, record: any) => {
+        if (record.subType === 'resource' && ttfb !== undefined) {
+          return formatTime(ttfb);
+        }
+        return '-';
+      },
     },
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Title level={2}>
-        <DashboardOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+    <div className={styles.container}>
+      <Title level={2} className={styles.title}>
+        <DashboardOutlined className={styles.icon} />
         性能监控
         {connected && (
           <Tag
             icon={<SyncOutlined spin />}
             color="success"
-            style={{ marginLeft: '16px' }}
+            className={styles.connectedTag}
           >
             实时监控中
           </Tag>
@@ -328,65 +476,79 @@ const PerformancePage: React.FC = () => {
         description="实时监控页面加载性能、资源加载时间、用户交互性能指标，提供详细的性能分析报告。"
         type="info"
         showIcon
-        style={{ marginBottom: '24px' }}
+        className={styles.alert}
       />
 
       {/* 核心性能指标 */}
-      <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
+      <Row gutter={[24, 24]} className={styles.metricsRow}>
         <Col xs={24} sm={12} lg={6}>
-          <Card>
+          <Card className={styles.statCard}>
             <Statistic
               title="FCP (首次内容绘制)"
               value={stats?.fcp?.avg ? (stats.fcp.avg / 1000).toFixed(2) : 0}
               precision={2}
               suffix="s"
-              prefix={<ThunderboltOutlined style={{ color: '#1890ff' }} />}
+              prefix={
+                <ThunderboltOutlined
+                  className={`${styles.statIcon} ${styles.fcp}`}
+                />
+              }
               valueStyle={{ color: '#1890ff' }}
             />
-            <div style={{ marginTop: '8px', fontSize: '12px', color: '#888' }}>
+            <div className={styles.statMeta}>
               采样数: {stats?.fcp?.count || 0}
             </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card>
+          <Card className={styles.statCard}>
             <Statistic
               title="LCP (最大内容绘制)"
               value={stats?.lcp?.avg ? (stats.lcp.avg / 1000).toFixed(2) : 0}
               precision={2}
               suffix="s"
-              prefix={<ClockCircleOutlined style={{ color: '#52c41a' }} />}
+              prefix={
+                <ClockCircleOutlined
+                  className={`${styles.statIcon} ${styles.lcp}`}
+                />
+              }
               valueStyle={{ color: '#52c41a' }}
             />
-            <div style={{ marginTop: '8px', fontSize: '12px', color: '#888' }}>
+            <div className={styles.statMeta}>
               采样数: {stats?.lcp?.count || 0}
             </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card>
+          <Card className={styles.statCard}>
             <Statistic
               title="Load (页面加载)"
               value={stats?.load?.avg ? (stats.load.avg / 1000).toFixed(2) : 0}
               precision={2}
               suffix="s"
-              prefix={<DashboardOutlined style={{ color: '#722ed1' }} />}
+              prefix={
+                <DashboardOutlined
+                  className={`${styles.statIcon} ${styles.load}`}
+                />
+              }
               valueStyle={{ color: '#722ed1' }}
             />
-            <div style={{ marginTop: '8px', fontSize: '12px', color: '#888' }}>
+            <div className={styles.statMeta}>
               采样数: {stats?.load?.count || 0}
             </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card>
+          <Card className={styles.statCard}>
             <Statistic
               title="总数据量"
               value={performanceData.length}
-              prefix={<ApiOutlined style={{ color: '#fa8c16' }} />}
+              prefix={
+                <ApiOutlined className={`${styles.statIcon} ${styles.total}`} />
+              }
               valueStyle={{ color: '#fa8c16' }}
             />
-            <div style={{ marginTop: '8px', fontSize: '12px', color: '#888' }}>
+            <div className={styles.statMeta}>
               <Button size="small" onClick={fetchInitialData} loading={loading}>
                 刷新数据
               </Button>
@@ -395,25 +557,12 @@ const PerformancePage: React.FC = () => {
         </Col>
       </Row>
 
-      {/* 性能指标概览 */}
-      <Card title="Web Vitals 性能指标" style={{ marginBottom: '24px' }}>
-        {performanceMetrics.length > 0 ? (
-          <Table
-            columns={columns}
-            dataSource={performanceMetrics}
-            pagination={false}
-            loading={loading}
-          />
-        ) : (
-          <Empty description="暂无性能数据" />
-        )}
-      </Card>
-
       {/* 详细数据列表 */}
       <Card
         title="性能数据详情"
+        className={styles.detailCard}
         extra={
-          <span style={{ fontSize: '14px', color: '#888' }}>
+          <span className={styles.extra}>
             最近 {performanceData.length} 条记录
           </span>
         }
@@ -423,21 +572,22 @@ const PerformancePage: React.FC = () => {
             columns={detailColumns}
             dataSource={performanceData}
             pagination={{
-              pageSize: 10,
+              pageSize: 20,
               showSizeChanger: true,
               showTotal: total => `共 ${total} 条记录`,
             }}
             loading={loading}
             rowKey="id"
-            scroll={{ x: 800 }}
+            scroll={{ x: 1200 }}
           />
         ) : (
           <Empty
+            className={styles.emptyState}
             description={
               <span>
                 暂无数据
                 <br />
-                <span style={{ fontSize: '12px', color: '#888' }}>
+                <span className={styles.emptyText}>
                   {loading ? '正在加载...' : '请等待SDK上报数据或点击刷新按钮'}
                 </span>
               </span>
