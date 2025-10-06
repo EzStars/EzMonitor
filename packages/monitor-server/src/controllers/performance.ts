@@ -9,6 +9,7 @@ import { PerformanceData } from '../types/performance';
  */
 export const reportPerformance = async (ctx: Context) => {
   try {
+    // @ts-ignore - body 是由 koa-bodyparser 中间件添加的
     const reportData = ctx.request.body;
     const { userId, sendType, data } = reportData;
 
@@ -389,6 +390,7 @@ export const getResourceStats = async (ctx: Context) => {
  */
 export const clearPerformanceData = async (ctx: Context) => {
   try {
+    // @ts-ignore - body 是由 koa-bodyparser 中间件添加的
     const { appId } = ctx.request.body;
 
     if (appId) {

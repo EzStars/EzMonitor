@@ -35,6 +35,12 @@
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.4.1",
+  "pnpm": {
+    "overrides": {
+      "@types/react": "^18.3.18",
+      "@types/react-dom": "^18.3.5"
+    }
+  },
   "dependencies": {
     "typescript": "^5.8.2"
   },

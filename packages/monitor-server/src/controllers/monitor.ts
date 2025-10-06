@@ -8,6 +8,7 @@ import { broadcastToApp } from './sse';
  */
 export const reportMonitorData = async (ctx: Context) => {
   try {
+    // @ts-ignore - body 是由 koa-bodyparser 中间件添加的
     const body = ctx.request.body;
 
     // ✅ 打印原始请求数据，方便调试
