@@ -130,59 +130,21 @@ export type PerformanceData =
 /**
  * 性能统计数据
  */
+export interface PerformanceMetricStats {
+  count: number;
+  avg: number;
+  min: number;
+  max: number;
+  p95: number; // 添加 P95 百分位
+  p99: number; // 添加 P99 百分位
+}
+
 export interface PerformanceStats {
-  total: number;
-  fp?: {
-    count: number;
-    avg: number;
-    min: number;
-    max: number;
-  };
-  fcp?: {
-    count: number;
-    avg: number;
-    min: number;
-    max: number;
-  };
-  lcp?: {
-    count: number;
-    avg: number;
-    min: number;
-    max: number;
-  };
-  load?: {
-    count: number;
-    avg: number;
-    min: number;
-    max: number;
-  };
-  fetch?: {
-    count: number;
-    avg: number;
-    min: number;
-    max: number;
-    successRate: number;
-  };
-  xhr?: {
-    count: number;
-    avg: number;
-    min: number;
-    max: number;
-    successRate: number;
-  };
-  resource?: {
-    count: number;
-    avg: number;
-    min: number;
-    max: number;
-    totalSize: number;
-  };
-  'long-task'?: {
-    count: number;
-    avg: number;
-    min: number;
-    max: number;
-  };
+  fcp?: PerformanceMetricStats;
+  lcp?: PerformanceMetricStats;
+  load?: PerformanceMetricStats;
+  fid?: PerformanceMetricStats;
+  cls?: PerformanceMetricStats;
 }
 
 /**

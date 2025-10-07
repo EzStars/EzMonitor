@@ -12,6 +12,7 @@ import {
   Empty,
   Tag,
   message,
+  Tabs,
 } from 'antd';
 import {
   DashboardOutlined,
@@ -19,6 +20,11 @@ import {
   ClockCircleOutlined,
   ApiOutlined,
   SyncOutlined,
+  FireOutlined,
+  RocketOutlined,
+  CloudOutlined,
+  LinkOutlined,
+  ThunderboltFilled,
 } from '@ant-design/icons';
 import { getPerformanceList, getPerformanceStats } from '../../api/performance';
 import { API_BASE_URL } from '../../api';
@@ -28,21 +34,21 @@ import type {
 } from '../../types/performance';
 import styles from './index.module.scss';
 
-const { Title } = Typography;
+import Ezmonitor from '@ezstars/monitor-sdk';
 
+Ezmonitor.init();
+Ezmonitor.Performance();
+
+const { Title } = Typography;
 const PerformancePage: React.FC = () => {
   const [performanceData, setPerformanceData] = useState<PerformanceData[]>([]);
+  // 统计数据
   const [stats, setStats] = useState<PerformanceStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>('all');
   const eventSourceRef = useRef<EventSource | null>(null);
   const appId = '123456';
-
-  // 📊 监听 performanceData 变化
-  useEffect(() => {
-    console.log('📊 performanceData 已更新:', performanceData);
-    console.log('📈 当前数据条数:', performanceData.length);
-  }, [performanceData]);
 
   // 获取初始数据
   const fetchInitialData = async () => {
@@ -63,8 +69,15 @@ const PerformancePage: React.FC = () => {
 
       setPerformanceData(flattenedData);
 
+      // 获取统计数据
       const statsResponse = await getPerformanceStats({ appId });
-      console.log('📈 统计数据:', statsResponse);
+      console.log('📈 统计数据原始响应:', statsResponse);
+
+      // 🔧 检查数据结构并打印详细信息
+      console.log('📊 FCP 统计:', statsResponse?.fcp);
+      console.log('📊 LCP 统计:', statsResponse?.lcp);
+      console.log('📊 Load 统计:', statsResponse?.load);
+
       setStats(statsResponse);
     } catch (error) {
       console.error('❌ 获取性能数据失败:', error);
@@ -117,7 +130,6 @@ const PerformancePage: React.FC = () => {
     eventSource.onopen = () => {
       console.log('✅ SSE 连接已建立');
       setConnected(true);
-      message.success('实时监控已连接');
     };
 
     eventSource.onerror = error => {
@@ -141,15 +153,7 @@ const PerformancePage: React.FC = () => {
     });
 
     // 监听性能数据事件
-    const performanceTypes = [
-      'fcp',
-      'lcp',
-      'load',
-      'fetch',
-      'xhr',
-      'resource',
-      'long-task',
-    ];
+    const performanceTypes = ['fcp', 'lcp', 'load', 'fetch', 'xhr', 'resource'];
 
     performanceTypes.forEach(type => {
       eventSource.addEventListener(`performance:${type}`, event => {
@@ -455,6 +459,449 @@ const PerformancePage: React.FC = () => {
     },
   ];
 
+  // 使用本地计算的统计数据（如果 API 返回的数据为空）
+  const displayStats = stats;
+
+  console.log('📊 显示的统计数据:', stats);
+
+  // 根据 Tab 筛选数据
+  const getFilteredData = () => {
+    if (activeTab === 'all') {
+      return performanceData;
+    }
+    return performanceData.filter(item => item.subType === activeTab);
+  };
+
+  const filteredData = getFilteredData();
+
+  // 统计每个类型的数据量
+  const getTabCounts = () => {
+    const counts: Record<string, number> = {
+      all: performanceData.length,
+      fcp: 0,
+      lcp: 0,
+      load: 0,
+      fetch: 0,
+      xhr: 0,
+      resource: 0,
+    };
+
+    performanceData.forEach(item => {
+      if (counts[item.subType] !== undefined) {
+        counts[item.subType]++;
+      }
+    });
+
+    return counts;
+  };
+
+  const tabCounts = getTabCounts();
+
+  // Tab 配置
+  const tabItems = [
+    {
+      key: 'all',
+      label: (
+        <span>
+          <DashboardOutlined />
+          全部 ({tabCounts.all})
+        </span>
+      ),
+    },
+    {
+      key: 'fcp',
+      label: (
+        <span>
+          <ThunderboltOutlined style={{ color: '#1890ff' }} />
+          FCP ({tabCounts.fcp})
+        </span>
+      ),
+    },
+    {
+      key: 'lcp',
+      label: (
+        <span>
+          <FireOutlined style={{ color: '#52c41a' }} />
+          LCP ({tabCounts.lcp})
+        </span>
+      ),
+    },
+    {
+      key: 'load',
+      label: (
+        <span>
+          <RocketOutlined style={{ color: '#722ed1' }} />
+          Load ({tabCounts.load})
+        </span>
+      ),
+    },
+    {
+      key: 'fetch',
+      label: (
+        <span>
+          <CloudOutlined style={{ color: '#13c2c2' }} />
+          Fetch ({tabCounts.fetch})
+        </span>
+      ),
+    },
+    {
+      key: 'xhr',
+      label: (
+        <span>
+          <LinkOutlined style={{ color: '#eb2f96' }} />
+          XHR ({tabCounts.xhr})
+        </span>
+      ),
+    },
+    {
+      key: 'resource',
+      label: (
+        <span>
+          <ApiOutlined style={{ color: '#fa8c16' }} />
+          Resource ({tabCounts.resource})
+        </span>
+      ),
+    },
+  ];
+
+  // 根据不同类型返回不同的列配置
+  const getColumnsForType = (type: string) => {
+    const baseColumns = [
+      {
+        title: '时间',
+        dataIndex: 'timestamp',
+        key: 'timestamp',
+        width: 180,
+        render: (timestamp: number) =>
+          new Date(timestamp).toLocaleString('zh-CN'),
+      },
+      {
+        title: '类型',
+        dataIndex: 'subType',
+        key: 'subType',
+        width: 120,
+        render: (subType: string) => (
+          <Tag color="blue">{subType?.toUpperCase()}</Tag>
+        ),
+      },
+    ];
+
+    // Resource 类型专用列
+    if (type === 'resource') {
+      return [
+        ...baseColumns,
+        {
+          title: '资源名称',
+          dataIndex: 'name',
+          key: 'name',
+          ellipsis: true,
+          render: (name: string) => {
+            const fileName = name?.split('/').pop() || name;
+            return <span title={name}>{fileName || '-'}</span>;
+          },
+        },
+        {
+          title: '资源类型',
+          dataIndex: 'sourceType',
+          key: 'sourceType',
+          width: 100,
+          render: (sourceType: string) => {
+            const colorMap: Record<string, string> = {
+              script: 'orange',
+              css: 'purple',
+              img: 'green',
+              fetch: 'blue',
+              xmlhttprequest: 'cyan',
+              link: 'geekblue',
+            };
+            return (
+              <Tag color={colorMap[sourceType] || 'default'}>{sourceType}</Tag>
+            );
+          },
+        },
+        {
+          title: '大小',
+          dataIndex: 'transferSize',
+          key: 'transferSize',
+          width: 120,
+          render: (size: number) =>
+            size ? `${(size / 1024).toFixed(2)} KB` : '-',
+        },
+        {
+          title: '耗时',
+          dataIndex: 'duration',
+          key: 'duration',
+          width: 100,
+          render: (duration: number) => formatTime(duration || 0),
+        },
+        {
+          title: 'DNS',
+          dataIndex: 'dns',
+          key: 'dns',
+          width: 80,
+          render: (dns: number) =>
+            dns !== undefined ? `${dns.toFixed(0)}ms` : '-',
+        },
+        {
+          title: 'TCP',
+          dataIndex: 'tcp',
+          key: 'tcp',
+          width: 80,
+          render: (tcp: number) =>
+            tcp !== undefined ? `${tcp.toFixed(0)}ms` : '-',
+        },
+        {
+          title: 'TTFB',
+          dataIndex: 'ttfb',
+          key: 'ttfb',
+          width: 100,
+          render: (ttfb: number) =>
+            ttfb !== undefined ? formatTime(ttfb) : '-',
+        },
+      ];
+    }
+
+    // Fetch/XHR 类型专用列
+    if (type === 'fetch' || type === 'xhr') {
+      return [
+        ...baseColumns,
+        {
+          title: 'URL',
+          dataIndex: 'url',
+          key: 'url',
+          ellipsis: true,
+          render: (url: string, record: any) => {
+            // 优先使用 url 字段，fallback 到 name
+            const displayUrl = url || record.name || '-';
+            return <span title={displayUrl}>{displayUrl}</span>;
+          },
+        },
+        {
+          title: '请求方法',
+          dataIndex: 'method',
+          key: 'method',
+          width: 100,
+          render: (method: string) => {
+            const colorMap: Record<string, string> = {
+              GET: 'blue',
+              POST: 'green',
+              PUT: 'orange',
+              DELETE: 'red',
+              PATCH: 'purple',
+            };
+            return (
+              <Tag color={colorMap[method] || 'default'}>{method || '-'}</Tag>
+            );
+          },
+        },
+        {
+          title: '状态码',
+          dataIndex: 'status',
+          key: 'status',
+          width: 100,
+          render: (status: number, record: any) => {
+            // 兼容 status 和 responseStatus 字段
+            const statusCode = status || record.responseStatus;
+            if (!statusCode) return '-';
+
+            const color =
+              statusCode >= 200 && statusCode < 300 ? 'success' : 'error';
+            return <Tag color={color}>{statusCode}</Tag>;
+          },
+        },
+        {
+          title: '请求结果',
+          dataIndex: 'success',
+          key: 'success',
+          width: 100,
+          render: (success: boolean) => {
+            if (success === undefined || success === null) return '-';
+            return success ? (
+              <Tag color="success">成功</Tag>
+            ) : (
+              <Tag color="error">失败</Tag>
+            );
+          },
+        },
+        {
+          title: '耗时',
+          dataIndex: 'duration',
+          key: 'duration',
+          width: 120,
+          render: (duration: number) => {
+            const value = duration || 0;
+            const color =
+              value > 1000 ? 'error' : value > 500 ? 'warning' : 'success';
+            return <Tag color={color}>{formatTime(value)}</Tag>;
+          },
+        },
+        {
+          title: '开始时间',
+          dataIndex: 'startTime',
+          key: 'startTime',
+          width: 120,
+          render: (time: number) => formatTime(time || 0),
+        },
+        {
+          title: '结束时间',
+          dataIndex: 'endTime',
+          key: 'endTime',
+          width: 120,
+          render: (time: number) => formatTime(time || 0),
+        },
+      ];
+    }
+
+    // FCP/LCP/Load 类型专用列
+    if (['fcp', 'lcp', 'load'].includes(type)) {
+      return [
+        ...baseColumns,
+        {
+          title: '页面URL',
+          dataIndex: 'pageUrl',
+          key: 'pageUrl',
+          ellipsis: true,
+          render: (url: string) => <span title={url}>{url || '-'}</span>,
+        },
+        {
+          title: '用户ID',
+          dataIndex: 'userId',
+          key: 'userId',
+          width: 150,
+          render: (userId: string) => <Tag color="blue">{userId || '-'}</Tag>,
+        },
+        {
+          title: '耗时',
+          dataIndex: 'duration',
+          key: 'duration',
+          width: 120,
+          render: (duration: number) => {
+            const value = duration || 0;
+            let color = 'success';
+            if (type === 'fcp' && value > 1800) color = 'error';
+            else if (type === 'fcp' && value > 1000) color = 'warning';
+            else if (type === 'lcp' && value > 4000) color = 'error';
+            else if (type === 'lcp' && value > 2500) color = 'warning';
+            else if (type === 'load' && value > 5000) color = 'error';
+            else if (type === 'load' && value > 3000) color = 'warning';
+
+            return <Tag color={color}>{formatTime(value)}</Tag>;
+          },
+        },
+        {
+          title: '评级',
+          key: 'rating',
+          width: 150,
+          render: (_: any, record: PerformanceData) => {
+            const duration = record.duration || 0;
+            let rating = 'good';
+            let color = 'success';
+            let text = '良好';
+
+            if (type === 'fcp') {
+              if (duration > 1800) {
+                rating = 'poor';
+                color = 'error';
+                text = '差';
+              } else if (duration > 1000) {
+                rating = 'needs-improvement';
+                color = 'warning';
+                text = '需改进';
+              }
+            } else if (type === 'lcp') {
+              if (duration > 4000) {
+                rating = 'poor';
+                color = 'error';
+                text = '差';
+              } else if (duration > 2500) {
+                rating = 'needs-improvement';
+                color = 'warning';
+                text = '需改进';
+              }
+            } else if (type === 'load') {
+              if (duration > 5000) {
+                rating = 'poor';
+                color = 'error';
+                text = '差';
+              } else if (duration > 3000) {
+                rating = 'needs-improvement';
+                color = 'warning';
+                text = '需改进';
+              }
+            }
+
+            return <Tag color={color}>{text}</Tag>;
+          },
+        },
+        {
+          title: 'IP地址',
+          dataIndex: 'ip',
+          key: 'ip',
+          width: 150,
+          render: (ip: string) => ip?.replace('::ffff:', '') || '-',
+        },
+        {
+          title: '浏览器',
+          dataIndex: 'userAgent',
+          key: 'userAgent',
+          width: 200,
+          ellipsis: true,
+          render: (ua: string) => {
+            if (!ua) return '-';
+
+            // 解析浏览器信息
+            let browser = 'Unknown';
+            if (ua.includes('Chrome')) browser = 'Chrome';
+            else if (ua.includes('Safari')) browser = 'Safari';
+            else if (ua.includes('Firefox')) browser = 'Firefox';
+            else if (ua.includes('Edge')) browser = 'Edge';
+
+            return (
+              <span title={ua}>
+                <Tag color="geekblue">{browser}</Tag>
+              </span>
+            );
+          },
+        },
+      ];
+    }
+
+    // 默认列（全部）
+    return [
+      ...baseColumns,
+      {
+        title: '名称/URL',
+        dataIndex: 'name',
+        key: 'name',
+        ellipsis: true,
+        render: (name: string, record: any) => {
+          if (record.subType === 'resource') {
+            const fileName = name?.split('/').pop() || name;
+            return <span title={name}>{fileName || '-'}</span>;
+          }
+          // Fetch/XHR 显示 url 字段
+          if (record.subType === 'fetch' || record.subType === 'xhr') {
+            const url = record.url || name;
+            return <span title={url}>{url || '-'}</span>;
+          }
+          return (
+            <span title={record.pageUrl}>{record.pageUrl || name || '-'}</span>
+          );
+        },
+      },
+      {
+        title: '耗时',
+        dataIndex: 'duration',
+        key: 'duration',
+        width: 120,
+        render: (duration: number, record: any) => {
+          const value = duration || record.startTime || 0;
+          return formatTime(value);
+        },
+      },
+    ];
+  };
+
   return (
     <div className={styles.container}>
       <Title level={2} className={styles.title}>
@@ -485,7 +932,11 @@ const PerformancePage: React.FC = () => {
           <Card className={styles.statCard}>
             <Statistic
               title="FCP (首次内容绘制)"
-              value={stats?.fcp?.avg ? (stats.fcp.avg / 1000).toFixed(2) : 0}
+              value={
+                displayStats?.fcp?.avg
+                  ? (displayStats.fcp.avg / 1000).toFixed(2)
+                  : 0
+              }
               precision={2}
               suffix="s"
               prefix={
@@ -496,7 +947,12 @@ const PerformancePage: React.FC = () => {
               valueStyle={{ color: '#1890ff' }}
             />
             <div className={styles.statMeta}>
-              采样数: {stats?.fcp?.count || 0}
+              采样数: {displayStats?.fcp?.count || 0}
+              {displayStats?.fcp?.p95 && (
+                <span style={{ marginLeft: 8, fontSize: 12, color: '#999' }}>
+                  P95: {(displayStats.fcp.p95 / 1000).toFixed(2)}s
+                </span>
+              )}
             </div>
           </Card>
         </Col>
@@ -504,7 +960,11 @@ const PerformancePage: React.FC = () => {
           <Card className={styles.statCard}>
             <Statistic
               title="LCP (最大内容绘制)"
-              value={stats?.lcp?.avg ? (stats.lcp.avg / 1000).toFixed(2) : 0}
+              value={
+                displayStats?.lcp?.avg
+                  ? (displayStats.lcp.avg / 1000).toFixed(2)
+                  : 0
+              }
               precision={2}
               suffix="s"
               prefix={
@@ -515,7 +975,12 @@ const PerformancePage: React.FC = () => {
               valueStyle={{ color: '#52c41a' }}
             />
             <div className={styles.statMeta}>
-              采样数: {stats?.lcp?.count || 0}
+              采样数: {displayStats?.lcp?.count || 0}
+              {displayStats?.lcp?.p95 && (
+                <span style={{ marginLeft: 8, fontSize: 12, color: '#999' }}>
+                  P95: {(displayStats.lcp.p95 / 1000).toFixed(2)}s
+                </span>
+              )}
             </div>
           </Card>
         </Col>
@@ -523,7 +988,11 @@ const PerformancePage: React.FC = () => {
           <Card className={styles.statCard}>
             <Statistic
               title="Load (页面加载)"
-              value={stats?.load?.avg ? (stats.load.avg / 1000).toFixed(2) : 0}
+              value={
+                displayStats?.load?.avg
+                  ? (displayStats.load.avg / 1000).toFixed(2)
+                  : 0
+              }
               precision={2}
               suffix="s"
               prefix={
@@ -534,7 +1003,12 @@ const PerformancePage: React.FC = () => {
               valueStyle={{ color: '#722ed1' }}
             />
             <div className={styles.statMeta}>
-              采样数: {stats?.load?.count || 0}
+              采样数: {displayStats?.load?.count || 0}
+              {displayStats?.load?.p95 && (
+                <span style={{ marginLeft: 8, fontSize: 12, color: '#999' }}>
+                  P95: {(displayStats.load.p95 / 1000).toFixed(2)}s
+                </span>
+              )}
             </div>
           </Card>
         </Col>
@@ -557,20 +1031,23 @@ const PerformancePage: React.FC = () => {
         </Col>
       </Row>
 
-      {/* 详细数据列表 */}
-      <Card
-        title="性能数据详情"
-        className={styles.detailCard}
-        extra={
-          <span className={styles.extra}>
-            最近 {performanceData.length} 条记录
-          </span>
-        }
-      >
-        {performanceData.length > 0 ? (
+      {/* Tab 筛选的详细数据列表 */}
+      <Card className={styles.detailCard}>
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={tabItems}
+          tabBarExtraContent={
+            <span style={{ color: '#999', fontSize: 14 }}>
+              共 {filteredData.length} 条记录
+            </span>
+          }
+        />
+
+        {filteredData.length > 0 ? (
           <Table
-            columns={detailColumns}
-            dataSource={performanceData}
+            columns={getColumnsForType(activeTab)}
+            dataSource={filteredData}
             pagination={{
               pageSize: 20,
               showSizeChanger: true,
@@ -585,7 +1062,7 @@ const PerformancePage: React.FC = () => {
             className={styles.emptyState}
             description={
               <span>
-                暂无数据
+                暂无 {activeTab === 'all' ? '' : activeTab.toUpperCase()} 数据
                 <br />
                 <span className={styles.emptyText}>
                   {loading ? '正在加载...' : '请等待SDK上报数据或点击刷新按钮'}

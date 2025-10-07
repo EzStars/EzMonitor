@@ -33,18 +33,18 @@ function overwriteFetch(): void {
     return originalFetch(url, config)
       .then(res => {
         reportData.status = res.status;
+        reportData.success = res.ok; // res.ok 表示状态码在 200-299 范围内
         return res;
       })
       .catch(err => {
-        reportData.status = err.status;
+        reportData.status = err.status || 0;
+        reportData.success = false;
         throw err;
       })
       .finally(() => {
         const endTime = Date.now();
         reportData.endTime = endTime;
         reportData.duration = endTime - startTime;
-        reportData.success = false;
-        // todo 上报数据
         lazyReportBatch(reportData);
       });
   };

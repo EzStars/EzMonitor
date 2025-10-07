@@ -4,6 +4,7 @@ import Behavior, { getBehaviour } from './plugins/behavior';
 import Exception from './plugins/exception';
 import Performance from './plugins/performance';
 import Error from './plugins/error';
+import exceptionInit from './plugins/exception';
 import { unzipRecordscreen } from './common/utils';
 
 function init(options?: ConfigType) {
@@ -19,4 +20,5 @@ export default {
   Exception,
   unzipRecordscreen,
   getBehaviour,
+  exceptionInit,
 };
