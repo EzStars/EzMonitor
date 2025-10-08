@@ -1,4 +1,4 @@
-import { getConfig } from './config';
+import { getConfig } from '../core/config/config';
 import { addCache, getCache, clearCache } from './cache';
 import { deepClone, isObjectSize } from './utils';
 

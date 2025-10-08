@@ -7,7 +7,7 @@ import {
   parseStackFrames,
   parseStackFramesWithSourceMap,
 } from '../../common/utils';
-import { getConfig } from '../../common/config';
+import { getConfig } from '../../core/config/config';
 import { VueErrorType } from '../../types';
 
 // 初始化 Vue异常 的数据获取和上报

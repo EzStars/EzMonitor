@@ -1,4 +1,4 @@
-import { ConfigType } from '../types';
+import { ConfigType } from '../../types';
 
 const config: ConfigType = {
   url: 'http://127.0.0.1:3001/monitor', // 上报地址

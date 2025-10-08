@@ -1,5 +1,5 @@
 import { getRecordScreenData, getBehaviour } from '../behavior';
-import { getConfig } from '../../common/config';
+import { getConfig } from '../../core/config/config';
 
 export default function crashLoop() {
   if (window.Worker) {

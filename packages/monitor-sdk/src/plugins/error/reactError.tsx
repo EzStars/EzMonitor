@@ -6,7 +6,7 @@ import {
   parseStackFrames,
   parseStackFramesWithSourceMap,
 } from '../../common/utils';
-import { getConfig } from '../../common/config';
+import { getConfig } from '../../core/config/config';
 import { ReactErrorType } from '../../types';
 import { TraceSubTypeEnum, TraceTypeEnum } from '../../common/enum';
 import { getBehaviour, getRecordScreenData } from '../behavior';

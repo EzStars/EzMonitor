@@ -1,4 +1,4 @@
-import { getConfig } from '../../../common/config';
+import { getConfig } from '../../../core/config/config';
 import { TraceSubTypeEnum, TraceTypeEnum } from '../../../common/enum';
 import { lazyReportBatch } from '../../../common/report';
 import { PerformanceResourceType, resourceType } from '../../../types';

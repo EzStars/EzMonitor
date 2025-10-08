@@ -1,4 +1,4 @@
-import { setConfig } from './common/config';
+import { setConfig } from './core/config/config';
 import { ConfigType } from './types';
 import Behavior, { getBehaviour } from './plugins/behavior';
 import Exception from './plugins/exception';

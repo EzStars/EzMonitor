@@ -1,5 +1,5 @@
 import { SourceMapConsumer } from 'source-map-js';
-import { getConfig } from './config';
+import { getConfig } from '../core/config/config';
 
 // 补充类型声明（source-map-js d.ts 里可能缺少 destroy）
 declare module 'source-map-js' {
