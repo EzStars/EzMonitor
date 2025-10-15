@@ -7,8 +7,8 @@ import Error from './plugins/error';
 import exceptionInit from './plugins/exception';
 import { unzipRecordscreen } from './common/utils';
 
-function init(options?: ConfigType) {
-  setConfig(options);
+function init(options?: Partial<ConfigType>) {
+  setConfig(options || {});
   window.$SDK = {};
 }
 

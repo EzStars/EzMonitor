@@ -15,7 +15,7 @@ const config: ConfigType = {
   sourceMapCacheSize: 50, // 缓存50个 SourceMap 文件
 };
 
-export function setConfig(options: ConfigType = config) {
+export function setConfig(options: Partial<ConfigType>) {
   for (const key in options) {
     if (options[key]) {
       config[key] = options[key];

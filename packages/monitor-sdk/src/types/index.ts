@@ -290,3 +290,5 @@ export type RecordEventScope = {
   scope: string;
   eventList: any[];
 };
+
+export * from './plugin';

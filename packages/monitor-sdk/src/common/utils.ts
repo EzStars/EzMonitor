@@ -271,13 +271,14 @@ export const getPageInfo = (): PageInformation => {
   };
 };
 
+// 页面加载完成后执行
 export const afterLoad = (callback: any) => {
   if (document.readyState === 'complete') {
     setTimeout(callback);
   } else {
     window.addEventListener('pageshow', callback, {
       once: true,
-      capture: true,
+      capture: true, // 捕获阶段
     });
   }
 };
