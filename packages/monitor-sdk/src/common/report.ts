@@ -71,8 +71,19 @@ export function lazyReportBatch(data: any) {
     if (!dataCache.length) {
       return;
     }
-    sendServe(dataCache);
-    clearCache();
+
+    // 先复制数据，避免清空后丢失
+    const dataToSend = [...dataCache];
+
+    try {
+      await sendServe(dataToSend);
+      // ✅ 只有成功后才清空缓存
+      clearCache();
+    } catch (error) {
+      console.error('[EzMonitor] 上报失败，数据保留在缓存中:', error);
+      // ✅ 失败时不清空，等待下次重试
+      // 可选：添加重试计数器，超过一定次数才丢弃
+    }
   };
 
   if (dataCache.length && dataCache.length > config.batchSize) {
