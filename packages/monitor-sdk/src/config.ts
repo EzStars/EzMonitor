@@ -9,6 +9,10 @@ const config: ConfigType = {
   batchSize: 5, // 批量上报大小
   containerElements: ['html', 'body', '#app', '#root'], // 容器元素
   skeletonElements: [], // 骨架屏元素
+  enableLocalStorage: true, // 是否启用 LocalStorage 持久化
+  localStorageKey: 'ez_monitor_cache', // LocalStorage 存储键名
+  maxCacheSize: 100, // 最大缓存条数
+  cacheExpireTime: 24 * 60 * 60 * 1000, // 缓存过期时间（毫秒）
 };
 
 export function setConfig(options: ConfigType = config) {

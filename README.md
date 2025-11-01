@@ -37,6 +37,8 @@
 - **失败重试**: 确保数据可靠上报
 - **数据压缩**: 支持数据压缩减少传输开销
 - **上报策略**: 支持立即上报和延迟上报
+- **离线缓存**: LocalStorage 持久化，离线数据自动恢复 ⭐ 新增
+- **智能恢复**: 网络恢复时自动上报离线数据 ⭐ 新增
 
 ## 📦 安装
 
@@ -170,6 +172,11 @@ interface ConfigType {
   reportAfter?: Function;         // 上报后钩子函数  
   reportSuccess?: Function;       // 上报成功钩子函数
   reportFail?: Function;          // 上报失败钩子函数
+  // 缓存配置（新增）
+  enableLocalStorage?: boolean;   // 是否启用 LocalStorage 持久化，默认 true
+  localStorageKey?: string;       // LocalStorage 存储键名，默认 'ez_monitor_cache'
+  maxCacheSize?: number;          // 最大缓存条数，默认 100
+  cacheExpireTime?: number;       // 缓存过期时间（毫秒），默认 24小时
 }
 ```
 

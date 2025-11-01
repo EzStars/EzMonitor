@@ -24,7 +24,6 @@ import {
   RocketOutlined,
   CloudOutlined,
   LinkOutlined,
-  ThunderboltFilled,
 } from '@ant-design/icons';
 import { getPerformanceList, getPerformanceStats } from '../../api/performance';
 import { API_BASE_URL } from '../../api';

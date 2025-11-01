@@ -1,5 +1,5 @@
-import { getConfig } from '../core/config/config';
-import { addCache, getCache, clearCache } from './cache';
+import { getConfig } from '../config';
+import { addCache, getCache, clearCache, getCacheManager } from './cache';
 import { deepClone, isObjectSize } from './utils';
 
 const originalOpen = XMLHttpRequest.prototype.open;
@@ -128,4 +128,42 @@ function beaconRequest(data: any) {
       reject(new Error('Beacon request failed'));
     }
   });
+}
+
+/**
+ * 初始化上报系统
+ * 监听网络状态，在网络恢复时自动上报离线数据
+ */
+export function initReportSystem() {
+  // 监听网络恢复事件
+  window.addEventListener('ez-monitor-online', () => {
+    const cacheManager = getCacheManager();
+    const offlineData = cacheManager.getCache();
+
+    if (offlineData.length > 0) {
+      console.log(
+        `[EzMonitor] 网络已恢复，开始上报 ${offlineData.length} 条离线数据`,
+      );
+
+      // 批量上报离线数据
+      sendServe(offlineData);
+      cacheManager.clearCache();
+    }
+  });
+
+  // 页面加载时检查是否有离线数据
+  const cacheManager = getCacheManager();
+  const offlineData = cacheManager.getCache();
+
+  if (offlineData.length > 0 && navigator.onLine) {
+    console.log(
+      `[EzMonitor] 检测到 ${offlineData.length} 条离线数据，开始上报`,
+    );
+
+    // 延迟上报，避免阻塞页面加载
+    setTimeout(() => {
+      sendServe(offlineData);
+      cacheManager.clearCache();
+    }, 1000);
+  }
 }

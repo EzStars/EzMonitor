@@ -7,7 +7,7 @@ import {
   parseStackFrames,
   parseStackFramesWithSourceMap,
 } from '../../common/utils';
-import { getConfig } from '../../core/config/config';
+import { getConfig } from '../../config';
 import {
   JsErrorType,
   PromiseErrorType,

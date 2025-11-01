@@ -1,5 +1,5 @@
 import { getBehaviour, getRecordScreenData } from '../behavior';
-import { getConfig } from '../../core/config/config';
+import { getConfig } from '../../config';
 import { TraceSubTypeEnum, TraceTypeEnum } from '../../common/enum';
 import { lazyReportBatch } from '../../common/report';
 import { whiteScreenType } from '../../types';

@@ -16,6 +16,11 @@ export type ConfigType = {
   sourceMapTimeout?: number; // SourceMap 获取超时时间（毫秒），默认 3000
   sourceMapEndpoint?: string; // 自定义 SourceMap 服务端点
   sourceMapCacheSize?: number; // SourceMap 缓存大小，默认 50
+  // 缓存相关配置
+  enableLocalStorage?: boolean; // 是否启用 LocalStorage 持久化，默认 true
+  localStorageKey?: string; // LocalStorage 存储键名，默认 'ez_monitor_cache'
+  maxCacheSize?: number; // 最大缓存条数，默认 100
+  cacheExpireTime?: number; // 缓存过期时间（毫秒），默认 24小时
   [key: string]: string | boolean | number | string[] | any; // 添加索引签名
 };
 
@@ -290,5 +295,3 @@ export type RecordEventScope = {
   scope: string;
   eventList: any[];
 };
-
-export * from './plugin';
