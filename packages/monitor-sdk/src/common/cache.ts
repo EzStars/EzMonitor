@@ -32,6 +32,8 @@ class CacheManager {
   private cache: any[] = [];
   private config: Required<CacheConfig>;
   private readonly CACHE_VERSION = '1.0.0';
+  private saveTimer?: number; // 定期保存的定时器
+  private readonly SAVE_INTERVAL = 5000; // 每 5 秒保存一次
 
   constructor(config: CacheConfig = {}) {
     // 确保 config 是一个对象，即使传入 undefined
@@ -52,6 +54,12 @@ class CacheManager {
 
     // 监听在线状态变化
     this.setupOnlineListener();
+
+    // 启动定期保存
+    this.startPeriodicSave();
+
+    // 页面卸载前保存（使用同步方法）
+    this.setupUnloadListener();
   }
 
   /**
@@ -278,6 +286,69 @@ class CacheManager {
 
     window.addEventListener('offline', () => {
       console.log('[EzMonitor] 网络已断开，数据将暂存到本地');
+      // ✅ 网络断开时立即保存数据到 LocalStorage
+      if (this.config.enableLocalStorage && this.cache.length > 0) {
+        this.saveToLocalStorage();
+        console.log(
+          `[EzMonitor] 已保存 ${this.cache.length} 条数据到 LocalStorage`,
+        );
+      }
+    });
+  }
+
+  /**
+   * 启动定期保存机制
+   */
+  private startPeriodicSave(): void {
+    if (!this.config.enableLocalStorage) {
+      return;
+    }
+
+    // 清除旧的定时器
+    if (this.saveTimer) {
+      clearInterval(this.saveTimer);
+    }
+
+    // ✅ 每 5 秒自动保存一次
+    this.saveTimer = window.setInterval(() => {
+      if (this.cache.length > 0) {
+        this.saveToLocalStorage();
+      }
+    }, this.SAVE_INTERVAL);
+  }
+
+  /**
+   * 页面卸载时保存数据（同步方式，更可靠）
+   */
+  private setupUnloadListener(): void {
+    if (typeof window === 'undefined' || !this.config.enableLocalStorage) {
+      return;
+    }
+
+    // ✅ 使用 pagehide 事件（比 beforeunload 更可靠，支持现代浏览器）
+    window.addEventListener('pagehide', () => {
+      if (this.cache.length > 0) {
+        // 使用同步方式保存（注意：在 unload 阶段，异步操作可能被取消）
+        try {
+          const cacheItems: CacheItem[] = this.cache.map(data => ({
+            data,
+            timestamp: Date.now(),
+          }));
+
+          const persistentCache: PersistentCache = {
+            items: cacheItems,
+            version: this.CACHE_VERSION,
+          };
+
+          // 使用同步存储（注意：在 unload 阶段，异步操作可能被取消）
+          localStorage.setItem(
+            this.config.localStorageKey,
+            JSON.stringify(persistentCache),
+          );
+        } catch (error) {
+          console.warn('[EzMonitor] 页面卸载时保存失败:', error);
+        }
+      }
     });
   }
 
@@ -289,6 +360,35 @@ class CacheManager {
       ...this.config,
       ...config,
     };
+
+    // 如果配置了启用 LocalStorage，重新启动定期保存
+    if (config.enableLocalStorage !== undefined) {
+      if (config.enableLocalStorage) {
+        this.startPeriodicSave();
+      } else if (this.saveTimer) {
+        clearInterval(this.saveTimer);
+        this.saveTimer = undefined;
+      }
+    }
+  }
+
+  /**
+   * 手动保存到 LocalStorage（供外部调用）
+   */
+  public save(): void {
+    if (this.config.enableLocalStorage && this.cache.length > 0) {
+      this.saveToLocalStorage();
+    }
+  }
+
+  /**
+   * 清理资源（停止定时器）
+   */
+  public destroy(): void {
+    if (this.saveTimer) {
+      clearInterval(this.saveTimer);
+      this.saveTimer = undefined;
+    }
   }
 }
 
@@ -343,4 +443,11 @@ export function addCache(data: any): void {
 
 export function clearCache(): void {
   getCacheManager().clearCache();
+}
+
+/**
+ * 手动保存缓存到 LocalStorage
+ */
+export function saveCache(): void {
+  getCacheManager().save();
 }

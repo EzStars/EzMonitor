@@ -11,7 +11,7 @@ function isSupportSendBeacon() {
 
 const config = getConfig();
 
-const sendServe = (reportData: any) => {
+const sendServe = (reportData: any): Promise<any> => {
   let sendType = 'xhr';
   let sendTraceServer = xhrRequest;
   const ObjectSize = isObjectSize(reportData);
@@ -39,16 +39,21 @@ const sendServe = (reportData: any) => {
   if (config.reportBefore) {
     config.reportBefore(response.data);
   }
-  sendTraceServer(jsonData)
+
+  // 返回 Promise，让调用者可以 await
+  return sendTraceServer(jsonData)
     .then(() => {
       if (config.reportSuccess) {
         config.reportSuccess(response.data);
       }
+      return response.data;
     })
-    .catch(() => {
+    .catch(error => {
       if (config.reportFail) {
         config.reportFail(response.data);
       }
+      // 重新抛出错误，让调用者知道失败了
+      throw error;
     })
     .finally(() => {
       console.log('埋点上报----', response.data);
@@ -75,14 +80,20 @@ export function lazyReportBatch(data: any) {
     // 先复制数据，避免清空后丢失
     const dataToSend = [...dataCache];
 
+    // 确保在发送前数据已保存到 LocalStorage
+    const cacheManager = getCacheManager();
+    if (cacheManager.getCacheSize() > 0) {
+      cacheManager.save();
+    }
+
     try {
       await sendServe(dataToSend);
       // ✅ 只有成功后才清空缓存
       clearCache();
     } catch (error) {
       console.error('[EzMonitor] 上报失败，数据保留在缓存中:', error);
-      // ✅ 失败时不清空，等待下次重试
-      // 可选：添加重试计数器，超过一定次数才丢弃
+      // ✅ 失败时确保数据已保存到 LocalStorage
+      cacheManager.save();
     }
   };
 
@@ -157,8 +168,14 @@ export function initReportSystem() {
       );
 
       // 批量上报离线数据
-      sendServe(offlineData);
-      cacheManager.clearCache();
+      sendServe(offlineData)
+        .then(() => {
+          cacheManager.clearCache();
+        })
+        .catch(error => {
+          console.error('[EzMonitor] 离线数据上报失败:', error);
+          // 失败时保留数据
+        });
     }
   });
 
@@ -173,8 +190,14 @@ export function initReportSystem() {
 
     // 延迟上报，避免阻塞页面加载
     setTimeout(() => {
-      sendServe(offlineData);
-      cacheManager.clearCache();
+      sendServe(offlineData)
+        .then(() => {
+          cacheManager.clearCache();
+        })
+        .catch(error => {
+          console.error('[EzMonitor] 离线数据上报失败:', error);
+          // 失败时保留数据
+        });
     }, 1000);
   }
 }

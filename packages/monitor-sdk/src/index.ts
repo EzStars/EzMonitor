@@ -7,7 +7,7 @@ import Error from './plugins/error';
 import exceptionInit from './plugins/exception';
 import { unzipRecordscreen } from './common/utils';
 import { initCache, getCacheManager } from './common/cache';
-import { initReportSystem } from './common/report';
+import { initReportSystem, lazyReportBatch } from './common/report';
 
 function init(options?: ConfigType) {
   // 如果没有传入配置，使用默认配置
@@ -50,4 +50,5 @@ export default {
   getBehaviour,
   exceptionInit,
   getCacheManager, // 导出缓存管理器，供高级用户使用
+  lazyReportBatch, // 导出上报方法，供调试和测试使用
 };
