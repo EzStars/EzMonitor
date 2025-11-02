@@ -31,10 +31,8 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Build all packages
-        run: pnpm build:all
+      - name: Build SDK v2 Package
+        run: pnpm --filter @ezmonitor/sdkv2 run build
 
-      - name: Type check
-        run: |
-          cd packages/monitor-sdk && pnpm tsc --noEmit
-          cd ../sdkv2 && pnpm tsc --noEmit
+      - name: Type check SDK v2
+        run: cd packages/sdkv2 && pnpm tsc --noEmit

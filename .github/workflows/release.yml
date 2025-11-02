@@ -29,8 +29,8 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build Packages
-        run: pnpm build:all
+      - name: Build SDK v2 Package
+        run: pnpm --filter @ezmonitor/sdkv2 run build
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets

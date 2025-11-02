@@ -49,8 +49,8 @@ git push origin your-branch
 # 1. 更新版本号
 pnpm changeset:version
 
-# 2. 构建所有包
-pnpm build:all
+# 2. 构建 SDK v2 包
+pnpm --filter @ezmonitor/sdkv2 run build
 
 # 3. 发布到 npm
 pnpm changeset:publish
@@ -109,6 +109,12 @@ pnpm changeset status --verbose
 
 # 手动创建 changeset
 pnpm changeset add
+
+# 构建 SDK v2 包
+pnpm --filter @ezmonitor/sdkv2 run build
+
+# 类型检查 SDK v2
+cd packages/sdkv2 && pnpm tsc --noEmit
 
 # 删除所有 changeset（谨慎使用）
 rm -rf .changeset/*.md
