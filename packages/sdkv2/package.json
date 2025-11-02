@@ -1,6 +1,6 @@
 {
   "name": "@ezmonitor/sdkv2",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "EzMonitor SDK v2 - modular, tree-shakable TypeScript SDK",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
@@ -14,7 +14,11 @@
   "files": [
     "dist"
   ],
-  "keywords": ["monitor","sdk","ezmonitor"],
+  "keywords": [
+    "monitor",
+    "sdk",
+    "ezmonitor"
+  ],
   "author": "EzStars",
   "license": "MIT",
   "devDependencies": {
