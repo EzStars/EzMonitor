@@ -18,7 +18,7 @@
     "changeset:add": "changeset add",
     "changeset:status": "changeset status",
     "changeset:version": "changeset version && pnpm install --lockfile-only",
-    "changeset:publish": "pnpm --filter @ezmonitor/sdkv2 run build && changeset publish",
+    "changeset:publish": "pnpm --filter @ezstars/monitor-sdkv2 run build && changeset publish",
     "release": "pnpm changeset:version && pnpm changeset:publish"
   },
   "lint-staged": {

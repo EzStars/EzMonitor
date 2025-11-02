@@ -35,7 +35,7 @@ jobs:
         run: pnpm lint
 
       - name: Build SDK v2 Package
-        run: pnpm --filter @ezmonitor/sdkv2 run build
+        run: pnpm --filter @ezstars/monitor-sdkv2 run build
 
       - name: Type check SDK v2
         run: cd packages/sdkv2 && pnpm tsc --noEmit

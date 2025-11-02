@@ -1,6 +1,6 @@
 {
-  "name": "@ezmonitor/sdkv2",
-  "version": "0.2.0",
+  "name": "@ezstars/monitor-sdkv2",
+  "version": "0.1.0",
   "description": "EzMonitor SDK v2 - modular, tree-shakable TypeScript SDK",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
