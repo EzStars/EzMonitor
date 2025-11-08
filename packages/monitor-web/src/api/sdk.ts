@@ -9,9 +9,13 @@ export const sdk = createSDK({
 });
 
 // 你可以在这里预注册一些核心插件
-// import { PerformancePlugin, ErrorPlugin } from '@ezmonitor/sdkv2/plugins';
-// sdk.pluginManager.register(new PerformancePlugin());
-// sdk.pluginManager.register(new ErrorPlugin());
+// 方式1: 使用 use 方法（推荐，支持链式调用）
+// import { PerformancePlugin, ErrorPlugin } from '@ezstars/monitor-sdkv2';
+// sdk.use(new PerformancePlugin()).use(new ErrorPlugin());
+
+// 方式2: 通过 getCore() 访问 pluginManager
+// sdk.getCore().pluginManager.register(new PerformancePlugin());
+// sdk.getCore().pluginManager.register(new ErrorPlugin());
 
 // 在应用启动时初始化 SDK
 // 这是一个示例，实际应该在你的应用入口（如 index.tsx）中调用

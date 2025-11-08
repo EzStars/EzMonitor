@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Button,
-  Input,
-  Card,
-  Row,
-  Col,
-  message,
-  Tag,
-  Divider,
-  Typography,
-} from 'antd';
+import { Button, Input, Card, Row, Col, message, Tag, Typography } from 'antd';
 import { sdk } from '../../api/sdk'; // 假设你的 SDK 实例在这里导出
 import { TrackingPlugin } from '@ezstars/monitor-sdkv2';
 
@@ -31,12 +21,20 @@ const TrackingTestPage: React.FC = () => {
   useEffect(() => {
     const initializeSDK = async () => {
       try {
-        // 检查插件是否已注册
-        let plugin = sdk.pluginManager.get('tracking') as
-          | TrackingPlugin
-          | undefined;
+        // 确保 SDK 已初始化和启动
+        const currentStatus = sdk.getStatus();
+        if (currentStatus === 'idle') {
+          await sdk.init({ appId: 'monitor-web-test' });
+        }
+        if (currentStatus !== 'started') {
+          await sdk.start();
+        }
 
-        if (!plugin) {
+        // 检查插件是否已注册
+        const registration = sdk.getCore().pluginManager.get('tracking');
+        let plugin: TrackingPlugin;
+
+        if (!registration) {
           console.log(
             'Tracking plugin not found, creating and registering a new one.',
           );
@@ -46,31 +44,29 @@ const TrackingTestPage: React.FC = () => {
             batchSize: 10,
             autoTrackPage: false, // 在测试页面手动控制
           });
-          sdk.pluginManager.register(plugin);
+          sdk.use(plugin);
+          // 新注册的插件需要手动初始化和启动
+          await plugin.init?.(sdk.getConfig(), sdk.getEventBus());
+          await plugin.start?.();
+        } else {
+          // 从 registration 中获取插件实例
+          plugin = registration.plugin as TrackingPlugin;
         }
 
         setTrackingPlugin(plugin);
 
-        // 确保 SDK 已启动
-        if (sdk.getStatus() !== 'started') {
-          await sdk.init({ appId: 'monitor-web-test' });
-          await sdk.start();
-        }
-
         // 监听事件总线
-        const offReport = sdk.eventBus.on('report:data', (payload: any) => {
+        const eventBus = sdk.getEventBus();
+        const offReport = eventBus.on('report:data', (payload: any) => {
           if (payload.type === 'tracking') {
             addLog(`[REPORT_DATA] ${JSON.stringify(payload.data)}`);
           }
         });
-        const offBatchReport = sdk.eventBus.on(
-          'report:batch',
-          (payload: any) => {
-            addLog(
-              `[REPORT_BATCH] Batch of ${payload.items.length} items: ${JSON.stringify(payload.items)}`,
-            );
-          },
-        );
+        const offBatchReport = eventBus.on('report:batch', (payload: any) => {
+          addLog(
+            `[REPORT_BATCH] Batch of ${payload.items.length} items: ${JSON.stringify(payload.items)}`,
+          );
+        });
 
         addLog('SDK and Tracking Plugin are ready.');
 
@@ -92,13 +88,14 @@ const TrackingTestPage: React.FC = () => {
   };
 
   const handleTrackEvent = () => {
-    // if (!trackingPlugin) return;
+    if (!trackingPlugin) return;
     try {
       const props = JSON.parse(eventProps);
       trackingPlugin.track(eventName, props);
       message.success(`Event '${eventName}' tracked.`);
       addLog(`Tracked event: '${eventName}' with props: ${eventProps}`);
     } catch (e) {
+      console.error('事件属性 JSON 格式错误', e);
       message.error('事件属性 JSON 格式错误');
     }
   };

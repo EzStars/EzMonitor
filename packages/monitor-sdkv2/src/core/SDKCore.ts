@@ -30,8 +30,11 @@ export class SDKCore implements ISDKCore {
     this._eventBus = new EventBus();
     // 创建配置管理器
     this._configManager = new ConfigManager(initialConfig);
-    // 获取初始配置
-    this._config = this._configManager.getAll();
+    // 获取初始配置并添加 sessionId
+    this._config = {
+      ...this._configManager.getAll(),
+      sessionId: this._sessionId,
+    };
     // 创建插件管理器
     this._pluginManager = new PluginManager(this._eventBus, this._config);
 
@@ -70,7 +73,10 @@ export class SDKCore implements ISDKCore {
       // 合并配置
       if (config) {
         this._configManager.merge(config);
-        this._config = this._configManager.getAll();
+        this._config = {
+          ...this._configManager.getAll(),
+          sessionId: this._sessionId,
+        };
       }
 
       // 验证配置
@@ -209,7 +215,10 @@ export class SDKCore implements ISDKCore {
   private handleConfigChange = (event: Event) => {
     const customEvent = event as CustomEvent;
     const { key, value, oldValue } = customEvent.detail;
-    this._config = this._configManager.getAll();
+    this._config = {
+      ...this._configManager.getAll(),
+      sessionId: this._sessionId,
+    };
     this._eventBus.emit(INTERNAL_EVENTS.CONFIG_CHANGED, {
       key,
       value,
