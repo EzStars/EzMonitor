@@ -4,6 +4,7 @@ import HomePage from '@/pages/Home';
 import ErrorPage from '@/pages/Error';
 import PerformancePage from '@/pages/Performance';
 import BehaviorPage from '@/pages/Behavior';
+import TrackingTestPage from '@/pages/TrackingTest';
 
 const router = createBrowserRouter([
   {
@@ -25,6 +26,10 @@ const router = createBrowserRouter([
       {
         path: 'behavior',
         element: <BehaviorPage />,
+      },
+      {
+        path: 'tracking-test',
+        element: <TrackingTestPage />,
       },
     ],
   },

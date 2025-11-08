@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@ezstars/monitor-sdk": "workspace:*",
+    "@ezstars/monitor-sdkv2": "workspace:*",
     "@rsbuild/core": "^1.5.6",
     "@rsbuild/plugin-react": "^1.4.0",
     "@rsbuild/plugin-sass": "^1.4.0",

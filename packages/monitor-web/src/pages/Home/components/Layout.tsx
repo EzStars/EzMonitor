@@ -6,6 +6,7 @@ import {
   DashboardOutlined,
   UserOutlined,
   MonitorOutlined,
+  ExperimentOutlined, // 导入新图标
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { Breadcrumb, Layout, Menu, theme, Avatar, Dropdown, Space } from 'antd';
@@ -35,6 +36,11 @@ const menuItems: MenuProps['items'] = [
     icon: <UserOutlined />,
     label: '行为监控',
   },
+  {
+    key: '/tracking-test',
+    icon: <ExperimentOutlined />,
+    label: '埋点测试',
+  },
 ];
 
 // 用户下拉菜单
@@ -55,6 +61,7 @@ const breadcrumbMap: Record<string, string> = {
   '/error': '错误监控',
   '/performance': '性能监控',
   '/behavior': '行为监控',
+  '/tracking-test': '埋点测试',
 };
 
 const EzMonitorLayout: React.FC = () => {

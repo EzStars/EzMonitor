@@ -37,9 +37,27 @@ export interface ReportEvents {
 }
 
 /**
+ * 自定义埋点事件类型
+ */
+export interface TrackingEvents {
+  'tracking:event': {
+    eventName: string;
+    properties?: Record<string, any>;
+    context?: Record<string, any>;
+  };
+  'tracking:page': {
+    page: string;
+    properties?: Record<string, any>;
+    context?: Record<string, any>;
+  };
+  'tracking:user': { userId: string; properties?: Record<string, any> };
+  'tracking:batch': { events: any[] };
+}
+
+/**
  * 所有事件类型合集
  */
-export type AllEvents = SystemEvents & ReportEvents;
+export type AllEvents = SystemEvents & ReportEvents & TrackingEvents;
 
 /**
  * 事件名称类型
@@ -93,4 +111,10 @@ export const INTERNAL_EVENTS = {
   REPORT_BATCH: 'report:batch',
   REPORT_SUCCESS: 'report:success',
   REPORT_ERROR: 'report:error',
+
+  // 自定义埋点事件
+  TRACKING_EVENT: 'tracking:event',
+  TRACKING_PAGE: 'tracking:page',
+  TRACKING_USER: 'tracking:user',
+  TRACKING_BATCH: 'tracking:batch',
 } as const;
