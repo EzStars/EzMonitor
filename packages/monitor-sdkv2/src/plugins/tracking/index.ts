@@ -7,4 +7,3 @@ export type {
   TrackingContext,
 } from './types';
 export { ContextCollector } from './ContextCollector';
-export { TrackingCache } from './TrackingCache';

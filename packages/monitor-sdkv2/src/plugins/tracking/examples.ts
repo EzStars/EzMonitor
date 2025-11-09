@@ -12,9 +12,6 @@ import { TrackingPlugin } from './TrackingPlugin';
 export function createBasicExample() {
   // 创建埋点插件实例
   const trackingPlugin = new TrackingPlugin({
-    enableBatch: true,
-    batchInterval: 5000,
-    batchSize: 20,
     autoTrackPage: true,
   });
 
@@ -67,8 +64,6 @@ export function createBasicExample() {
  */
 export function createAdvancedExample() {
   const trackingPlugin = new TrackingPlugin({
-    enableBatch: false, // 立即上报
-
     // 自定义数据处理器
     dataProcessor: data => ({
       ...data,
@@ -106,9 +101,7 @@ export function createAdvancedExample() {
  */
 export function createEcommerceExample() {
   const trackingPlugin = new TrackingPlugin({
-    enableBatch: true,
-    batchInterval: 3000,
-    batchSize: 10,
+    autoTrackPage: true,
   });
 
   return {

@@ -1,3 +1,5 @@
+import { SDKConfig } from './config';
+
 /**
  * 事件载荷基础类型
  */
@@ -6,34 +8,34 @@ export interface BaseEventPayload {
   appId?: string;
   userId?: string;
   sessionId?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
  * 系统事件类型
  */
 export interface SystemEvents {
-  'sdk:init': { config: any };
-  'sdk:start': {};
-  'sdk:stop': {};
-  'sdk:destroy': {};
+  'sdk:init': { config: SDKConfig };
+  'sdk:start': Record<string, never>;
+  'sdk:stop': Record<string, never>;
+  'sdk:destroy': Record<string, never>;
   'plugin:registered': { pluginName: string };
   'plugin:initialized': { pluginName: string };
   'plugin:started': { pluginName: string };
   'plugin:stopped': { pluginName: string };
   'plugin:destroyed': { pluginName: string };
   'plugin:error': { pluginName: string; error: Error };
-  'config:changed': { key: string; value: any; oldValue: any };
+  'config:changed': { key: string; value: unknown; oldValue: unknown };
 }
 
 /**
  * 数据上报事件类型
  */
 export interface ReportEvents {
-  'report:data': { type: string; data: any };
-  'report:batch': { items: any[] };
-  'report:success': { data: any };
-  'report:error': { data: any; error: Error };
+  'report:data': { type: string; data: unknown };
+  'report:batch': { items: unknown[] };
+  'report:success': { data: unknown };
+  'report:error': { data: unknown; error: Error };
 }
 
 /**
@@ -42,16 +44,16 @@ export interface ReportEvents {
 export interface TrackingEvents {
   'tracking:event': {
     eventName: string;
-    properties?: Record<string, any>;
-    context?: Record<string, any>;
+    properties?: Record<string, unknown>;
+    context?: Record<string, unknown>;
   };
   'tracking:page': {
     page: string;
-    properties?: Record<string, any>;
-    context?: Record<string, any>;
+    properties?: Record<string, unknown>;
+    context?: Record<string, unknown>;
   };
-  'tracking:user': { userId: string; properties?: Record<string, any> };
-  'tracking:batch': { events: any[] };
+  'tracking:user': { userId: string; properties?: Record<string, unknown> };
+  'tracking:batch': { events: unknown[] };
 }
 
 /**

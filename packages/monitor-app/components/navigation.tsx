@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 const navigation = [
   { name: '首页', href: '/' },
   { name: '监控数据', href: '/dashboard' },
-  { name: 'SDK 测试', href: '/test' },
+  { name: 'demo展示', href: '/demo' },
   {
     name: '文档',
     href: 'https://ezstars.github.io/EzMonitor/',

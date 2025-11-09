@@ -58,18 +58,8 @@ export interface TrackingUserData {
  * 自定义埋点插件配置
  */
 export interface TrackingPluginConfig {
-  /** 是否启用自动批量上报 */
-  enableBatch?: boolean;
-  /** 批量上报间隔（毫秒） */
-  batchInterval?: number;
-  /** 批量上报数量阈值 */
-  batchSize?: number;
   /** 是否启用自动页面埋点 */
   autoTrackPage?: boolean;
-  /** 是否启用离线缓存 */
-  enableOfflineCache?: boolean;
-  /** 离线缓存最大条数 */
-  offlineCacheSize?: number;
   /** 自定义数据处理器 */
   dataProcessor?: (
     data: TrackingEventData | TrackingPageData | TrackingUserData,

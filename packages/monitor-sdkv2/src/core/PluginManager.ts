@@ -21,7 +21,7 @@ export class PluginManager implements IPluginManager {
     this.config = config;
   }
 
-  register(plugin: IPlugin, config?: Record<string, any>): void {
+  register(plugin: IPlugin, config?: Record<string, unknown>): void {
     if (this.plugins.has(plugin.name)) {
       throw new Error(`Plugin ${plugin.name} already registered`);
     }

@@ -3,6 +3,9 @@ export * from './core/ConfigManager';
 export * from './core/PluginManager';
 export * from './core/SDKCore';
 export * from './core/EventBus';
+export * from './core/Reporter';
+export * from './core/ReportQueue';
+export * from './core/types/reporter';
 
 // 导出所有类型
 export * from './types';

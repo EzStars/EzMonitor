@@ -9,7 +9,6 @@ import type {
   TrackingContext,
 } from './types';
 import { ContextCollector } from './ContextCollector';
-import { TrackingCache, type TrackingData } from './TrackingCache';
 import { INTERNAL_EVENTS } from '../../types/events';
 
 /**
@@ -20,11 +19,11 @@ import { INTERNAL_EVENTS } from '../../types/events';
  * - 页面埋点：trackPage() 方法用于页面访问埋点
  * - 用户埋点：trackUser() 方法用于用户行为埋点
  * - 自动上下文收集：自动收集页面、设备、网络等上下文信息
- * - 批量上报：支持自动批量上报以优化性能
- * - 离线缓存：支持离线存储，网络恢复时自动上报
  * - 自动页面追踪：可选的自动页面访问追踪
  * - 数据过滤：支持自定义事件过滤器
  * - 数据处理：支持自定义数据处理器
+ *
+ * 注意：批量上报、离线缓存等功能已统一移至 Reporter 层处理
  */
 export class TrackingPlugin implements IPlugin {
   readonly name = 'tracking';
@@ -38,26 +37,18 @@ export class TrackingPlugin implements IPlugin {
   private eventBus!: EventBus;
   private pluginConfig: Required<TrackingPluginConfig>;
   private contextCollector: ContextCollector;
-  private cache: TrackingCache;
-  private batchTimer?: number;
   private currentUserId?: string;
 
   constructor(config: Partial<TrackingPluginConfig> = {}) {
     // 设置默认配置
     this.pluginConfig = {
-      enableBatch: false,
-      batchInterval: 10000, // 10秒
-      batchSize: 50,
       autoTrackPage: true,
-      enableOfflineCache: true,
-      offlineCacheSize: 1000,
       dataProcessor: data => data, // 默认不处理
       eventFilter: () => true, // 默认不过滤
       ...config,
     };
 
     this.contextCollector = new ContextCollector();
-    this.cache = new TrackingCache(this.pluginConfig.offlineCacheSize);
   }
 
   /**
@@ -72,11 +63,6 @@ export class TrackingPlugin implements IPlugin {
       this.setupAutoPageTracking();
     }
 
-    // 设置批量上报定时器
-    if (this.pluginConfig.enableBatch) {
-      this.setupBatchTimer();
-    }
-
     this.status = 'initialized' as PluginStatus;
   }
 
@@ -84,11 +70,6 @@ export class TrackingPlugin implements IPlugin {
    * 启动插件
    */
   async start(): Promise<void> {
-    // 处理离线缓存中的数据
-    if (this.pluginConfig.enableOfflineCache && !this.cache.isEmpty()) {
-      this.flushCache();
-    }
-
     this.status = 'started' as PluginStatus;
   }
 
@@ -96,15 +77,6 @@ export class TrackingPlugin implements IPlugin {
    * 停止插件
    */
   async stop(): Promise<void> {
-    // 清除批量上报定时器
-    if (this.batchTimer) {
-      clearInterval(this.batchTimer);
-      this.batchTimer = undefined;
-    }
-
-    // 将剩余数据保存到缓存
-    this.flushCache();
-
     this.status = 'stopped' as PluginStatus;
   }
 
@@ -112,8 +84,6 @@ export class TrackingPlugin implements IPlugin {
    * 销毁插件
    */
   async destroy(): Promise<void> {
-    this.stop();
-    this.cache.clear();
     this.status = 'destroyed' as PluginStatus;
   }
 
@@ -143,8 +113,25 @@ export class TrackingPlugin implements IPlugin {
       userId: this.currentUserId,
       appId: this.config.appId,
     };
-    console.log('Tracking event data:', eventData);
-    this.processAndReport(eventData);
+
+    // 应用自定义数据处理器
+    const processedData = this.pluginConfig.dataProcessor(eventData);
+
+    if (this.config.debug) {
+      console.log('[TrackingPlugin] Tracking event:', processedData);
+    }
+
+    // 触发事件，由 Reporter 统一处理上报
+    this.eventBus.emit(INTERNAL_EVENTS.TRACKING_EVENT, {
+      eventName: processedData.eventName,
+      properties: processedData.properties,
+      context: processedData.context,
+    });
+
+    this.eventBus.emit(INTERNAL_EVENTS.REPORT_DATA, {
+      type: 'tracking',
+      data: processedData,
+    });
   }
 
   /**
@@ -168,8 +155,25 @@ export class TrackingPlugin implements IPlugin {
       userId: this.currentUserId,
       appId: this.config.appId,
     };
-    console.log('Tracking page data:', pageData);
-    this.processAndReport(pageData);
+
+    // 应用自定义数据处理器
+    const processedData = this.pluginConfig.dataProcessor(pageData);
+
+    if (this.config.debug) {
+      console.log('[TrackingPlugin] Tracking page:', processedData);
+    }
+
+    // 触发事件
+    this.eventBus.emit(INTERNAL_EVENTS.TRACKING_PAGE, {
+      page: processedData.page,
+      properties: processedData.properties,
+      context: processedData.context,
+    });
+
+    this.eventBus.emit(INTERNAL_EVENTS.REPORT_DATA, {
+      type: 'tracking',
+      data: processedData,
+    });
   }
 
   /**
@@ -187,9 +191,24 @@ export class TrackingPlugin implements IPlugin {
       sessionId: this.config.sessionId,
       appId: this.config.appId,
     };
-    console.log('Tracking user data:', userData);
 
-    this.processAndReport(userData);
+    // 应用自定义数据处理器
+    const processedData = this.pluginConfig.dataProcessor(userData);
+
+    if (this.config.debug) {
+      console.log('[TrackingPlugin] Tracking user:', processedData);
+    }
+
+    // 触发事件
+    this.eventBus.emit(INTERNAL_EVENTS.TRACKING_USER, {
+      userId: processedData.userId,
+      properties: processedData.properties,
+    });
+
+    this.eventBus.emit(INTERNAL_EVENTS.REPORT_DATA, {
+      type: 'tracking',
+      data: processedData,
+    });
   }
 
   /**
@@ -216,13 +235,6 @@ export class TrackingPlugin implements IPlugin {
   }
 
   /**
-   * 立即上报所有缓存的事件
-   */
-  flush(): void {
-    this.flushCache();
-  }
-
-  /**
    * 构建完整的上下文信息
    */
   private buildContext(customContext?: Record<string, any>): TrackingContext {
@@ -233,70 +245,6 @@ export class TrackingPlugin implements IPlugin {
     }
 
     return context;
-  }
-
-  /**
-   * 处理和上报数据
-   */
-  private processAndReport(data: TrackingData): void {
-    // 应用自定义数据处理器
-    const processedData = this.pluginConfig.dataProcessor(data);
-
-    if (this.pluginConfig.enableBatch) {
-      // 添加到缓存，等待批量上报
-      this.cache.add(processedData);
-
-      // 如果缓存达到阈值，立即上报
-      if (this.cache.size() >= this.pluginConfig.batchSize) {
-        this.flushCache();
-      }
-    } else {
-      // 立即上报
-      this.reportSingle(processedData);
-    }
-  }
-
-  /**
-   * 上报单个事件
-   */
-  private reportSingle(data: TrackingData): void {
-    this.eventBus.emit(INTERNAL_EVENTS.TRACKING_EVENT, {
-      eventName:
-        'eventName' in data
-          ? data.eventName
-          : 'page' in data
-            ? 'page_view'
-            : 'user_identify',
-      properties: data.properties,
-      context: 'context' in data ? data.context : undefined,
-    });
-
-    this.eventBus.emit(INTERNAL_EVENTS.REPORT_DATA, {
-      type: 'tracking',
-      data,
-    });
-  }
-
-  /**
-   * 批量上报缓存中的事件
-   */
-  private flushCache(): void {
-    const events = this.cache.takeAll();
-    if (events.length === 0) return;
-
-    this.eventBus.emit(INTERNAL_EVENTS.TRACKING_BATCH, { events });
-    this.eventBus.emit(INTERNAL_EVENTS.REPORT_BATCH, { items: events });
-  }
-
-  /**
-   * 设置批量上报定时器
-   */
-  private setupBatchTimer(): void {
-    this.batchTimer = setInterval(() => {
-      if (!this.cache.isEmpty()) {
-        this.flushCache();
-      }
-    }, this.pluginConfig.batchInterval) as unknown as number;
   }
 
   /**

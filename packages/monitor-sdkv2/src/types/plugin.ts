@@ -59,7 +59,7 @@ export type PluginConstructor = new (...args: any[]) => IPlugin;
  */
 export interface PluginRegistration {
   plugin: IPlugin;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
 }
 
 /**
@@ -75,7 +75,7 @@ export interface IPluginManager {
    * @param config 插件配置参数（可选）
    * @throws 如果插件名称重复或依赖未满足时抛出异常
    */
-  register(plugin: IPlugin, config?: Record<string, any>): void;
+  register(plugin: IPlugin, config?: Record<string, unknown>): void;
 
   /**
    * 从管理器中注销插件

@@ -3,8 +3,9 @@ import { SDKConfig } from '../types/config';
 import { EventBus } from './EventBus';
 import { ConfigManager } from './ConfigManager';
 import { PluginManager } from './PluginManager';
+import { Reporter } from './Reporter';
 import { IPluginManager } from '../types/plugin';
-import { DOM_EVENTS, INTERNAL_EVENTS } from '../types/events';
+import { INTERNAL_EVENTS, SystemEvents } from '../types/events';
 
 /**
  * 生成会话 ID
@@ -23,22 +24,23 @@ export class SDKCore implements ISDKCore {
   private _eventBus: EventBus;
   private _configManager: ConfigManager;
   private _pluginManager: PluginManager;
+  private _reporter: Reporter;
 
   constructor(initialConfig?: Partial<SDKConfig>) {
     // 生成会话 ID
     this._sessionId = generateSessionId();
     this._eventBus = new EventBus();
-    // 创建配置管理器
-    this._configManager = new ConfigManager(initialConfig);
+    // 创建配置管理器，传入 EventBus
+    this._configManager = new ConfigManager(initialConfig, this._eventBus);
     // 获取初始配置并添加 sessionId
-    this._config = {
-      ...this._configManager.getAll(),
-      sessionId: this._sessionId,
-    };
+    this._config = {} as SDKConfig; // 临时初始化
+    this.refreshConfig(); // 使用统一方法刷新配置
     // 创建插件管理器
     this._pluginManager = new PluginManager(this._eventBus, this._config);
+    // 创建 Reporter
+    this._reporter = new Reporter(this._config, this._eventBus);
 
-    // 监听配置变更
+    // 监听配置变更 - 使用 EventBus 而非 DOM 事件
     this.setupConfigListener();
   }
 
@@ -67,21 +69,27 @@ export class SDKCore implements ISDKCore {
       throw new Error(`Cannot initialize SDK in status: ${this._status}`);
     }
 
+    // 保存当前配置快照，用于失败时回滚
+    const configSnapshot = this._configManager.getAll();
+    const previousConfig = { ...this._config };
+
     this._status = SDKStatus.INITIALIZING;
 
     try {
-      // 合并配置
+      // 先验证新配置（合并前）
       if (config) {
+        const mergedConfig = { ...configSnapshot, ...config };
+        if (!this._configManager.validate(mergedConfig)) {
+          throw new Error('Invalid configuration');
+        }
+        // 验证通过后才合并配置
         this._configManager.merge(config);
-        this._config = {
-          ...this._configManager.getAll(),
-          sessionId: this._sessionId,
-        };
-      }
-
-      // 验证配置
-      if (!this._configManager.validate(this._config)) {
-        throw new Error('Invalid configuration');
+        this.refreshConfig(); // 使用统一方法刷新配置
+      } else {
+        // 没有新配置，验证当前配置
+        if (!this._configManager.validate(this._config)) {
+          throw new Error('Invalid configuration');
+        }
       }
 
       // 触发初始化事件
@@ -90,13 +98,30 @@ export class SDKCore implements ISDKCore {
       // 初始化所有插件
       await this._pluginManager.initAll();
 
+      // 初始化 Reporter
+      this._reporter.init();
+
       this._status = SDKStatus.INITIALIZED;
 
       if (this._config.debug) {
         console.log('[SDKCore] Initialized successfully');
       }
     } catch (error) {
+      // 初始化失败，回滚所有状态
       this._status = SDKStatus.IDLE;
+
+      // 回滚配置到快照状态
+      Object.keys(this._configManager.getAll()).forEach(key => {
+        if (configSnapshot[key] !== undefined) {
+          this._configManager.set(key, configSnapshot[key]);
+        }
+      });
+      this._config = previousConfig;
+
+      if (this._config.debug) {
+        console.error('[SDKCore] Initialization failed, rolled back:', error);
+      }
+
       throw error;
     }
   }
@@ -175,6 +200,9 @@ export class SDKCore implements ISDKCore {
       // 销毁所有插件
       await this._pluginManager.destroyAll();
 
+      // 销毁 Reporter
+      this._reporter.destroy();
+
       // 清理事件监听器
       this.cleanupConfigListener();
 
@@ -191,38 +219,38 @@ export class SDKCore implements ISDKCore {
   getStatus(): SDKStatus {
     return this._status;
   }
+
   /**
-   * 设置配置变更监听器
+   * 刷新配置缓存
+   * 从 ConfigManager 获取最新配置并添加 sessionId
    */
-  private setupConfigListener(): void {
-    if (typeof window !== 'undefined') {
-      window.addEventListener(
-        DOM_EVENTS.CONFIG_CHANGED,
-        this.handleConfigChange as EventListener,
-      );
-    }
-  }
-
-  private cleanupConfigListener(): void {
-    if (typeof window !== 'undefined') {
-      window.removeEventListener(
-        DOM_EVENTS.CONFIG_CHANGED,
-        this.handleConfigChange as EventListener,
-      );
-    }
-  }
-
-  private handleConfigChange = (event: Event) => {
-    const customEvent = event as CustomEvent;
-    const { key, value, oldValue } = customEvent.detail;
+  private refreshConfig(): void {
     this._config = {
       ...this._configManager.getAll(),
       sessionId: this._sessionId,
     };
-    this._eventBus.emit(INTERNAL_EVENTS.CONFIG_CHANGED, {
-      key,
-      value,
-      oldValue,
-    });
+  }
+
+  /**
+   * 设置配置变更监听器 - 使用 EventBus
+   */
+  private setupConfigListener(): void {
+    this._eventBus.on(INTERNAL_EVENTS.CONFIG_CHANGED, this.handleConfigChange);
+  }
+
+  private cleanupConfigListener(): void {
+    this._eventBus.off(INTERNAL_EVENTS.CONFIG_CHANGED, this.handleConfigChange);
+  }
+
+  private handleConfigChange = (payload: SystemEvents['config:changed']) => {
+    const { key, value, oldValue } = payload;
+    // 更新本地配置缓存
+    this.refreshConfig();
+
+    if (this._config.debug) {
+      console.log(
+        `[SDKCore] Config changed: ${key} = ${value} (was ${oldValue})`,
+      );
+    }
   };
 }
