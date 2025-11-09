@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -11,9 +11,26 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { getMonitorSDK, getTrackingPlugin } from '@/lib/monitor';
 
 export default function TestPage() {
   const [logs, setLogs] = useState<string[]>([]);
+  const [sdkReady, setSdkReady] = useState(false);
+
+  // 检查 SDK 是否就绪
+  useEffect(() => {
+    const checkSDK = () => {
+      const sdk = getMonitorSDK();
+      const tracking = getTrackingPlugin();
+      if (sdk && tracking) {
+        setSdkReady(true);
+        addLog('✓ SDK 已就绪');
+      } else {
+        setTimeout(checkSDK, 100); // 重试
+      }
+    };
+    checkSDK();
+  }, []);
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -53,15 +70,60 @@ export default function TestPage() {
 
   // 用户行为测试
   const trackCustomEvent = () => {
-    addLog('发送自定义埋点事件');
-    // TODO: 集成 SDK 后调用 trackEvent
-    console.log('Custom Event: button_click', { timestamp: Date.now() });
+    const tracking = getTrackingPlugin();
+    if (tracking) {
+      addLog('✓ 发送自定义埋点事件');
+      tracking.track('button_click', {
+        buttonId: 'custom-event-btn',
+        page: '/demo',
+        timestamp: Date.now(),
+      });
+    } else {
+      addLog('✗ SDK 未就绪');
+    }
   };
 
   const trackPageView = () => {
-    addLog('发送页面浏览事件');
-    // TODO: 集成 SDK 后调用 trackPage
-    console.log('Page View: /test', { timestamp: Date.now() });
+    const tracking = getTrackingPlugin();
+    if (tracking) {
+      addLog('✓ 发送页面浏览事件');
+      tracking.trackPage('/demo', {
+        title: 'SDK 测试页面',
+        referrer: document.referrer,
+      });
+    } else {
+      addLog('✗ SDK 未就绪');
+    }
+  };
+
+  const trackUserAction = () => {
+    const tracking = getTrackingPlugin();
+    if (tracking) {
+      addLog('✓ 发送用户行为事件');
+      tracking.trackUser('test-user-123', {
+        name: '测试用户',
+        email: 'test@example.com',
+        plan: 'premium',
+      });
+    } else {
+      addLog('✗ SDK 未就绪');
+    }
+  };
+
+  // SDK 信息查看
+  const showSDKInfo = () => {
+    const sdk = getMonitorSDK();
+    if (sdk) {
+      addLog(`SDK 状态: ${sdk.getStatus()}`);
+      addLog(`Session ID: ${sdk.getSessionId()}`);
+      const config = sdk.getConfig();
+      addLog(`App ID: ${config.appId}`);
+      addLog(`Report URL: ${config.reportUrl}`);
+      addLog(`批量上报: ${config.enableBatch ? '启用' : '禁用'}`);
+      addLog(`批量大小: ${config.batchSize}`);
+    } else {
+      addLog('✗ SDK 未初始化');
+    }
   };
 
   return (
@@ -72,6 +134,9 @@ export default function TestPage() {
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-3xl font-bold tracking-tight">SDK 测试页面</h1>
             <Badge variant="secondary">开发环境</Badge>
+            <Badge variant={sdkReady ? 'default' : 'destructive'}>
+              {sdkReady ? 'SDK 已就绪' : 'SDK 初始化中...'}
+            </Badge>
           </div>
           <p className="text-muted-foreground">
             在这里测试 EzMonitor SDK 的各项功能
@@ -216,12 +281,23 @@ export default function TestPage() {
                   发送页面浏览事件
                 </Button>
                 <Button
+                  onClick={trackUserAction}
+                  variant="outline"
+                  className="w-full"
+                >
+                  发送用户行为事件
+                </Button>
+                <Button
                   onClick={() => {
                     addLog('模拟表单提交');
-                    console.log('Form Submit Event', {
-                      formId: 'test-form',
-                      timestamp: Date.now(),
-                    });
+                    const tracking = getTrackingPlugin();
+                    if (tracking) {
+                      tracking.track('form_submit', {
+                        formId: 'test-form',
+                        fields: ['name', 'email'],
+                        timestamp: Date.now(),
+                      });
+                    }
                   }}
                   variant="outline"
                   className="w-full"
@@ -233,7 +309,36 @@ export default function TestPage() {
           </div>
 
           {/* Right Column - Event Log */}
-          <div>
+          <div className="space-y-6">
+            {/* SDK Info Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <svg
+                    className="w-5 h-5 text-green-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  SDK 信息
+                </CardTitle>
+                <CardDescription>查看 SDK 运行状态和配置</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={showSDKInfo} className="w-full">
+                  显示 SDK 信息
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Event Log */}
             <Card className="h-full">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -292,27 +397,48 @@ export default function TestPage() {
               <div>
                 <h4 className="font-semibold mb-2">2. 初始化 SDK</h4>
                 <div className="bg-slate-950 dark:bg-slate-900 rounded-lg p-4 font-mono text-sm text-green-400">
-                  <pre>{`import { createSDK } from '@ezstars/monitor-sdkv2';
+                  <pre>{`import { createSDK, TrackingPlugin } from '@ezstars/monitor-sdkv2';
 
 const sdk = createSDK({
-  appId: 'monitor-app-test',
-  reportUrl: 'http://localhost:8080/report',
+  appId: 'monitor-app-demo',
+  reportUrl: 'https://your-api.com/report',
+  enableBatch: true,
+  batchSize: 10,
   debug: true,
 });
 
+const tracking = new TrackingPlugin({
+  autoTrackPage: true,
+});
+
+sdk.use(tracking);
 await sdk.init();
 await sdk.start();`}</pre>
                 </div>
               </div>
               <Separator />
               <div>
-                <h4 className="font-semibold mb-2">3. 使用插件</h4>
+                <h4 className="font-semibold mb-2">3. 使用埋点功能</h4>
                 <div className="bg-slate-950 dark:bg-slate-900 rounded-lg p-4 font-mono text-sm text-green-400">
-                  <pre>{`import { ErrorPlugin, PerformancePlugin, TrackingPlugin } from '@ezstars/monitor-sdkv2';
+                  <pre>{`// 获取插件实例
+const tracking = getTrackingPlugin();
 
-sdk.use(new ErrorPlugin());
-sdk.use(new PerformancePlugin());
-sdk.use(new TrackingPlugin());`}</pre>
+// 自定义事件埋点
+tracking.track('button_click', {
+  buttonId: 'submit-btn',
+  page: '/demo',
+});
+
+// 页面访问埋点
+tracking.trackPage('/dashboard', {
+  title: '仪表板',
+});
+
+// 用户行为埋点
+tracking.trackUser('user-123', {
+  name: 'John Doe',
+  email: 'john@example.com',
+});`}</pre>
                 </div>
               </div>
             </div>
