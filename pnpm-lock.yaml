@@ -70,6 +70,9 @@ importers:
 
   packages/monitor-app:
     dependencies:
+      '@ezstars/monitor-sdkv2':
+        specifier: workspace:*
+        version: link:../monitor-sdkv2
       '@radix-ui/react-separator':
         specifier: ^1.1.8
         version: 1.1.8(@types/react-dom@18.3.7(@types/react@18.3.25))(@types/react@18.3.25)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
