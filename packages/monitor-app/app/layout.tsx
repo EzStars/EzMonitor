@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+import { Navigation } from '@/components/navigation';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'welcome to EzMonitor App',
-  description: 'EzMonitor App - 轻量级监控解决方案',
+  title: 'EzMonitor - 前端监控平台',
+  description: '全方位的前端监控解决方案，实时捕获错误、性能监控、用户行为追踪',
 };
 
 export default function RootLayout({
@@ -23,10 +24,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="cn">
+    <html lang="zh-CN">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <Navigation />
         {children}
       </body>
     </html>

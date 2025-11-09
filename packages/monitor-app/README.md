@@ -1,36 +1,146 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EzMonitor App
 
-## Getting Started
+EzMonitor 前端监控平台的演示应用，包含监控数据展示和 SDK 测试功能。
 
-First, run the development server:
+## 📁 项目结构
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+monitor-app/
+├── app/
+│   ├── dashboard/            # 监控数据看板
+│   │   └── page.tsx
+│   ├── test/                 # SDK 测试页面
+│   │   └── page.tsx
+│   ├── page.tsx              # 首页
+│   ├── layout.tsx            # 根布局
+│   └── globals.css           # 全局样式
+├── components/
+│   ├── ui/                   # shadcn/ui 组件
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── badge.tsx
+│   │   └── separator.tsx
+│   ├── dashboard/            # 监控相关组件
+│   ├── test/                 # 测试相关组件
+│   └── navigation.tsx        # 导航组件
+└── lib/
+    └── utils.ts              # 工具函数
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🎯 功能模块
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 1. 首页 (`/`)
+- 产品介绍
+- 核心功能展示
+- 快速开始指南
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 2. 监控数据看板 (`/dashboard`)
+- **实时数据统计**
+  - 错误总数
+  - 平均响应时间
+  - 活跃用户数
+  - 页面浏览量
 
-## Learn More
+- **错误监控**
+  - 最近错误列表
+  - 错误类型分类
+  - 错误发生频率
 
-To learn more about Next.js, take a look at the following resources:
+- **性能指标**
+  - Core Web Vitals (FCP, LCP, FID, CLS)
+  - 性能评分
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **用户行为分析**
+  - 热门页面统计
+  - 常用功能统计
+  - 设备分布
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 3. SDK 测试页面 (`/test`)
+- **错误监控测试**
+  - JS 错误触发
+  - Promise 错误触发
+  - 资源加载错误触发
 
-## Deploy on Vercel
+- **性能监控测试**
+  - 慢操作模拟
+  - 大量 DOM 操作
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **用户行为测试**
+  - 自定义事件埋点
+  - 页面浏览追踪
+  - 表单提交追踪
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **实时事件日志**
+  - 实时显示捕获的事件
+  - 日志筛选和清空
+
+## 🚀 快速开始
+
+### 安装依赖
+
+```bash
+pnpm install
+```
+
+### 开发模式
+
+```bash
+pnpm dev
+```
+
+访问 [http://localhost:3000](http://localhost:3000)
+
+### 生产构建
+
+```bash
+pnpm build
+pnpm start
+```
+
+## 🔧 技术栈
+
+- **框架**: Next.js 16 (App Router)
+- **语言**: TypeScript
+- **样式**: Tailwind CSS v4
+- **组件库**: shadcn/ui
+- **图标**: Lucide Icons
+- **SDK**: @ezstars/monitor-sdkv2 (待集成)
+
+## 📝 待完成任务
+
+### SDK 集成
+- [ ] 安装 @ezstars/monitor-sdkv2
+- [ ] 在测试页面初始化 SDK
+- [ ] 集成错误监控插件
+- [ ] 集成性能监控插件
+- [ ] 集成用户行为追踪插件
+- [ ] 实现实时数据上报
+
+### 数据展示
+- [ ] 连接后端 API
+- [ ] 实现实时数据更新
+- [ ] 添加数据图表
+- [ ] 实现错误详情页
+- [ ] 实现性能分析页
+
+## 🎨 shadcn/ui 组件
+
+已安装的组件：
+- Button
+- Card
+- Badge
+- Separator
+
+可以通过以下命令添加更多组件：
+
+```bash
+pnpm dlx shadcn@latest add [组件名]
+```
+
+## 📖 相关文档
+
+- [Next.js 文档](https://nextjs.org/docs)
+- [Tailwind CSS 文档](https://tailwindcss.com/docs)
+- [shadcn/ui 文档](https://ui.shadcn.com)
+- [EzMonitor SDK 文档](https://ezstars.github.io/EzMonitor/)
+
