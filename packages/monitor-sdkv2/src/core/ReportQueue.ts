@@ -10,6 +10,8 @@ export interface ReportQueueConfig {
   storageKey: string;
   /** 是否启用持久化 */
   enablePersistence: boolean;
+  /** 可选：过期毫秒数，加载时裁剪过期项 */
+  expireMs?: number;
 }
 
 /**
@@ -208,8 +210,22 @@ export class ReportQueue {
 
         // 验证数据格式
         if (Array.isArray(data)) {
+          let items = data as ReportQueueItem[];
+
+          // 过期裁剪
+          if (
+            typeof this.config.expireMs === 'number' &&
+            this.config.expireMs > 0
+          ) {
+            const cutoff = Date.now() - this.config.expireMs;
+            items = items.filter(
+              item =>
+                typeof item?.timestamp === 'number' && item.timestamp >= cutoff,
+            );
+          }
+
           // 只保留最新的数据，不超过最大容量
-          this.queue = data.slice(-this.config.maxSize);
+          this.queue = items.slice(-this.config.maxSize);
 
           console.log(
             `[ReportQueue] Loaded ${this.queue.length} items from storage`,

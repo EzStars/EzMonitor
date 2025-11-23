@@ -1,6 +1,7 @@
 import type { IPlugin, PluginStatus } from '../../types/plugin';
 import type { SDKConfig } from '../../types/config';
 import type { EventBus } from '../../core/EventBus';
+import type { PluginContext } from '../../core/PluginContext';
 import type {
   TrackingPluginConfig,
   TrackingEventData,
@@ -38,6 +39,11 @@ export class TrackingPlugin implements IPlugin {
   private pluginConfig: Required<TrackingPluginConfig>;
   private contextCollector: ContextCollector;
   private currentUserId?: string;
+  private ctx?: PluginContext;
+  // 资源回收相关
+  private cleanupFns: Array<() => void> = [];
+  private originalPushState?: History['pushState'];
+  private originalReplaceState?: History['replaceState'];
 
   constructor(config: Partial<TrackingPluginConfig> = {}) {
     // 设置默认配置
@@ -54,9 +60,14 @@ export class TrackingPlugin implements IPlugin {
   /**
    * 初始化插件
    */
-  async init(config: SDKConfig, eventBus: EventBus): Promise<void> {
+  async init(
+    config: SDKConfig,
+    eventBus: EventBus,
+    ctx?: PluginContext,
+  ): Promise<void> {
     this.config = config;
     this.eventBus = eventBus;
+    this.ctx = ctx;
 
     // 监听页面变化事件（如果启用自动页面追踪）
     if (this.pluginConfig.autoTrackPage) {
@@ -69,7 +80,12 @@ export class TrackingPlugin implements IPlugin {
   /**
    * 启动插件
    */
-  async start(): Promise<void> {
+  async start(
+    _config?: SDKConfig,
+    _eventBus?: EventBus,
+    ctx?: PluginContext,
+  ): Promise<void> {
+    if (ctx) this.ctx = ctx;
     this.status = 'started' as PluginStatus;
   }
 
@@ -77,6 +93,8 @@ export class TrackingPlugin implements IPlugin {
    * 停止插件
    */
   async stop(): Promise<void> {
+    // 移除事件监听与恢复 history
+    this.cleanupSideEffects();
     this.status = 'stopped' as PluginStatus;
   }
 
@@ -84,6 +102,8 @@ export class TrackingPlugin implements IPlugin {
    * 销毁插件
    */
   async destroy(): Promise<void> {
+    // 彻底清理副作用
+    this.cleanupSideEffects();
     this.status = 'destroyed' as PluginStatus;
   }
 
@@ -121,17 +141,26 @@ export class TrackingPlugin implements IPlugin {
       console.log('[TrackingPlugin] Tracking event:', processedData);
     }
 
-    // 触发事件，由 Reporter 统一处理上报
-    this.eventBus.emit(INTERNAL_EVENTS.TRACKING_EVENT, {
-      eventName: processedData.eventName,
-      properties: processedData.properties,
-      context: processedData.context,
-    });
-
-    this.eventBus.emit(INTERNAL_EVENTS.REPORT_DATA, {
-      type: 'tracking',
-      data: processedData,
-    });
+    // 触发事件 + 上报（优先使用 PluginContext 提供的 facade）
+    if (this.ctx) {
+      this.ctx.events.emit(INTERNAL_EVENTS.TRACKING_EVENT, {
+        eventName: processedData.eventName,
+        properties: processedData.properties,
+        context: processedData.context,
+      });
+      this.ctx.reporter.report('tracking', processedData);
+    } else {
+      // 兼容旧路径
+      this.eventBus.emit(INTERNAL_EVENTS.TRACKING_EVENT, {
+        eventName: processedData.eventName,
+        properties: processedData.properties,
+        context: processedData.context,
+      });
+      this.eventBus.emit(INTERNAL_EVENTS.REPORT_DATA, {
+        type: 'tracking',
+        data: processedData,
+      });
+    }
   }
 
   /**
@@ -163,17 +192,25 @@ export class TrackingPlugin implements IPlugin {
       console.log('[TrackingPlugin] Tracking page:', processedData);
     }
 
-    // 触发事件
-    this.eventBus.emit(INTERNAL_EVENTS.TRACKING_PAGE, {
-      page: processedData.page,
-      properties: processedData.properties,
-      context: processedData.context,
-    });
-
-    this.eventBus.emit(INTERNAL_EVENTS.REPORT_DATA, {
-      type: 'tracking',
-      data: processedData,
-    });
+    // 触发事件 + 上报
+    if (this.ctx) {
+      this.ctx.events.emit(INTERNAL_EVENTS.TRACKING_PAGE, {
+        page: processedData.page,
+        properties: processedData.properties,
+        context: processedData.context,
+      });
+      this.ctx.reporter.report('tracking', processedData);
+    } else {
+      this.eventBus.emit(INTERNAL_EVENTS.TRACKING_PAGE, {
+        page: processedData.page,
+        properties: processedData.properties,
+        context: processedData.context,
+      });
+      this.eventBus.emit(INTERNAL_EVENTS.REPORT_DATA, {
+        type: 'tracking',
+        data: processedData,
+      });
+    }
   }
 
   /**
@@ -199,16 +236,23 @@ export class TrackingPlugin implements IPlugin {
       console.log('[TrackingPlugin] Tracking user:', processedData);
     }
 
-    // 触发事件
-    this.eventBus.emit(INTERNAL_EVENTS.TRACKING_USER, {
-      userId: processedData.userId,
-      properties: processedData.properties,
-    });
-
-    this.eventBus.emit(INTERNAL_EVENTS.REPORT_DATA, {
-      type: 'tracking',
-      data: processedData,
-    });
+    // 触发事件 + 上报
+    if (this.ctx) {
+      this.ctx.events.emit(INTERNAL_EVENTS.TRACKING_USER, {
+        userId: processedData.userId,
+        properties: processedData.properties,
+      });
+      this.ctx.reporter.report('tracking', processedData);
+    } else {
+      this.eventBus.emit(INTERNAL_EVENTS.TRACKING_USER, {
+        userId: processedData.userId,
+        properties: processedData.properties,
+      });
+      this.eventBus.emit(INTERNAL_EVENTS.REPORT_DATA, {
+        type: 'tracking',
+        data: processedData,
+      });
+    }
   }
 
   /**
@@ -255,35 +299,65 @@ export class TrackingPlugin implements IPlugin {
 
     // 监听页面加载
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => {
+      const onReady = () => {
         this.trackPage(window.location.pathname);
-      });
+      };
+      document.addEventListener('DOMContentLoaded', onReady);
+      this.cleanupFns.push(() =>
+        document.removeEventListener('DOMContentLoaded', onReady),
+      );
     } else {
       this.trackPage(window.location.pathname);
     }
 
     // 监听 pushState 和 replaceState
-    const originalPushState = history.pushState;
-    const originalReplaceState = history.replaceState;
+    this.originalPushState = history.pushState;
+    this.originalReplaceState = history.replaceState;
 
     history.pushState = (...args) => {
-      originalPushState.apply(history, args);
+      this.originalPushState!.apply(history, args as any);
       setTimeout(() => this.trackPage(window.location.pathname), 0);
     };
 
     history.replaceState = (...args) => {
-      originalReplaceState.apply(history, args);
+      this.originalReplaceState!.apply(history, args as any);
       setTimeout(() => this.trackPage(window.location.pathname), 0);
     };
 
-    // 监听 popstate 事件
-    window.addEventListener('popstate', () => {
-      setTimeout(() => this.trackPage(window.location.pathname), 0);
+    // 清理时恢复 history 方法
+    this.cleanupFns.push(() => {
+      if (this.originalPushState) history.pushState = this.originalPushState;
+      if (this.originalReplaceState)
+        history.replaceState = this.originalReplaceState;
     });
 
+    // 监听 popstate 事件
+    const onPopState = () => {
+      setTimeout(() => this.trackPage(window.location.pathname), 0);
+    };
+    window.addEventListener('popstate', onPopState);
+    this.cleanupFns.push(() =>
+      window.removeEventListener('popstate', onPopState),
+    );
+
     // 监听 hashchange 事件
-    window.addEventListener('hashchange', () => {
+    const onHashChange = () => {
       this.trackPage(window.location.pathname + window.location.hash);
-    });
+    };
+    window.addEventListener('hashchange', onHashChange);
+    this.cleanupFns.push(() =>
+      window.removeEventListener('hashchange', onHashChange),
+    );
+  }
+
+  private cleanupSideEffects(): void {
+    // 恢复 history 与移除监听
+    for (const fn of this.cleanupFns.splice(0)) {
+      try {
+        fn();
+      } catch (e) {
+        // ignore
+      }
+    }
   }
 }

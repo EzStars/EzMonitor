@@ -1,4 +1,5 @@
 import type { EventBus } from '../core/EventBus';
+import type { PluginContext } from '../core/PluginContext';
 import type { SDKConfig } from './config';
 
 /**
@@ -40,9 +41,17 @@ export interface IPlugin {
   status: PluginStatus;
 
   /** 初始化插件 */
-  init?(config: SDKConfig, eventBus: EventBus): Promise<void> | void;
+  init?(
+    config: SDKConfig,
+    eventBus: EventBus,
+    context?: PluginContext,
+  ): Promise<void> | void;
   /** 启动插件 */
-  start?(config: SDKConfig, eventBus: EventBus): Promise<void> | void;
+  start?(
+    config: SDKConfig,
+    eventBus: EventBus,
+    context?: PluginContext,
+  ): Promise<void> | void;
   /** 停止插件 */
   stop?(): Promise<void> | void;
   /** 销毁插件 */

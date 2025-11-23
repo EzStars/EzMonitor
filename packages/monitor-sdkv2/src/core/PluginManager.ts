@@ -7,6 +7,7 @@ import {
 import { SDKConfig } from '../types/config';
 import { EventBus } from './EventBus';
 import { INTERNAL_EVENTS } from '../types/events';
+import { createPluginContext } from './PluginContext';
 
 /**
  * 插件管理器实现
@@ -120,7 +121,12 @@ export class PluginManager implements IPluginManager {
     if (plugin.status !== PluginStatus.REGISTERED) return;
 
     try {
-      await plugin.init?.(this.config, this.eventBus);
+      // 兼容旧签名：仍传 config/eventBus，同时提供第三参 context（插件可选择使用）
+      const context = createPluginContext({
+        config: this.config,
+        eventBus: this.eventBus,
+      });
+      await (plugin as any).init?.(this.config, this.eventBus, context);
       plugin.status = PluginStatus.INITIALIZED;
       this.eventBus.emit(INTERNAL_EVENTS.PLUGIN_INITIALIZED, {
         pluginName: plugin.name,
@@ -143,7 +149,11 @@ export class PluginManager implements IPluginManager {
     if (plugin.status !== PluginStatus.INITIALIZED) return;
 
     try {
-      await plugin.start?.(this.config, this.eventBus);
+      const context = createPluginContext({
+        config: this.config,
+        eventBus: this.eventBus,
+      });
+      await (plugin as any).start?.(this.config, this.eventBus, context);
       plugin.status = PluginStatus.STARTED;
       this.eventBus.emit(INTERNAL_EVENTS.PLUGIN_STARTED, {
         pluginName: plugin.name,

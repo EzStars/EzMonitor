@@ -6,6 +6,9 @@ export * from './core/EventBus';
 export * from './core/Reporter';
 export * from './core/ReportQueue';
 export * from './core/types/reporter';
+export * from './core/TypedEventBus';
+export * from './core/PluginContext';
+export * from './core/transports/strategy';
 
 // 导出所有类型
 export * from './types';

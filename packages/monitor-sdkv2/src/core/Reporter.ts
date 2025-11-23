@@ -2,7 +2,17 @@ import { EventBus } from './EventBus';
 import { SDKConfig } from '../types/config';
 import { INTERNAL_EVENTS } from '../types/events';
 import { TransportType } from './types/reporter';
+import type { TransportAdapter } from './transports/types';
+import { BeaconTransport } from './transports/BeaconTransport';
+import { XHRTransport } from './transports/XHRTransport';
+import { ImageTransport } from './transports/ImageTransport';
+import {
+  DefaultTransportStrategy,
+  type TransportStrategy,
+} from './transports/strategy';
 import { ReportQueue, type ReportQueueItem } from './ReportQueue';
+import RetryScheduler from './retry/RetryScheduler';
+import BatchBuffer from './batch/BatchBuffer';
 import type {
   IReporter,
   ReporterConfig,
@@ -32,25 +42,31 @@ export class Reporter implements IReporter {
   private reporterConfig: ReporterConfig;
   private retryStrategy: RetryStrategy;
 
-  // 统一缓存队列（用于批量上报和离线缓存）
-  private reportQueue?: ReportQueue;
+  // 批量缓冲
+  private batchBuffer?: BatchBuffer;
 
-  // 失败重试队列
-  private failedQueue: PendingReportItem[] = [];
-
-  // 定时器
+  // 重试与批量定时器
   private batchTimer?: number;
-  private retryTimer?: number;
+  private retryScheduler?: RetryScheduler;
 
   private isOnline: boolean = true;
 
-  // 保存原始的 XHR 方法，避免被拦截器影响
-  private originalXHROpen = XMLHttpRequest.prototype.open;
-  private originalXHRSend = XMLHttpRequest.prototype.send;
+  // 传输适配器集合
+  private transports: Record<TransportType, TransportAdapter>;
+  private transportStrategy: TransportStrategy;
 
   constructor(config: SDKConfig, eventBus: EventBus) {
     this.config = config;
     this.eventBus = eventBus;
+
+    // 初始化传输适配器
+    this.transports = {
+      [TransportType.BEACON]: new BeaconTransport(),
+      [TransportType.XHR]: new XHRTransport(),
+      [TransportType.IMAGE]: new ImageTransport(),
+    };
+    this.transportStrategy =
+      config.transportStrategy || new DefaultTransportStrategy();
 
     // 构建 Reporter 配置
     this.reporterConfig = {
@@ -69,14 +85,22 @@ export class Reporter implements IReporter {
       ...config.retryStrategy,
     };
 
-    // 初始化上报队列（如果启用批量或离线缓存）
+    // 批量缓冲（如果启用批量或离线缓存）
     if (config.enableBatch || config.enableOfflineCache) {
-      this.reportQueue = new ReportQueue({
-        maxSize: config.maxCacheSize || 1000,
-        batchSize: config.batchSize || 50,
-        storageKey: `${config.appId || 'ezmonitor'}_report_queue`,
-        enablePersistence: config.enableOfflineCache !== false,
-      });
+      this.batchBuffer = new BatchBuffer(
+        {
+          maxSize: config.maxCacheSize || 1000,
+          batchSize: config.batchSize || 50,
+          storageKey: `${config.appId || 'ezmonitor'}_report_queue`,
+          enablePersistence: config.enableOfflineCache !== false,
+          intervalMs: config.batchInterval || 10000,
+          debug: config.debug,
+        },
+        async items => {
+          const dataList = items.map(i => i.data);
+          await this.sendBatch(dataList);
+        },
+      );
     }
   }
 
@@ -90,22 +114,70 @@ export class Reporter implements IReporter {
     // 监听网络状态
     this.setupNetworkListeners();
 
-    // 启动批量上报定时器
-    if (this.config.enableBatch && this.reportQueue) {
-      this.startBatchTimer();
+    // 监听配置变更（热更新 Reporter 行为）
+    this.setupConfigHotUpdate();
+
+    // 启动批量缓冲
+    if (this.batchBuffer) {
+      this.batchBuffer.start();
     }
 
-    // 处理离线期间缓存的数据
-    if (this.config.enableOfflineCache && this.reportQueue) {
-      this.processOfflineCache();
-    }
-
-    // 启动重试定时器
-    this.startRetryTimer();
+    // 启动重试调度器
+    this.setupRetryScheduler();
 
     if (this.config.debug) {
       console.log('[Reporter] Initialized successfully');
     }
+  }
+
+  /**
+   * 监听配置变更（热更新 Reporter 行为）
+   */
+  private setupConfigHotUpdate(): void {
+    this.eventBus.on(INTERNAL_EVENTS.CONFIG_CHANGED, ({ key, value }) => {
+      switch (key) {
+        case 'reportUrl':
+          this.reporterConfig.url = String(value || '');
+          break;
+        case 'forceXHR':
+          this.reporterConfig.forceXHR = Boolean(value);
+          break;
+        case 'enableRetry':
+          this.reporterConfig.enableRetry = value !== false;
+          break;
+        case 'retryStrategy':
+          this.retryStrategy = {
+            ...this.retryStrategy,
+            ...(value as Partial<RetryStrategy>),
+          };
+          break;
+        case 'beforeReport':
+          this.reporterConfig.beforeReport =
+            value as ReporterConfig['beforeReport'];
+          break;
+        case 'onReportSuccess':
+          this.reporterConfig.onSuccess = value as ReporterConfig['onSuccess'];
+          break;
+        case 'onReportError':
+          this.reporterConfig.onError = value as ReporterConfig['onError'];
+          break;
+        case 'afterReport':
+          this.reporterConfig.afterReport =
+            value as ReporterConfig['afterReport'];
+          break;
+        case 'transportStrategy':
+          this.transportStrategy =
+            (value as TransportStrategy) || new DefaultTransportStrategy();
+          break;
+        default:
+          // 其他配置由上层处理
+          break;
+      }
+
+      if (this.config.debug) {
+        console.log('[Reporter] Config hot-updated:', key, value);
+      }
+    });
   }
 
   /**
@@ -116,12 +188,10 @@ export class Reporter implements IReporter {
     this.eventBus.on(INTERNAL_EVENTS.REPORT_DATA, async payload => {
       try {
         // 如果启用批量上报，数据进入队列
-        if (this.config.enableBatch && this.reportQueue) {
-          const shouldFlush = this.reportQueue.add(payload.data, payload.type);
-
-          // 达到批量阈值，立即上报
+        if (this.batchBuffer && this.config.enableBatch) {
+          const shouldFlush = this.batchBuffer.add(payload.data, payload.type);
           if (shouldFlush) {
-            await this.flushQueue();
+            await this.batchBuffer.flushNow();
           }
         } else {
           // 立即上报
@@ -154,7 +224,8 @@ export class Reporter implements IReporter {
       if (this.config.debug) {
         console.log('[Reporter] Network online, retrying failed reports...');
       }
-      this.retryFailed();
+      this.retryScheduler?.onOnline();
+      void this.retryFailed();
     });
 
     // 监听网络断开
@@ -163,6 +234,7 @@ export class Reporter implements IReporter {
       if (this.config.debug) {
         console.log('[Reporter] Network offline');
       }
+      this.retryScheduler?.onOffline();
     });
 
     // 初始化网络状态
@@ -172,15 +244,16 @@ export class Reporter implements IReporter {
   /**
    * 启动重试定时器
    */
-  private startRetryTimer(): void {
-    if (typeof window === 'undefined') return;
-
-    // 每5秒检查一次失败队列
-    this.retryTimer = window.setInterval(() => {
-      if (this.failedQueue.length > 0 && this.isOnline) {
-        this.processRetryQueue();
-      }
-    }, 5000);
+  private setupRetryScheduler(): void {
+    this.retryScheduler = new RetryScheduler(
+      this.retryStrategy,
+      async payload => {
+        const res = await this.send(payload);
+        return res.success;
+      },
+      this.config.debug,
+    );
+    this.retryScheduler.start(5000);
   }
 
   /**
@@ -209,38 +282,46 @@ export class Reporter implements IReporter {
     try {
       const response = await this.send(payload);
 
-      // 成功回调
-      if (response.success && this.reporterConfig.onSuccess) {
-        this.reporterConfig.onSuccess(payload.data);
+      if (response.success) {
+        if (this.reporterConfig.onSuccess) {
+          this.reporterConfig.onSuccess(payload.data);
+        }
+        this.eventBus.emit(INTERNAL_EVENTS.REPORT_SUCCESS, {
+          data: payload.data,
+        });
+        return response;
       }
 
-      // 触发成功事件
-      this.eventBus.emit(INTERNAL_EVENTS.REPORT_SUCCESS, {
-        data: payload.data,
-      });
-
-      return response;
-    } catch (error) {
-      // 失败处理
-      const reportError = error as Error;
-
-      // 失败回调
+      // send 未抛错但失败
+      const reportError = response.error || new Error('Report failed');
       if (this.reporterConfig.onError) {
         this.reporterConfig.onError(payload.data, reportError);
       }
-
-      // 触发失败事件
       this.eventBus.emit(INTERNAL_EVENTS.REPORT_ERROR, {
         data: payload.data,
         error: reportError,
       });
-
-      // 如果启用重试，加入失败队列
       if (this.reporterConfig.enableRetry && this.isOnline) {
-        this.addToRetryQueue(payload);
+        this.retryScheduler?.add(payload);
       }
-
-      throw error;
+      return response;
+    } catch (error) {
+      const reportError = error as Error;
+      if (this.reporterConfig.onError) {
+        this.reporterConfig.onError(payload.data, reportError);
+      }
+      this.eventBus.emit(INTERNAL_EVENTS.REPORT_ERROR, {
+        data: payload.data,
+        error: reportError,
+      });
+      if (this.reporterConfig.enableRetry && this.isOnline) {
+        this.retryScheduler?.add(payload);
+      }
+      return {
+        success: false,
+        error: reportError,
+        transportType: payload.sendType || TransportType.XHR,
+      };
     } finally {
       // 最终回调
       if (this.reporterConfig.afterReport) {
@@ -282,21 +363,11 @@ export class Reporter implements IReporter {
     }
 
     try {
-      let response: unknown;
-
-      switch (transportType) {
-        case TransportType.BEACON:
-          response = await this.sendViaBeacon(jsonData);
-          break;
-        case TransportType.XHR:
-          response = await this.sendViaXHR(jsonData);
-          break;
-        case TransportType.IMAGE:
-          response = await this.sendViaImage(jsonData);
-          break;
-        default:
-          throw new Error(`Unknown transport type: ${transportType}`);
+      const adapter = this.transports[transportType];
+      if (!adapter || !adapter.isSupported()) {
+        throw new Error(`${transportType} not supported`);
       }
+      const response = await adapter.send(this.reporterConfig.url, jsonData);
 
       return {
         success: true,
@@ -316,236 +387,40 @@ export class Reporter implements IReporter {
    * 选择传输方式
    */
   private selectTransportType(payload: ReportPayload): TransportType {
-    // 如果强制使用 XHR
-    if (this.reporterConfig.forceXHR) {
-      return TransportType.XHR;
-    }
-
-    // 计算数据大小（KB）
-    const dataSize = this.getDataSize(payload);
-
-    // 选择策略：
-    // 1. sendBeacon: < 60KB，适合页面卸载时使用
-    // 2. XHR: 大数据或需要完全控制
-    // 3. Image: < 2KB，兜底方案
-    if (this.isSupportBeacon() && dataSize < 60) {
-      return TransportType.BEACON;
-    } else if (dataSize < 2 && !this.isSupportBeacon()) {
-      return TransportType.IMAGE;
-    } else {
-      return TransportType.XHR;
-    }
-  }
-
-  /**
-   * 使用 sendBeacon 发送
-   */
-  private async sendViaBeacon(data: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      if (typeof navigator === 'undefined' || !navigator.sendBeacon) {
-        reject(new Error('sendBeacon not supported'));
-        return;
-      }
-
-      const blob = new Blob([data], { type: 'application/json' });
-      const result = navigator.sendBeacon(this.reporterConfig.url, blob);
-
-      if (result) {
-        resolve('Beacon sent successfully');
-      } else {
-        reject(new Error('Beacon send failed'));
-      }
+    if (this.reporterConfig.forceXHR) return TransportType.XHR;
+    return this.transportStrategy.select(payload, {
+      supportBeacon: this.isSupportBeacon(),
     });
   }
 
-  /**
-   * 使用 XHR 发送
-   */
-  private async sendViaXHR(data: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-
-      // 使用原始方法，避免被拦截器影响
-      this.originalXHROpen.call(xhr, 'POST', this.reporterConfig.url, true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(xhr.responseText);
-        } else {
-          reject(new Error(`XHR request failed with status: ${xhr.status}`));
-        }
-      };
-
-      xhr.onerror = () => {
-        reject(new Error('XHR request failed'));
-      };
-
-      xhr.ontimeout = () => {
-        reject(new Error('XHR request timeout'));
-      };
-
-      // 设置超时时间
-      xhr.timeout = 30000; // 30秒
-
-      this.originalXHRSend.call(xhr, data);
-    });
-  }
-
-  /**
-   * 使用 Image 发送
-   */
-  private async sendViaImage(data: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-
-      img.onload = () => {
-        resolve('Image loaded successfully');
-      };
-
-      img.onerror = () => {
-        reject(new Error('Image load failed'));
-      };
-
-      // 通过 URL 参数传递数据
-      const encodedData = encodeURIComponent(data);
-      img.src = `${this.reporterConfig.url}?data=${encodedData}`;
-
-      // 设置超时
-      setTimeout(() => {
-        reject(new Error('Image request timeout'));
-      }, 10000);
-    });
-  }
+  // 具体发送方法已由传输适配器承担
 
   /**
    * 添加到重试队列
    */
-  private addToRetryQueue(payload: ReportPayload): void {
-    const item: PendingReportItem = {
-      payload,
-      retries: 0,
-      nextRetryTime: Date.now() + this.retryStrategy.initialDelay,
-    };
-
-    this.failedQueue.push(item);
-
-    if (this.config.debug) {
-      console.log(
-        `[Reporter] Added to retry queue, total: ${this.failedQueue.length}`,
-      );
-    }
-  }
+  // 重试逻辑由 RetryScheduler 负责
 
   /**
    * 处理重试队列
    */
-  private async processRetryQueue(): Promise<void> {
-    const now = Date.now();
-    const itemsToRetry: PendingReportItem[] = [];
-
-    // 找出需要重试的项
-    for (let i = this.failedQueue.length - 1; i >= 0; i--) {
-      const item = this.failedQueue[i];
-
-      if (item.nextRetryTime <= now) {
-        itemsToRetry.push(item);
-        this.failedQueue.splice(i, 1);
-      }
-    }
-
-    // 逐个重试
-    for (const item of itemsToRetry) {
-      try {
-        await this.send(item.payload);
-
-        if (this.config.debug) {
-          console.log('[Reporter] Retry succeeded');
-        }
-      } catch (error) {
-        // 重试失败，检查是否还能继续重试
-        item.retries++;
-
-        if (item.retries < this.retryStrategy.maxRetries) {
-          // 计算下次重试延迟（指数退避）
-          const delay = Math.min(
-            this.retryStrategy.initialDelay *
-              Math.pow(this.retryStrategy.backoffMultiplier, item.retries),
-            this.retryStrategy.maxDelay,
-          );
-
-          item.nextRetryTime = Date.now() + delay;
-          this.failedQueue.push(item);
-
-          if (this.config.debug) {
-            console.log(
-              `[Reporter] Retry failed, will retry in ${delay}ms (${item.retries}/${this.retryStrategy.maxRetries})`,
-            );
-          }
-        } else {
-          if (this.config.debug) {
-            console.error(
-              '[Reporter] Max retries reached, data lost:',
-              item.payload.data,
-            );
-          }
-        }
-      }
-    }
-  }
+  // 由 RetryScheduler 处理
 
   /**
    * 手动重试所有失败的数据
    */
   async retryFailed(): Promise<void> {
-    if (this.failedQueue.length === 0) return;
-
-    // 立即重试所有失败的数据
-    for (const item of this.failedQueue) {
-      item.nextRetryTime = Date.now();
-    }
-
-    await this.processRetryQueue();
+    await this.retryScheduler?.retryAll();
   }
 
   /**
    * 启动批量上报定时器
    */
-  private startBatchTimer(): void {
-    if (typeof window === 'undefined') return;
-
-    this.batchTimer = window.setInterval(() => {
-      if (this.reportQueue && !this.reportQueue.isEmpty()) {
-        this.flushQueue().catch(error => {
-          console.error('[Reporter] Failed to flush queue:', error);
-        });
-      }
-    }, this.config.batchInterval || 10000);
-
-    if (this.config.debug) {
-      console.log(
-        `[Reporter] Batch timer started with interval: ${this.config.batchInterval}ms`,
-      );
-    }
-  }
+  // 批量计时由 BatchBuffer 管理
 
   /**
    * 批量上报队列中的数据
    */
-  private async flushQueue(): Promise<void> {
-    if (!this.reportQueue) return;
-
-    const items = this.reportQueue.flush();
-    if (items.length === 0) return;
-
-    if (this.config.debug) {
-      console.log(`[Reporter] Flushing ${items.length} items from queue`);
-    }
-
-    // 提取数据并批量上报
-    const dataList = items.map(item => item.data);
-    await this.sendBatch(dataList);
-  }
+  // flush 由 BatchBuffer 调用 onFlush
 
   /**
    * 批量发送数据
@@ -564,53 +439,29 @@ export class Reporter implements IReporter {
   /**
    * 处理离线期间缓存的数据
    */
-  private async processOfflineCache(): Promise<void> {
-    if (!this.reportQueue || this.reportQueue.isEmpty()) return;
-
-    if (this.config.debug) {
-      const stats = this.reportQueue.getStats();
-      console.log(
-        `[Reporter] Processing offline cache: ${stats.size} items`,
-        stats,
-      );
-    }
-
-    // 立即上报缓存的数据
-    await this.flushQueue();
-  }
+  // 离线缓存处理由 BatchBuffer 在 start() 时完成
 
   /**
    * 销毁 Reporter
    */
   destroy(): void {
-    // 清除批量上报定时器
-    if (this.batchTimer) {
-      clearInterval(this.batchTimer);
-      this.batchTimer = undefined;
-    }
+    // 停止批量缓冲
+    this.batchBuffer?.stop();
 
-    // 清除重试定时器
-    if (this.retryTimer) {
-      clearInterval(this.retryTimer);
-      this.retryTimer = undefined;
-    }
+    // 停止重试调度器
+    this.retryScheduler?.stop();
 
-    // 尝试上报剩余的队列数据
-    if (this.reportQueue && !this.reportQueue.isEmpty()) {
-      this.flushQueue().catch(error => {
+    // 尝试上报剩余的队列数据（非阻塞）
+    if (this.batchBuffer && !this.batchBuffer.isEmpty()) {
+      this.batchBuffer.flushNow().catch(error => {
         console.error('[Reporter] Failed to flush remaining queue:', error);
       });
     }
 
-    // 尝试上报剩余的重试数据
-    if (this.failedQueue.length > 0 && this.isOnline) {
-      this.retryFailed().catch(error => {
-        console.error('[Reporter] Failed to send remaining data:', error);
-      });
-    }
-
-    // 清空队列
-    this.failedQueue = [];
+    // 尝试上报剩余的重试数据（非阻塞）
+    this.retryScheduler?.retryAll().catch(error => {
+      console.error('[Reporter] Failed to send remaining data:', error);
+    });
 
     if (this.config.debug) {
       console.log('[Reporter] Destroyed');

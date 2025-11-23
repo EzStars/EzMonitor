@@ -1,4 +1,5 @@
 import type { RetryStrategy } from '../core/types/reporter';
+import type { TransportStrategy } from '../core/transports/strategy';
 
 /**
  * SDK 基础配置
@@ -50,6 +51,9 @@ export interface SDKConfig {
   onReportError?: (data: unknown, error: Error) => void;
   /** 上报后钩子（无论成功失败）*/
   afterReport?: (data: unknown) => void;
+
+  /** 传输选择策略（可选，默认内置策略）*/
+  transportStrategy?: TransportStrategy;
 
   /** 自定义配置 */
   customConfig?: Record<string, unknown>;
