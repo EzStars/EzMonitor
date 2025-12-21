@@ -5,9 +5,10 @@ import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
 const navigation = [
-  { name: '首页', href: '/' },
+  { name: '产品介绍', href: '/landing' },
   { name: '监控数据', href: '/dashboard' },
   { name: 'demo展示', href: '/demo' },
+  { name: '登录', href: '/' },
   {
     name: '文档',
     href: 'https://ezstars.github.io/EzMonitor/',
@@ -23,7 +24,7 @@ export function Navigation() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/landing" className="flex items-center gap-2">
             <div className="w-8 h-8 bg-linear-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">Ez</span>
             </div>
