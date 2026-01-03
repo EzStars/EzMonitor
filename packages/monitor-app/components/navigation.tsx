@@ -20,11 +20,11 @@ export function Navigation() {
   const pathname = usePathname();
 
   return (
-    <nav className="border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
+    <nav className="border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 relative z-50">
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/landing" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <div className="w-8 h-8 bg-linear-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">Ez</span>
             </div>
