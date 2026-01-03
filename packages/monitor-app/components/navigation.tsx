@@ -5,10 +5,10 @@ import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
 const navigation = [
-  { name: '产品介绍', href: '/landing' },
+  { name: '产品介绍', href: '/' },
   { name: '监控数据', href: '/dashboard' },
   { name: 'demo展示', href: '/demo' },
-  { name: '登录', href: '/' },
+  { name: '登录', href: '/login' },
   {
     name: '文档',
     href: 'https://ezstars.github.io/EzMonitor/',

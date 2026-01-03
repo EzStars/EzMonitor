@@ -15,7 +15,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       setShowToast(true);
       const timer = setTimeout(() => {
         const redirect = pathname || '/dashboard';
-        router.replace(`/?redirect=${encodeURIComponent(redirect)}`);
+        router.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
       }, 1200);
       return () => clearTimeout(timer);
     }
