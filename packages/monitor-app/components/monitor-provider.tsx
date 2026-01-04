@@ -10,20 +10,27 @@ import { initMonitorSDK } from '@/lib/monitor';
 export function MonitorProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // 在客户端初始化 SDK
-    const sdk = initMonitorSDK();
+    let destroyed = false;
+    let sdkRef: Awaited<ReturnType<typeof initMonitorSDK>> = null;
 
-    if (sdk) {
-      console.log('[MonitorProvider] SDK 初始化完成', {
-        status: sdk.getStatus(),
-        sessionId: sdk.getSessionId(),
-      });
-    }
+    (async () => {
+      const sdk = await initMonitorSDK();
+      sdkRef = sdk;
+
+      if (sdk && !destroyed) {
+        console.log('[MonitorProvider] SDK 初始化完成', {
+          status: sdk.getStatus(),
+          sessionId: sdk.getSessionId(),
+        });
+      }
+    })();
 
     // 清理函数
     return () => {
+      destroyed = true;
       // 组件卸载时销毁 SDK
-      if (sdk) {
-        sdk.destroy();
+      if (sdkRef) {
+        sdkRef.destroy();
       }
     };
   }, []);
