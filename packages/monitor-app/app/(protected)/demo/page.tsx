@@ -17,6 +17,11 @@ export default function TestPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [sdkReady, setSdkReady] = useState(false);
 
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setLogs(prev => [`[${timestamp}] ${message}`, ...prev].slice(0, 50));
+  };
+
   // 检查 SDK 是否就绪
   useEffect(() => {
     const checkSDK = () => {
@@ -31,11 +36,6 @@ export default function TestPage() {
     };
     checkSDK();
   }, []);
-
-  const addLog = (message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setLogs(prev => [`[${timestamp}] ${message}`, ...prev].slice(0, 50));
-  };
 
   // 错误测试函数
   const triggerJSError = () => {
@@ -127,7 +127,7 @@ export default function TestPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-1 bg-background owerflow-auto">
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Page Header */}
         <div className="mb-8">

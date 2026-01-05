@@ -31,7 +31,9 @@ export default function RootLayout({
       >
         <AppProviders>
           <Navigation />
-          <main className="flex flex-1 min-h-0 flex-col">{children}</main>
+          <main className="flex flex-1 min-h-0 flex-col overflow-auto">
+            {children}
+          </main>
         </AppProviders>
       </body>
     </html>

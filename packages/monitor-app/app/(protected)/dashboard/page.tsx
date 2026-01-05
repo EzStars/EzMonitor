@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 
 export default function DashboardPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-1 bg-background">
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Page Header */}
         <div className="mb-8">
