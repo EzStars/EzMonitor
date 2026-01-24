@@ -1,5 +1,7 @@
 # EzMonitor Monitor-App AI 指南
 
+# 每次回答必须用中文
+
 ## 项目上下文
 本应用是 EzMonitor Monorepo 的一部分（pnpm workspaces + Turbo），位于 `packages/monitor-app/`。Monorepo 包含：
 - **monitor-app**（本项目）：Next.js 16 演示与看板应用
