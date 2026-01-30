@@ -1,28 +1,28 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { signIn } from 'next-auth/react';
-import { Button } from '@/components/ui/button';
+import { signIn } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+} from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 
 export default function LoginPage() {
-  const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/dashboard';
-  const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams()
+  const redirect = searchParams.get('redirect') || '/dashboard'
+  const [loading, setLoading] = useState(false)
 
   const handleGitHub = async () => {
-    setLoading(true);
-    await signIn('github', { callbackUrl: redirect });
-    setLoading(false);
-  };
+    setLoading(true)
+    await signIn('github', { callbackUrl: redirect })
+    setLoading(false)
+  }
 
   return (
     <div className="grid w-full grid-cols-1 gap-8 lg:grid-cols-2">
@@ -72,5 +72,5 @@ export default function LoginPage() {
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

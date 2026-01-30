@@ -1,6 +1,6 @@
-import type { SDKConfig } from '../../types/config';
-import type { IPluginManager } from '../../types/plugin';
-import type { EventBus } from '../EventBus';
+import type { SDKConfig } from '../../types/config'
+import type { IPluginManager } from '../../types/plugin'
+import type { EventBus } from '../EventBus'
 
 /**
  * SDK 核心状态枚举
@@ -38,24 +38,24 @@ export enum SDKStatus {
  */
 export interface ISDKCore {
   /** 当前状态 */
-  readonly status: SDKStatus;
+  readonly status: SDKStatus
   /** 配置对象 */
-  readonly config: SDKConfig;
+  readonly config: SDKConfig
   /** 事件总线 */
-  readonly eventBus: EventBus;
+  readonly eventBus: EventBus
   /** 插件管理器 */
-  readonly pluginManager: IPluginManager;
+  readonly pluginManager: IPluginManager
   /** 会话 ID */
-  readonly sessionId: string;
+  readonly sessionId: string
 
   /** 初始化 SDK */
-  init(config?: Partial<SDKConfig>): Promise<void>;
+  init: (config?: Partial<SDKConfig>) => Promise<void>
   /** 启动 SDK */
-  start(): Promise<void>;
+  start: () => Promise<void>
   /** 停止 SDK */
-  stop(): Promise<void>;
+  stop: () => Promise<void>
   /** 销毁 SDK */
-  destroy(): Promise<void>;
+  destroy: () => Promise<void>
   /** 获取当前状态 */
-  getStatus(): SDKStatus;
+  getStatus: () => SDKStatus
 }

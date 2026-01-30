@@ -1,7 +1,7 @@
-import { TransportType } from '../types/reporter';
+import type { TransportType } from '../types/reporter'
 
 export interface TransportAdapter {
-  readonly type: TransportType;
-  isSupported(): boolean;
-  send(url: string, data: string): Promise<unknown>;
+  readonly type: TransportType
+  isSupported: () => boolean
+  send: (url: string, data: string) => Promise<unknown>
 }

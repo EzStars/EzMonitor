@@ -64,7 +64,7 @@ class ErrorBoundary extends React.Component<
   }
 
   render() {
-    const { Fallback } = this.props    
+    const { Fallback } = this.props
     if (this.state.hasError) {
       // @ts-ignore
       return <Fallback error={err}/>

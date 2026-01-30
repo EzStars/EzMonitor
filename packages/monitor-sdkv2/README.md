@@ -24,7 +24,7 @@ pnpm -C packages/monitor-sdkv2 build
 初始化 SDK：
 
 ```ts
-import { createSDK, TrackingPlugin } from '@ezstars/monitor-sdkv2';
+import { createSDK, TrackingPlugin } from '@ezstars/monitor-sdkv2'
 
 const sdk = createSDK({
   appId: 'demo-app',
@@ -32,13 +32,13 @@ const sdk = createSDK({
   enableRetry: true,
   batchSize: 20,
   batchInterval: 10_000,
-});
+})
 
 // 使用插件（支持链式）
 sdk
   .use(new TrackingPlugin({ autoTrackPage: true }))
   .init()
-  .then(() => sdk.start());
+  .then(() => sdk.start())
 ```
 
 ## 插件开发（推荐）
@@ -46,30 +46,28 @@ sdk
 插件的 `init/start` 支持接受第三参 `PluginContext`：
 
 ```ts
-import type { IPlugin, PluginStatus } from '@ezstars/monitor-sdkv2';
-import type { SDKConfig } from '@ezstars/monitor-sdkv2';
-import type { EventBus } from '@ezstars/monitor-sdkv2';
-import type { PluginContext } from '@ezstars/monitor-sdkv2';
+import type { EventBus, IPlugin, PluginContext, PluginStatus, SDKConfig } from '@ezstars/monitor-sdkv2'
 
 export class MyPlugin implements IPlugin {
-  name = 'my';
-  version = '1.0.0';
-  status = 'registered' as PluginStatus;
-  private ctx?: PluginContext;
+  name = 'my'
+  version = '1.0.0'
+  status = 'registered' as PluginStatus
+  private ctx?: PluginContext
 
   async init(config: SDKConfig, eventBus: EventBus, ctx?: PluginContext) {
-    this.ctx = ctx;
+    this.ctx = ctx
   }
 
   async start(_c?: SDKConfig, _b?: EventBus, ctx?: PluginContext) {
-    if (ctx) this.ctx = ctx;
+    if (ctx)
+      this.ctx = ctx
     // 类型安全事件与上报
     this.ctx?.events.emit('tracking:event', {
       eventName: 'plugin_started',
       properties: { from: 'MyPlugin' },
       context: {},
-    });
-    this.ctx?.reporter.report('custom', { hello: 'world' });
+    })
+    this.ctx?.reporter.report('custom', { hello: 'world' })
   }
 }
 ```
@@ -79,16 +77,17 @@ export class MyPlugin implements IPlugin {
 实现 `TransportAdapter` 并在 Reporter 中注册，即可扩展新的传输方式：
 
 ```ts
-import type { TransportAdapter } from '@ezstars/monitor-sdkv2';
-import { TransportType } from '@ezstars/monitor-sdkv2';
+import type { TransportAdapter } from '@ezstars/monitor-sdkv2'
+import { TransportType } from '@ezstars/monitor-sdkv2'
 
 class FetchTransport implements TransportAdapter {
-  readonly type = TransportType.XHR; // 也可扩展自定义 type
-  isSupported() { return typeof fetch === 'function'; }
+  readonly type = TransportType.XHR // 也可扩展自定义 type
+  isSupported() { return typeof fetch === 'function' }
   async send(url: string, data: string) {
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: data });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.text();
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: data })
+    if (!r.ok)
+      throw new Error(`HTTP ${r.status}`)
+    return r.text()
   }
 }
 ```
@@ -102,14 +101,17 @@ class FetchTransport implements TransportAdapter {
 可通过 `transportStrategy` 配置项自定义不同载荷选择何种传输方式：
 
 ```ts
-import { TransportType, type TransportStrategy } from '@ezstars/monitor-sdkv2';
+import type { TransportStrategy } from '@ezstars/monitor-sdkv2'
+import { TransportType } from '@ezstars/monitor-sdkv2'
 
 class MyStrategy implements TransportStrategy {
   select(payload, env) {
-    const sizeKB = new Blob([JSON.stringify(payload)]).size / 1024;
-    if (env.supportBeacon && sizeKB < 128) return TransportType.BEACON;
-    if (sizeKB < 1) return TransportType.IMAGE;
-    return TransportType.XHR;
+    const sizeKB = new Blob([JSON.stringify(payload)]).size / 1024
+    if (env.supportBeacon && sizeKB < 128)
+      return TransportType.BEACON
+    if (sizeKB < 1)
+      return TransportType.IMAGE
+    return TransportType.XHR
   }
 }
 
@@ -117,7 +119,7 @@ createSDK({
   appId: 'demo',
   reportUrl: '/collect',
   transportStrategy: new MyStrategy(),
-});
+})
 ```
 
 ## 许可证

@@ -1,12 +1,12 @@
+import { Badge } from '@/components/ui/badge'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+} from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 
 export default function DashboardPage() {
   return (
@@ -44,7 +44,9 @@ export default function DashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold">1,234</div>
               <p className="text-xs text-muted-foreground">
-                <span className="text-red-500">+12.5%</span> 较上周
+                <span className="text-red-500">+12.5%</span>
+                {' '}
+                较上周
               </p>
             </CardContent>
           </Card>
@@ -71,7 +73,9 @@ export default function DashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold">234ms</div>
               <p className="text-xs text-muted-foreground">
-                <span className="text-green-500">-5.2%</span> 较上周
+                <span className="text-green-500">-5.2%</span>
+                {' '}
+                较上周
               </p>
             </CardContent>
           </Card>
@@ -96,7 +100,9 @@ export default function DashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold">2,345</div>
               <p className="text-xs text-muted-foreground">
-                <span className="text-green-500">+8.1%</span> 较上周
+                <span className="text-green-500">+8.1%</span>
+                {' '}
+                较上周
               </p>
             </CardContent>
           </Card>
@@ -127,7 +133,9 @@ export default function DashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold">12.3K</div>
               <p className="text-xs text-muted-foreground">
-                <span className="text-green-500">+18.2%</span> 较上周
+                <span className="text-green-500">+18.2%</span>
+                {' '}
+                较上周
               </p>
             </CardContent>
           </Card>
@@ -174,7 +182,13 @@ export default function DashboardPage() {
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          发生 {error.count} 次 · {error.time}
+                          发生
+                          {' '}
+                          {error.count}
+                          {' '}
+                          次 ·
+                          {' '}
+                          {error.time}
                         </p>
                       </div>
                     </div>
@@ -274,7 +288,11 @@ export default function DashboardPage() {
                       className="flex items-center justify-between text-sm"
                     >
                       <span className="font-mono">{page.path}</span>
-                      <Badge variant="secondary">{page.views} 次</Badge>
+                      <Badge variant="secondary">
+                        {page.views}
+                        {' '}
+                        次
+                      </Badge>
                     </div>
                   ))}
                 </div>
@@ -295,7 +313,11 @@ export default function DashboardPage() {
                       className="flex items-center justify-between text-sm"
                     >
                       <span>{action.name}</span>
-                      <Badge variant="secondary">{action.count} 次</Badge>
+                      <Badge variant="secondary">
+                        {action.count}
+                        {' '}
+                        次
+                      </Badge>
                     </div>
                   ))}
                 </div>
@@ -316,7 +338,10 @@ export default function DashboardPage() {
                       className="flex items-center justify-between text-sm"
                     >
                       <span>{stat.device}</span>
-                      <Badge variant="secondary">{stat.percentage}%</Badge>
+                      <Badge variant="secondary">
+                        {stat.percentage}
+                        %
+                      </Badge>
                     </div>
                   ))}
                 </div>
@@ -326,5 +351,5 @@ export default function DashboardPage() {
         </Card>
       </div>
     </div>
-  );
+  )
 }

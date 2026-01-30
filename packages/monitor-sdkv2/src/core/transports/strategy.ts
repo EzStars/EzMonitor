@@ -1,13 +1,13 @@
-import type { ReportPayload } from '../types/reporter';
-import { TransportType } from '../types/reporter';
+import type { ReportPayload } from '../types/reporter'
+import { TransportType } from '../types/reporter'
 
 export interface TransportStrategy {
-  select(
+  select: (
     payload: ReportPayload,
     env: {
-      supportBeacon: boolean;
+      supportBeacon: boolean
     },
-  ): TransportType;
+  ) => TransportType
 }
 
 export class DefaultTransportStrategy implements TransportStrategy {
@@ -15,21 +15,22 @@ export class DefaultTransportStrategy implements TransportStrategy {
     private readonly beaconThresholdKB = 60,
     private readonly imageThresholdKB = 2,
   ) {}
+
   select(
     payload: ReportPayload,
     env: { supportBeacon: boolean },
   ): TransportType {
-    const sizeKB = getSizeKB(payload);
+    const sizeKB = getSizeKB(payload)
     if (env.supportBeacon && sizeKB < this.beaconThresholdKB)
-      return TransportType.BEACON;
+      return TransportType.BEACON
     if (!env.supportBeacon && sizeKB < this.imageThresholdKB)
-      return TransportType.IMAGE;
-    return TransportType.XHR;
+      return TransportType.IMAGE
+    return TransportType.XHR
   }
 }
 
 function getSizeKB(data: unknown): number {
-  const str = JSON.stringify(data);
-  const bytes = new Blob([str]).size;
-  return bytes / 1024;
+  const str = JSON.stringify(data)
+  const bytes = new Blob([str]).size
+  return bytes / 1024
 }

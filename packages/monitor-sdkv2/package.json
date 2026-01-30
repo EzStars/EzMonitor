@@ -1,33 +1,54 @@
 {
   "name": "@ezstars/monitor-sdkv2",
+  "type": "module",
   "version": "0.1.0",
   "description": "EzMonitor SDK v2 - modular, tree-shakable TypeScript SDK",
-  "main": "dist/index.cjs.js",
-  "module": "dist/index.esm.js",
-  "types": "dist/index.d.ts",
-  "sideEffects": false,
-  "scripts": {
-    "build": "rollup -c",
-    "clean": "rimraf dist",
-    "prepare": "pnpm run build"
+  "author": "EzStars",
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/ezstars",
+  "homepage": "https://github.com/ez-monitor/monitor#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ez-monitor/monitor.git"
   },
-  "files": [
-    "dist"
-  ],
+  "bugs": "https://github.com/ez-monitor/monitor/issues",
   "keywords": [
     "monitor",
     "sdk",
-    "ezmonitor"
+    "ezmonitor",
+    "performance",
+    "error-tracking"
   ],
-  "author": "EzStars",
-  "license": "MIT",
+  "sideEffects": false,
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest",
+    "lint": "eslint",
+    "typecheck": "tsc",
+    "clean": "rimraf dist",
+    "prepublishOnly": "pnpm run build",
+    "release": "bumpp",
+    "prepare": "pnpm run build"
+  },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^24.0.0",
-    "@rollup/plugin-node-resolve": "^15.0.0",
-    "@rollup/plugin-typescript": "^11.0.0",
-    "rollup": "^3.0.0",
-    "rollup-plugin-terser": "^7.0.2",
-    "rimraf": "^5.0.0",
-    "typescript": "^5.0.0"
+    "bumpp": "catalog:",
+    "eslint": "catalog:",
+    "publint": "catalog:",
+    "rimraf": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "vitest-package-exports": "catalog:"
   }
 }

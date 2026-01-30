@@ -1,2 +1,2 @@
-export * from './tracking';
-export * from './example/ExamplePlugin';
+export * from './example/ExamplePlugin'
+export * from './tracking'

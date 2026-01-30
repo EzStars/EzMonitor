@@ -12,32 +12,32 @@ pnpm install
 ### 基础配置
 
 ```typescript
-import EzMonitor from '@ezstars/monitor-sdk';
+import EzMonitor from '@ezstars/monitor-sdk'
 
 EzMonitor.init({
   url: 'https://your-api.com/monitor',
   projectName: 'your-project',
   appId: 'your-app-id',
   userId: 'user-123',
-  
+
   // SourceMap 配置
-  enableSourceMap: true,        // 启用 SourceMap 解析
-  sourceMapTimeout: 5000,       // 获取超时时间（毫秒）
-  sourceMapCacheSize: 100,      // 缓存数量
-});
+  enableSourceMap: true, // 启用 SourceMap 解析
+  sourceMapTimeout: 5000, // 获取超时时间（毫秒）
+  sourceMapCacheSize: 100, // 缓存数量
+})
 ```
 
 ### 生产环境配置
 
 ```typescript
 // 仅在开发/测试环境启用
-const isDev = process.env.NODE_ENV !== 'production';
+const isDev = process.env.NODE_ENV !== 'production'
 
 EzMonitor.init({
   // ... 其他配置
-  enableSourceMap: isDev,       // 生产环境通常关闭
+  enableSourceMap: isDev, // 生产环境通常关闭
   sourceMapTimeout: isDev ? 10000 : 3000,
-});
+})
 ```
 
 ## 🔧 SourceMap 文件部署
@@ -48,13 +48,13 @@ EzMonitor.init({
 // webpack.config.js
 module.exports = {
   devtool: 'source-map', // 生成 .map 文件
-  
+
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: '[name].[contenthash].js',
     publicPath: 'https://your-cdn.com/assets/',
   },
-};
+}
 ```
 
 ### 2. Vite 配置
@@ -65,14 +65,14 @@ export default {
   build: {
     sourcemap: true, // 生成 sourcemap
   },
-};
+}
 ```
 
 ### 3. 确保 SourceMap 可访问
 
 生成的文件应包含如下注释：
 ```javascript
-//# sourceMappingURL=main.js.map
+// # sourceMappingURL=main.js.map
 ```
 
 ## 📊 错误报告增强
@@ -86,7 +86,7 @@ export default {
   lineno: 1,
   colno: 1234,
   functionName: "a",
-  
+
   // 增强信息（源码）
   originalFilename: "src/components/UserProfile.tsx",
   originalLineno: 42,
@@ -134,10 +134,10 @@ EzMonitor.init({
   // ... 其他配置
   reportAfter: (data) => {
     if (data.stack?.[0]?.originalFilename) {
-      console.log('SourceMap 解析成功');
+      console.log('SourceMap 解析成功')
     }
   },
-});
+})
 ```
 
 ## 🔧 高级配置
@@ -149,7 +149,7 @@ EzMonitor.init({
   enableSourceMap: true,
   sourceMapEndpoint: 'https://sourcemap-service.com/api/',
   sourceMapTimeout: 8000,
-});
+})
 ```
 
 ### 条件启用
@@ -158,5 +158,5 @@ EzMonitor.init({
 // 仅对特定错误启用
 EzMonitor.init({
   enableSourceMap: window.location.search.includes('debug=true'),
-});
+})
 ```

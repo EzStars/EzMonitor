@@ -1,6 +1,7 @@
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import Link from 'next/link'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+
 export default function Home() {
   return (
     <div className="flex flex-1 items-center justify-center bg-linear-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -78,5 +79,5 @@ export default function Home() {
         </div>
       </section>
     </div>
-  );
+  )
 }

@@ -1,15 +1,15 @@
-import type { Metadata } from 'next';
-import '@/app/globals.css';
+import type { Metadata } from 'next'
+import '@/app/globals.css'
 
 export const metadata: Metadata = {
   title: '登录 - EzMonitor',
   description: '登录 EzMonitor 监控平台',
-};
+}
 
 export default function AuthLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
     <div className="flex flex-1 bg-linear-to-br from-indigo-900 via-slate-900 to-slate-950 text-white">
@@ -19,5 +19,5 @@ export default function AuthLayout({
         {children}
       </main>
     </div>
-  );
+  )
 }

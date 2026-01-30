@@ -1,32 +1,33 @@
-'use client';
+'use client'
 
-import { useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect } from 'react'
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { status } = useSession();
-  const router = useRouter();
-  const pathname = usePathname();
-  const showToast = status === 'unauthenticated';
+  const { status } = useSession()
+  const router = useRouter()
+  const pathname = usePathname()
+  const showToast = status === 'unauthenticated'
 
   useEffect(() => {
-    if (!showToast) return;
+    if (!showToast)
+      return
 
-    const redirect = pathname || '/dashboard';
+    const redirect = pathname || '/dashboard'
     const timer = setTimeout(() => {
-      router.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
-    }, 2000);
+      router.replace(`/login?redirect=${encodeURIComponent(redirect)}`)
+    }, 2000)
 
-    return () => clearTimeout(timer);
-  }, [showToast, pathname, router]);
+    return () => clearTimeout(timer)
+  }, [showToast, pathname, router])
 
   if (status === 'loading') {
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">
         准备登录状态...
       </div>
-    );
+    )
   }
 
   if (status === 'unauthenticated') {
@@ -40,8 +41,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </div>
-    );
+    )
   }
 
-  return <>{children}</>;
+  return <>{children}</>
 }

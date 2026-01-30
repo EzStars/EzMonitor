@@ -16,17 +16,17 @@ EzMonitor SDK 提供了全面的错误监控能力，能够捕获各类前端错
 SDK 初始化后，错误监控会自动启动：
 
 ```typescript
-import EzMonitor from '@ezstars/monitor-sdk';
+import EzMonitor from '@ezstars/monitor-sdk'
 
 EzMonitor.init({
   url: 'https://your-api.com/monitor',
   projectName: 'your-project',
   appId: 'your-app-id',
   userId: 'user-123',
-});
+})
 
 // 错误监控已自动启用
-EzMonitor.Error.initErrorEventListener();
+EzMonitor.Error.initErrorEventListener()
 ```
 
 ## 🔍 错误上报

@@ -63,8 +63,8 @@
 
 ---
 
-📌 **开源信息**  
-项目由 [EzStars团队](https://ezstars.github.io/EzMonitor/about.html) 维护，采用 MIT 许可证  
-📧 反馈建议：contact@ezmonitor.com  
-🐞 Issue提交：GitHub Issues  
+📌 **开源信息**
+项目由 [EzStars团队](https://ezstars.github.io/EzMonitor/about.html) 维护，采用 MIT 许可证
+📧 反馈建议：contact@ezmonitor.com
+🐞 Issue提交：GitHub Issues
 📚 完整文档：https://ezstars.github.io/EzMonitor/docs

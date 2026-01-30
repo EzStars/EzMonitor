@@ -1,5 +1,5 @@
-import { defineConfig } from 'vitepress';
-import { generateSidebar } from './utils/gennerateSidebar';
+import { defineConfig } from 'vitepress'
+import { generateSidebar } from './utils/gennerateSidebar'
 
 export default defineConfig({
   title: 'EzMonitor',
@@ -30,4 +30,4 @@ export default defineConfig({
   base: '/EzMonitor/',
   // 自定义主题颜色
   appearance: true,
-});
+})

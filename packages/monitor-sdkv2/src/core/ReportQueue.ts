@@ -3,15 +3,15 @@
  */
 export interface ReportQueueConfig {
   /** 最大缓存数量 */
-  maxSize: number;
+  maxSize: number
   /** 批量上报阈值 */
-  batchSize: number;
+  batchSize: number
   /** localStorage 存储键名 */
-  storageKey: string;
+  storageKey: string
   /** 是否启用持久化 */
-  enablePersistence: boolean;
+  enablePersistence: boolean
   /** 可选：过期毫秒数，加载时裁剪过期项 */
-  expireMs?: number;
+  expireMs?: number
 }
 
 /**
@@ -19,11 +19,11 @@ export interface ReportQueueConfig {
  */
 export interface ReportQueueItem {
   /** 上报数据 */
-  data: unknown;
+  data: unknown
   /** 数据类型 */
-  type?: string;
+  type?: string
   /** 入队时间戳 */
-  timestamp: number;
+  timestamp: number
 }
 
 /**
@@ -37,15 +37,15 @@ export interface ReportQueueItem {
  * - 数据恢复：启动时自动从 localStorage 恢复数据
  */
 export class ReportQueue {
-  private queue: ReportQueueItem[] = [];
-  private config: ReportQueueConfig;
+  private queue: ReportQueueItem[] = []
+  private config: ReportQueueConfig
 
   constructor(config: ReportQueueConfig) {
-    this.config = config;
+    this.config = config
 
     // 从本地存储恢复数据
     if (this.config.enablePersistence) {
-      this.loadFromStorage();
+      this.loadFromStorage()
     }
   }
 
@@ -58,10 +58,10 @@ export class ReportQueue {
   add(data: unknown, type?: string): boolean {
     // 容量控制：超过最大容量时移除最旧的数据
     if (this.queue.length >= this.config.maxSize) {
-      this.queue.shift();
+      this.queue.shift()
       console.warn(
         `[ReportQueue] Queue is full (${this.config.maxSize}), dropping oldest item`,
-      );
+      )
     }
 
     // 添加到队列
@@ -69,15 +69,15 @@ export class ReportQueue {
       data,
       type,
       timestamp: Date.now(),
-    });
+    })
 
     // 持久化
     if (this.config.enablePersistence) {
-      this.saveToStorage();
+      this.saveToStorage()
     }
 
     // 检查是否达到批量阈值
-    return this.queue.length >= this.config.batchSize;
+    return this.queue.length >= this.config.batchSize
   }
 
   /**
@@ -88,20 +88,20 @@ export class ReportQueue {
   addBatch(items: ReportQueueItem[]): boolean {
     // 容量控制
     if (this.queue.length + items.length > this.config.maxSize) {
-      const overflow = this.queue.length + items.length - this.config.maxSize;
-      this.queue.splice(0, overflow);
+      const overflow = this.queue.length + items.length - this.config.maxSize
+      this.queue.splice(0, overflow)
       console.warn(
         `[ReportQueue] Queue overflow, dropped ${overflow} oldest items`,
-      );
+      )
     }
 
-    this.queue.push(...items);
+    this.queue.push(...items)
 
     if (this.config.enablePersistence) {
-      this.saveToStorage();
+      this.saveToStorage()
     }
 
-    return this.queue.length >= this.config.batchSize;
+    return this.queue.length >= this.config.batchSize
   }
 
   /**
@@ -110,13 +110,13 @@ export class ReportQueue {
    * @returns 数据项列表
    */
   take(count: number): ReportQueueItem[] {
-    const items = this.queue.splice(0, count);
+    const items = this.queue.splice(0, count)
 
     if (this.config.enablePersistence) {
-      this.saveToStorage();
+      this.saveToStorage()
     }
 
-    return items;
+    return items
   }
 
   /**
@@ -124,38 +124,38 @@ export class ReportQueue {
    * @returns 所有数据项
    */
   flush(): ReportQueueItem[] {
-    const items = [...this.queue];
-    this.queue = [];
+    const items = [...this.queue]
+    this.queue = []
 
     if (this.config.enablePersistence) {
-      this.saveToStorage();
+      this.saveToStorage()
     }
 
-    return items;
+    return items
   }
 
   /**
    * 获取队列大小
    */
   size(): number {
-    return this.queue.length;
+    return this.queue.length
   }
 
   /**
    * 检查队列是否为空
    */
   isEmpty(): boolean {
-    return this.queue.length === 0;
+    return this.queue.length === 0
   }
 
   /**
    * 清空队列
    */
   clear(): void {
-    this.queue = [];
+    this.queue = []
 
     if (this.config.enablePersistence) {
-      this.saveToStorage();
+      this.saveToStorage()
     }
   }
 
@@ -163,35 +163,38 @@ export class ReportQueue {
    * 获取队列中的所有数据（不移除）
    */
   peek(): ReportQueueItem[] {
-    return [...this.queue];
+    return [...this.queue]
   }
 
   /**
    * 保存到 localStorage
    */
   private saveToStorage(): void {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined')
+      return
 
     try {
-      const data = JSON.stringify(this.queue);
-      localStorage.setItem(this.config.storageKey, data);
-    } catch (error) {
+      const data = JSON.stringify(this.queue)
+      localStorage.setItem(this.config.storageKey, data)
+    }
+    catch (error) {
       // localStorage 可能已满或被禁用
-      console.warn('[ReportQueue] Failed to save to storage:', error);
+      console.warn('[ReportQueue] Failed to save to storage:', error)
 
       // 尝试清理一半数据后重试
       if (this.queue.length > 10) {
-        this.queue.splice(0, Math.floor(this.queue.length / 2));
+        this.queue.splice(0, Math.floor(this.queue.length / 2))
         try {
           localStorage.setItem(
             this.config.storageKey,
             JSON.stringify(this.queue),
-          );
-        } catch (retryError) {
+          )
+        }
+        catch (retryError) {
           console.error(
             '[ReportQueue] Failed to save even after cleanup:',
             retryError,
-          );
+          )
         }
       }
     }
@@ -201,44 +204,47 @@ export class ReportQueue {
    * 从 localStorage 加载
    */
   private loadFromStorage(): void {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined')
+      return
 
     try {
-      const stored = localStorage.getItem(this.config.storageKey);
+      const stored = localStorage.getItem(this.config.storageKey)
       if (stored) {
-        const data = JSON.parse(stored);
+        const data = JSON.parse(stored)
 
         // 验证数据格式
         if (Array.isArray(data)) {
-          let items = data as ReportQueueItem[];
+          let items = data as ReportQueueItem[]
 
           // 过期裁剪
           if (
-            typeof this.config.expireMs === 'number' &&
-            this.config.expireMs > 0
+            typeof this.config.expireMs === 'number'
+            && this.config.expireMs > 0
           ) {
-            const cutoff = Date.now() - this.config.expireMs;
+            const cutoff = Date.now() - this.config.expireMs
             items = items.filter(
               item =>
                 typeof item?.timestamp === 'number' && item.timestamp >= cutoff,
-            );
+            )
           }
 
           // 只保留最新的数据，不超过最大容量
-          this.queue = items.slice(-this.config.maxSize);
+          this.queue = items.slice(-this.config.maxSize)
 
           console.log(
             `[ReportQueue] Loaded ${this.queue.length} items from storage`,
-          );
+          )
         }
       }
-    } catch (error) {
-      console.warn('[ReportQueue] Failed to load from storage:', error);
+    }
+    catch (error) {
+      console.warn('[ReportQueue] Failed to load from storage:', error)
 
       // 清除损坏的数据
       try {
-        localStorage.removeItem(this.config.storageKey);
-      } catch (removeError) {
+        localStorage.removeItem(this.config.storageKey)
+      }
+      catch {
         // ignore
       }
     }
@@ -248,24 +254,24 @@ export class ReportQueue {
    * 获取队列统计信息
    */
   getStats(): {
-    size: number;
-    oldestTimestamp?: number;
-    newestTimestamp?: number;
-    types: Record<string, number>;
+    size: number
+    oldestTimestamp?: number
+    newestTimestamp?: number
+    types: Record<string, number>
   } {
     const stats = {
       size: this.queue.length,
       oldestTimestamp: this.queue[0]?.timestamp,
       newestTimestamp: this.queue[this.queue.length - 1]?.timestamp,
       types: {} as Record<string, number>,
-    };
+    }
 
     // 统计各类型数据数量
-    this.queue.forEach(item => {
-      const type = item.type || 'unknown';
-      stats.types[type] = (stats.types[type] || 0) + 1;
-    });
+    this.queue.forEach((item) => {
+      const type = item.type || 'unknown'
+      stats.types[type] = (stats.types[type] || 0) + 1
+    })
 
-    return stats;
+    return stats
   }
 }

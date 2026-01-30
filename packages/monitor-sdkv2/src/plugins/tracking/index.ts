@@ -1,9 +1,9 @@
-export { TrackingPlugin } from './TrackingPlugin';
+export { ContextCollector } from './ContextCollector'
+export { TrackingPlugin } from './TrackingPlugin'
 export type {
+  TrackingContext,
   TrackingEventData,
   TrackingPageData,
-  TrackingUserData,
   TrackingPluginConfig,
-  TrackingContext,
-} from './types';
-export { ContextCollector } from './ContextCollector';
+  TrackingUserData,
+} from './types'

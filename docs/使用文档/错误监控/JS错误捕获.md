@@ -23,4 +23,3 @@ window.addEventListener(
   )
 
 ```
-

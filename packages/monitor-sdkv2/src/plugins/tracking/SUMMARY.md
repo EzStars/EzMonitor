@@ -41,13 +41,13 @@ packages/sdkv2/src/plugins/tracking/
 ### 基础使用
 
 ```typescript
-import { createSDK, TrackingPlugin } from '@ezmonitor/sdkv2';
+import { createSDK, TrackingPlugin } from '@ezmonitor/sdkv2'
 
 // 创建 SDK
 const sdk = createSDK({
   appId: 'your-app-id',
   apiUrl: 'https://your-api.com',
-});
+})
 
 // 创建埋点插件
 const trackingPlugin = new TrackingPlugin({
@@ -55,14 +55,14 @@ const trackingPlugin = new TrackingPlugin({
   batchInterval: 5000,
   batchSize: 20,
   autoTrackPage: true,
-});
+})
 
 // 注册插件
-sdk.pluginManager.register(trackingPlugin);
+sdk.pluginManager.register(trackingPlugin)
 
 // 初始化
-await sdk.init();
-await sdk.start();
+await sdk.init()
+await sdk.start()
 ```
 
 ### 埋点示例
@@ -73,19 +73,19 @@ trackingPlugin.track('button_click', {
   buttonName: '购买按钮',
   productId: '12345',
   price: 99.99,
-});
+})
 
 // 页面埋点
 trackingPlugin.trackPage('/product/detail', {
   productId: '12345',
   category: 'electronics',
-});
+})
 
 // 用户埋点
 trackingPlugin.trackUser('user123', {
   email: 'user@example.com',
   plan: 'premium',
-});
+})
 ```
 
 ## 🔧 配置选项
@@ -94,20 +94,20 @@ trackingPlugin.trackUser('user123', {
 const trackingPlugin = new TrackingPlugin({
   // 批量上报
   enableBatch: true,
-  batchInterval: 10000,     // 10秒
+  batchInterval: 10000, // 10秒
   batchSize: 50,
-  
+
   // 页面追踪
   autoTrackPage: true,
-  
+
   // 离线缓存
   enableOfflineCache: true,
   offlineCacheSize: 1000,
-  
+
   // 自定义处理
-  dataProcessor: (data) => ({ ...data, version: '1.0.0' }),
-  eventFilter: (name) => !name.startsWith('debug_'),
-});
+  dataProcessor: data => ({ ...data, version: '1.0.0' }),
+  eventFilter: name => !name.startsWith('debug_'),
+})
 ```
 
 ## 📊 事件数据结构
@@ -139,19 +139,19 @@ trackingPlugin.track('product_view', {
   productId: 'prod_001',
   category: 'electronics',
   price: 7999,
-});
+})
 
 // 加入购物车
 trackingPlugin.track('add_to_cart', {
   productId: 'prod_001',
   quantity: 1,
-});
+})
 
 // 购买完成
 trackingPlugin.track('purchase_complete', {
   orderId: 'order_456',
   totalAmount: 7999,
-});
+})
 ```
 
 ### 2. 用户行为分析
@@ -160,13 +160,13 @@ trackingPlugin.track('purchase_complete', {
 trackingPlugin.track('feature_used', {
   featureName: 'advanced_search',
   duration: 1200,
-});
+})
 
 // 表单提交
 trackingPlugin.track('form_submit', {
   formType: '注册表单',
   fields: ['username', 'email'],
-});
+})
 ```
 
 ### 3. A/B 测试
@@ -175,12 +175,12 @@ trackingPlugin.track('form_submit', {
 trackingPlugin.setContext({
   experimentId: 'A001',
   variant: 'treatment',
-});
+})
 
 // 后续所有埋点都会包含实验信息
 trackingPlugin.track('button_click', {
   buttonType: 'cta',
-});
+})
 ```
 
 ## 🔗 事件集成
@@ -190,18 +190,18 @@ trackingPlugin.track('button_click', {
 ```typescript
 // 监听埋点事件
 sdk.eventBus.on('tracking:event', (payload) => {
-  console.log('埋点事件:', payload);
-});
+  console.log('埋点事件:', payload)
+})
 
 // 监听批量上报
 sdk.eventBus.on('tracking:batch', (payload) => {
-  console.log('批量埋点:', payload.events);
-});
+  console.log('批量埋点:', payload.events)
+})
 
 // 监听数据上报
 sdk.eventBus.on('report:data', (payload) => {
-  console.log('数据上报:', payload);
-});
+  console.log('数据上报:', payload)
+})
 ```
 
 ## 📝 文档和示例
@@ -221,10 +221,12 @@ sdk.eventBus.on('report:data', (payload) => {
    ```typescript
    eventFilter: (eventName) => {
      // 过滤高频低价值事件
-     if (eventName === 'mouse_move') return false;
+     if (eventName === 'mouse_move')
+       return false
      // 采样处理
-     if (eventName === 'scroll') return Math.random() < 0.1;
-     return true;
+     if (eventName === 'scroll')
+       return Math.random() < 0.1
+     return true
    }
    ```
 

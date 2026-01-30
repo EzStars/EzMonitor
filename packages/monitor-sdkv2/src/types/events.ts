@@ -1,41 +1,41 @@
-import { SDKConfig } from './config';
+import type { SDKConfig } from './config'
 
 /**
  * 事件载荷基础类型
  */
 export interface BaseEventPayload {
-  timestamp: number;
-  appId?: string;
-  userId?: string;
-  sessionId?: string;
-  [key: string]: unknown;
+  timestamp: number
+  appId?: string
+  userId?: string
+  sessionId?: string
+  [key: string]: unknown
 }
 
 /**
  * 系统事件类型
  */
 export interface SystemEvents {
-  'sdk:init': { config: SDKConfig };
-  'sdk:start': Record<string, never>;
-  'sdk:stop': Record<string, never>;
-  'sdk:destroy': Record<string, never>;
-  'plugin:registered': { pluginName: string };
-  'plugin:initialized': { pluginName: string };
-  'plugin:started': { pluginName: string };
-  'plugin:stopped': { pluginName: string };
-  'plugin:destroyed': { pluginName: string };
-  'plugin:error': { pluginName: string; error: Error };
-  'config:changed': { key: string; value: unknown; oldValue: unknown };
+  'sdk:init': { config: SDKConfig }
+  'sdk:start': Record<string, never>
+  'sdk:stop': Record<string, never>
+  'sdk:destroy': Record<string, never>
+  'plugin:registered': { pluginName: string }
+  'plugin:initialized': { pluginName: string }
+  'plugin:started': { pluginName: string }
+  'plugin:stopped': { pluginName: string }
+  'plugin:destroyed': { pluginName: string }
+  'plugin:error': { pluginName: string, error: Error }
+  'config:changed': { key: string, value: unknown, oldValue: unknown }
 }
 
 /**
  * 数据上报事件类型
  */
 export interface ReportEvents {
-  'report:data': { type: string; data: unknown };
-  'report:batch': { items: unknown[] };
-  'report:success': { data: unknown };
-  'report:error': { data: unknown; error: Error };
+  'report:data': { type: string, data: unknown }
+  'report:batch': { items: unknown[] }
+  'report:success': { data: unknown }
+  'report:error': { data: unknown, error: Error }
 }
 
 /**
@@ -43,35 +43,35 @@ export interface ReportEvents {
  */
 export interface TrackingEvents {
   'tracking:event': {
-    eventName: string;
-    properties?: Record<string, unknown>;
-    context?: Record<string, unknown>;
-  };
+    eventName: string
+    properties?: Record<string, unknown>
+    context?: Record<string, unknown>
+  }
   'tracking:page': {
-    page: string;
-    properties?: Record<string, unknown>;
-    context?: Record<string, unknown>;
-  };
-  'tracking:user': { userId: string; properties?: Record<string, unknown> };
-  'tracking:batch': { events: unknown[] };
+    page: string
+    properties?: Record<string, unknown>
+    context?: Record<string, unknown>
+  }
+  'tracking:user': { userId: string, properties?: Record<string, unknown> }
+  'tracking:batch': { events: unknown[] }
 }
 
 /**
  * 所有事件类型合集
  */
-export type AllEvents = SystemEvents & ReportEvents & TrackingEvents;
+export type AllEvents = SystemEvents & ReportEvents & TrackingEvents
 
 /**
  * 事件名称类型
  */
-export type EventName = keyof AllEvents;
+export type EventName = keyof AllEvents
 
 /**
  * 事件处理器类型
  */
 export type EventHandler<T extends EventName> = (
   payload: AllEvents[T] & BaseEventPayload,
-) => void | Promise<void>;
+) => void | Promise<void>
 
 /**
  * DOM 事件常量
@@ -84,7 +84,7 @@ export const DOM_EVENTS = {
   STATUS_CHANGED: 'ezmonitor:status:changed',
   /** 插件生命周期事件 */
   PLUGIN_LIFECYCLE: 'ezmonitor:plugin:lifecycle',
-} as const;
+} as const
 
 /**
  * 内部事件常量
@@ -119,4 +119,4 @@ export const INTERNAL_EVENTS = {
   TRACKING_PAGE: 'tracking:page',
   TRACKING_USER: 'tracking:user',
   TRACKING_BATCH: 'tracking:batch',
-} as const;
+} as const

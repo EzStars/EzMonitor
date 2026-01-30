@@ -17,40 +17,40 @@ PV (Page View) 监控是 EzMonitor SDK 的核心功能之一，用于统计和�
 ### PV 数据格式
 ```typescript
 interface PvInfoType {
-  type: 'behavior';                       // 追踪类型
-  subType: 'pv';                          // 子类型：pv
-  timestamp: number;                      // 访问时间戳
-  pageInfo: PageInformation;              // 页面基础信息
-  originInfo: originInfoType;             // 用户来源信息
+  type: 'behavior' // 追踪类型
+  subType: 'pv' // 子类型：pv
+  timestamp: number // 访问时间戳
+  pageInfo: PageInformation // 页面基础信息
+  originInfo: originInfoType // 用户来源信息
 }
 ```
 
 ### 页面信息 (PageInformation)
 ```typescript
 interface PageInformation {
-  host: string;                 // 域名+端口，如: example.com:8080
-  hostname: string;             // 纯域名，如: example.com  
-  href: string;                 // 完整URL
-  protocol: string;             // 协议，如: https:
-  origin: string;               // 源，如: https://example.com
-  port: string;                 // 端口号
-  pathname: string;             // 路径，如: /page
-  search: string;               // 查询参数，如: ?id=1
-  hash: string;                 // 哈希值，如: #section1
-  title: string;                // 页面标题
-  language: string;             // 语言设置，如: zh
-  userAgent: string;            // 用户代理字符串
-  winScreen: string;            // 屏幕分辨率，如: 1920x1080
-  docScreen: string;            // 页面可视区域，如: 1200x800
-  pageLoadType: string;         // 页面加载类型
+  host: string // 域名+端口，如: example.com:8080
+  hostname: string // 纯域名，如: example.com
+  href: string // 完整URL
+  protocol: string // 协议，如: https:
+  origin: string // 源，如: https://example.com
+  port: string // 端口号
+  pathname: string // 路径，如: /page
+  search: string // 查询参数，如: ?id=1
+  hash: string // 哈希值，如: #section1
+  title: string // 页面标题
+  language: string // 语言设置，如: zh
+  userAgent: string // 用户代理字符串
+  winScreen: string // 屏幕分辨率，如: 1920x1080
+  docScreen: string // 页面可视区域，如: 1200x800
+  pageLoadType: string // 页面加载类型
 }
 ```
 
 ### 来源信息 (originInfoType)
 ```typescript
 interface originInfoType {
-  referrer: string;             // 来源页面URL
-  navigationType: string | number; // 导航类型
+  referrer: string // 来源页面URL
+  navigationType: string | number // 导航类型
 }
 ```
 
@@ -65,8 +65,8 @@ interface originInfoType {
 ### 1. 页面首次加载
 ```typescript
 afterLoad(() => {
-  handler(); // 页面 DOMContentLoaded 或 load 事件后触发
-});
+  handler() // 页面 DOMContentLoaded 或 load 事件后触发
+})
 ```
 **触发场景**：
 - 用户直接访问网站
@@ -75,7 +75,7 @@ afterLoad(() => {
 
 ### 2. Hash 路由变化
 ```typescript
-proxyHash(handler); // 监听 hashchange 事件
+proxyHash(handler) // 监听 hashchange 事件
 ```
 **触发场景**：
 - `example.com/#/home` → `example.com/#/about`
@@ -83,10 +83,10 @@ proxyHash(handler); // 监听 hashchange 事件
 
 ### 3. History API 路由变化
 ```typescript
-proxyHistory(handler); // 监听 pushState/replaceState
+proxyHistory(handler) // 监听 pushState/replaceState
 ```
 **触发场景**：
-- `example.com/home` → `example.com/about`  
+- `example.com/home` → `example.com/about`
 - History 模式的现代 SPA 路由跳转
 
 ## 🔧 快速开始
@@ -96,15 +96,15 @@ proxyHistory(handler); // 监听 pushState/replaceState
 SDK 初始化时自动启动 PV 监控，无需额外配置：
 
 ```typescript
-import EzMonitor from '@EzStars/EzMonitor';
+import EzMonitor from '@EzStars/EzMonitor'
 
 // 初始化 SDK，PV 监控自动启动
 const monitor = new EzMonitor({
-  url: 'https://your-api.com/monitor',    // 上报地址
-  projectName: 'your-project',            // 项目名称
-  appId: 'your-app-id',                   // 项目ID
-  userId: 'user-123',                     // 用户ID
-});
+  url: 'https://your-api.com/monitor', // 上报地址
+  projectName: 'your-project', // 项目名称
+  appId: 'your-app-id', // 项目ID
+  userId: 'user-123', // 用户ID
+})
 ```
 
 ### 高级配置
@@ -115,35 +115,35 @@ const monitor = new EzMonitor({
   projectName: 'your-project',
   appId: 'your-app-id',
   userId: 'user-123',
-  batchSize: 10,                          // 批量上报大小
-  isAjax: true,                           // 开启Ajax上报
-  
+  batchSize: 10, // 批量上报大小
+  isAjax: true, // 开启Ajax上报
+
   // 上报回调函数
   reportBefore: (data) => {
-    console.log('上报前:', data);
-    return data; // 可以修改数据后返回
+    console.log('上报前:', data)
+    return data // 可以修改数据后返回
   },
-  
+
   reportSuccess: (data) => {
-    console.log('上报成功:', data);
+    console.log('上报成功:', data)
   },
-  
+
   reportFail: (error) => {
-    console.error('上报失败:', error);
+    console.error('上报失败:', error)
   }
-});
+})
 ```
 
 ## 📈 数据上报策略
 
 ### 立即上报
 ```typescript
-lazyReportBatch(reportData); // PV 数据立即上报
+lazyReportBatch(reportData) // PV 数据立即上报
 ```
 
 **为什么立即上报？**
 - 📊 **实时统计需求**：流量数据需要实时反映
-- 🎯 **核心指标**：PV 是网站分析的基础指标  
+- 🎯 **核心指标**：PV 是网站分析的基础指标
 - ⏱️ **防止丢失**：用户可能快速跳转或关闭页面
 
 ### 与其他监控的区别
@@ -157,10 +157,10 @@ lazyReportBatch(reportData); // PV 数据立即上报
 
 ### Vue.js 项目集成
 ```typescript
+import EzMonitor from '@EzStars/EzMonitor'
 // main.js
-import { createApp } from 'vue';
-import EzMonitor from '@EzStars/EzMonitor';
-import App from './App.vue';
+import { createApp } from 'vue'
+import App from './App.vue'
 
 // 初始化监控
 const monitor = new EzMonitor({
@@ -168,10 +168,10 @@ const monitor = new EzMonitor({
   projectName: 'vue-app',
   appId: 'vue-app-001',
   userId: localStorage.getItem('userId') || 'anonymous',
-});
+})
 
-const app = createApp(App);
-app.mount('#app');
+const app = createApp(App)
+app.mount('#app')
 ```
 
 ### React 项目集成
@@ -220,15 +220,15 @@ export default MyApp;
 ### 手动获取 PV 数据
 ```typescript
 // 获取行为监控实例
-const behavior = window.$SDK.Behaviour;
+const behavior = window.$SDK.Behaviour
 
 // 获取当前页面信息
-const pageInfo = getPageInfo();
-console.log('当前页面信息:', pageInfo);
+const pageInfo = getPageInfo()
+console.log('当前页面信息:', pageInfo)
 
 // 获取来源信息
-const originInfo = getOriginInfo();
-console.log('来源信息:', originInfo);
+const originInfo = getOriginInfo()
+console.log('来源信息:', originInfo)
 ```
 
 ### 结合自定义埋点
@@ -242,24 +242,24 @@ window.$SDK.Behaviour.customHandler({
     source: 'campaign',
     campaign_id: 'summer_sale_2024'
   }
-});
+})
 ```
 
 ## 📊 应用场景
 
 ### 1. 流量统计
 - **实时监控**：网站访问量实时变化
-- **趋势分析**：日活、周活、月活统计  
+- **趋势分析**：日活、周活、月活统计
 - **峰值分析**：访问高峰时段识别
 
-### 2. 渠道分析  
+### 2. 渠道分析
 - **来源统计**：哪些渠道带来更多流量
 - **转化分析**：不同来源的用户转化率
 - **营销效果**：广告投放效果评估
 
 ### 3. 产品优化
 - **页面热度**：识别最受欢迎的页面
-- **用户路径**：分析用户访问轨迹  
+- **用户路径**：分析用户访问轨迹
 - **跳出分析**：页面留存能力评估
 
 ### 4. 技术决策
@@ -274,14 +274,14 @@ window.$SDK.Behaviour.customHandler({
 - 页面停留时长（结合路由监控）
 - 访问频次统计
 
-### 页面维度  
+### 页面维度
 - URL 路径分析
 - 页面标题统计
 - 查询参数分析
 
 ### 用户维度
 - 来源渠道分布
-- 设备类型统计  
+- 设备类型统计
 - 地理位置分析（需结合IP）
 
 ### 技术维度
@@ -293,7 +293,7 @@ window.$SDK.Behaviour.customHandler({
 
 1. **数据量控制**：PV 数据量较大，注意服务端处理能力
 2. **隐私合规**：收集用户数据需符合隐私政策
-3. **性能影响**：监控代码应尽量轻量，避免影响页面性能  
+3. **性能影响**：监控代码应尽量轻量，避免影响页面性能
 4. **SPA 兼容**：确保路由库与监控代理兼容
 5. **数据准确性**：注意去重和异常数据过滤
 
@@ -301,19 +301,19 @@ window.$SDK.Behaviour.customHandler({
 
 ### 常见问题
 
-**Q: SPA 应用路由跳转没有触发 PV？**  
+**Q: SPA 应用路由跳转没有触发 PV？**
 A: 检查路由模式是否为 History 或 Hash 模式，确认代理函数正常工作。可以在控制台查看：
 ```javascript
-console.log('PV监控状态:', window.$SDK.Behaviour);
+console.log('PV监控状态:', window.$SDK.Behaviour)
 ```
 
-**Q: PV 数据重复上报？**  
+**Q: PV 数据重复上报？**
 A: 检查是否多次初始化 SDK，或者页面存在多个监控实例
 
-**Q: 缺少页面信息？**  
+**Q: 缺少页面信息？**
 A: 确认页面加载完成后再调用，或检查浏览器 API 兼容性
 
-**Q: 上报失败？**  
+**Q: 上报失败？**
 A: 检查网络连接和上报地址是否正确，可以通过 `reportFail` 回调查看错误信息
 
 ### 调试方法
@@ -323,15 +323,15 @@ const monitor = new EzMonitor({
   // ... 其他配置
   reportBefore: (data) => {
     if (data.subType === 'pv') {
-      console.log('PV数据:', data);
+      console.log('PV数据:', data)
     }
-    return data;
+    return data
   }
-});
+})
 
 // 手动触发 PV 统计查看数据
-console.log('页面信息:', getPageInfo());
-console.log('来源信息:', getOriginInfo());
+console.log('页面信息:', getPageInfo())
+console.log('来源信息:', getOriginInfo())
 ```
 
 ## 📚 相关文档

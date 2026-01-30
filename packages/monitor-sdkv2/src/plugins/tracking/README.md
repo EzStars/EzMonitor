@@ -20,13 +20,13 @@
 ### 1. 基础使用
 
 ```typescript
-import { createSDK, TrackingPlugin } from '@ezmonitor/sdkv2';
+import { createSDK, TrackingPlugin } from '@ezmonitor/sdkv2'
 
 // 创建 SDK 实例
 const sdk = createSDK({
   appId: 'your-app-id',
   apiUrl: 'https://your-api.com',
-});
+})
 
 // 创建并注册埋点插件
 const trackingPlugin = new TrackingPlugin({
@@ -34,13 +34,13 @@ const trackingPlugin = new TrackingPlugin({
   batchInterval: 5000, // 5秒批量上报
   batchSize: 20,
   autoTrackPage: true, // 启用自动页面追踪
-});
+})
 
-sdk.pluginManager.register(trackingPlugin);
+sdk.pluginManager.register(trackingPlugin)
 
 // 初始化和启动 SDK
-await sdk.init();
-await sdk.start();
+await sdk.init()
+await sdk.start()
 ```
 
 ### 2. 事件埋点
@@ -51,7 +51,7 @@ trackingPlugin.track('button_click', {
   buttonName: '购买按钮',
   productId: '12345',
   price: 99.99,
-});
+})
 
 // 带自定义上下文的事件埋点
 trackingPlugin.track('form_submit', {
@@ -60,7 +60,7 @@ trackingPlugin.track('form_submit', {
 }, {
   experimentId: 'A001',
   variant: 'control',
-});
+})
 ```
 
 ### 3. 页面埋点
@@ -71,14 +71,14 @@ trackingPlugin.trackPage('/product/detail', {
   productId: '12345',
   category: 'electronics',
   source: 'search',
-});
+})
 
 // 带页面属性的埋点
 trackingPlugin.trackPage('/checkout', {
   step: 'payment',
   totalAmount: 299.99,
   itemCount: 3,
-});
+})
 ```
 
 ### 4. 用户埋点
@@ -89,13 +89,13 @@ trackingPlugin.trackUser('user123', {
   email: 'user@example.com',
   plan: 'premium',
   registrationDate: '2024-01-01',
-});
+})
 
 // 用户属性更新
 trackingPlugin.trackUser('user123', {
   lastLoginTime: Date.now(),
   preferredLanguage: 'zh-CN',
-});
+})
 ```
 
 ## 高级配置
@@ -105,17 +105,17 @@ trackingPlugin.trackUser('user123', {
 ```typescript
 const trackingPlugin = new TrackingPlugin({
   // 批量上报配置
-  enableBatch: true,          // 启用批量上报
-  batchInterval: 10000,       // 批量间隔（毫秒）
-  batchSize: 50,             // 批量大小阈值
-  
+  enableBatch: true, // 启用批量上报
+  batchInterval: 10000, // 批量间隔（毫秒）
+  batchSize: 50, // 批量大小阈值
+
   // 页面追踪配置
-  autoTrackPage: true,        // 自动页面追踪
-  
+  autoTrackPage: true, // 自动页面追踪
+
   // 离线缓存配置
-  enableOfflineCache: true,   // 启用离线缓存
-  offlineCacheSize: 1000,     // 缓存容量
-  
+  enableOfflineCache: true, // 启用离线缓存
+  offlineCacheSize: 1000, // 缓存容量
+
   // 自定义处理器
   dataProcessor: (data) => {
     // 自定义数据预处理
@@ -123,15 +123,15 @@ const trackingPlugin = new TrackingPlugin({
       ...data,
       timestamp: Date.now(),
       version: '1.0.0',
-    };
+    }
   },
-  
+
   // 事件过滤器
   eventFilter: (eventName, properties) => {
     // 过滤调试事件
-    return !eventName.startsWith('debug_');
+    return !eventName.startsWith('debug_')
   },
-});
+})
 ```
 
 ### 上下文管理
@@ -142,20 +142,20 @@ trackingPlugin.setContext({
   userId: 'user123',
   experimentGroup: 'A',
   deviceType: 'mobile',
-});
+})
 
 // 移除特定上下文
-trackingPlugin.removeContext('experimentGroup');
+trackingPlugin.removeContext('experimentGroup')
 
 // 清空所有自定义上下文
-trackingPlugin.clearContext();
+trackingPlugin.clearContext()
 ```
 
 ### 手动刷新
 
 ```typescript
 // 立即上报所有缓存的事件
-trackingPlugin.flush();
+trackingPlugin.flush()
 ```
 
 ## 事件数据结构
@@ -164,13 +164,13 @@ trackingPlugin.flush();
 
 ```typescript
 interface TrackingEventData {
-  eventName: string;                    // 事件名称
-  properties?: Record<string, any>;     // 事件属性
-  context?: TrackingContext;            // 上下文信息
-  timestamp?: number;                   // 时间戳
-  sessionId?: string;                   // 会话ID
-  userId?: string;                      // 用户ID
-  appId?: string;                       // 应用ID
+  eventName: string // 事件名称
+  properties?: Record<string, any> // 事件属性
+  context?: TrackingContext // 上下文信息
+  timestamp?: number // 时间戳
+  sessionId?: string // 会话ID
+  userId?: string // 用户ID
+  appId?: string // 应用ID
 }
 ```
 
@@ -178,13 +178,13 @@ interface TrackingEventData {
 
 ```typescript
 interface TrackingPageData {
-  page: string;                         // 页面路径
-  properties?: Record<string, any>;     // 页面属性
-  context?: TrackingContext;            // 上下文信息
-  timestamp?: number;                   // 时间戳
-  sessionId?: string;                   // 会话ID
-  userId?: string;                      // 用户ID
-  appId?: string;                       // 应用ID
+  page: string // 页面路径
+  properties?: Record<string, any> // 页面属性
+  context?: TrackingContext // 上下文信息
+  timestamp?: number // 时间戳
+  sessionId?: string // 会话ID
+  userId?: string // 用户ID
+  appId?: string // 应用ID
 }
 ```
 
@@ -192,11 +192,11 @@ interface TrackingPageData {
 
 ```typescript
 interface TrackingUserData {
-  userId: string;                       // 用户ID
-  properties?: Record<string, any>;     // 用户属性
-  timestamp?: number;                   // 时间戳
-  sessionId?: string;                   // 会话ID
-  appId?: string;                       // 应用ID
+  userId: string // 用户ID
+  properties?: Record<string, any> // 用户属性
+  timestamp?: number // 时间戳
+  sessionId?: string // 会话ID
+  appId?: string // 应用ID
 }
 ```
 
@@ -205,20 +205,20 @@ interface TrackingUserData {
 ```typescript
 interface TrackingContext {
   page?: {
-    url?: string;                       // 页面URL
-    title?: string;                     // 页面标题
-    referrer?: string;                  // 来源页面
-  };
+    url?: string // 页面URL
+    title?: string // 页面标题
+    referrer?: string // 来源页面
+  }
   device?: {
-    userAgent?: string;                 // 用户代理
-    screen?: { width: number; height: number; };     // 屏幕尺寸
-    viewport?: { width: number; height: number; };   // 视口尺寸
-  };
+    userAgent?: string // 用户代理
+    screen?: { width: number, height: number } // 屏幕尺寸
+    viewport?: { width: number, height: number } // 视口尺寸
+  }
   network?: {
-    effectiveType?: string;             // 网络类型
-    downlink?: number;                  // 下行速度
-  };
-  custom?: Record<string, any>;         // 自定义上下文
+    effectiveType?: string // 网络类型
+    downlink?: number // 下行速度
+  }
+  custom?: Record<string, any> // 自定义上下文
 }
 ```
 
@@ -228,13 +228,13 @@ interface TrackingContext {
 
 ```typescript
 // 推荐：使用下划线分隔的描述性名称
-trackingPlugin.track('product_view', { productId: '123' });
-trackingPlugin.track('add_to_cart', { productId: '123', quantity: 2 });
-trackingPlugin.track('purchase_complete', { orderId: 'order_456', amount: 99.99 });
+trackingPlugin.track('product_view', { productId: '123' })
+trackingPlugin.track('add_to_cart', { productId: '123', quantity: 2 })
+trackingPlugin.track('purchase_complete', { orderId: 'order_456', amount: 99.99 })
 
 // 不推荐：使用模糊或过于简单的名称
-trackingPlugin.track('click', { button: 'buy' });
-trackingPlugin.track('event1', { data: 'something' });
+trackingPlugin.track('click', { button: 'buy' })
+trackingPlugin.track('event1', { data: 'something' })
 ```
 
 ### 2. 属性设计
@@ -248,7 +248,7 @@ trackingPlugin.track('video_play', {
   quality: '1080p',
   autoPlay: false,
   source: 'recommendation',
-});
+})
 
 // 不推荐：嵌套过深或属性过多
 trackingPlugin.track('complex_event', {
@@ -259,7 +259,7 @@ trackingPlugin.track('complex_event', {
       }
     }
   }
-});
+})
 ```
 
 ### 3. 性能优化
@@ -268,19 +268,21 @@ trackingPlugin.track('complex_event', {
 // 启用批量上报
 const trackingPlugin = new TrackingPlugin({
   enableBatch: true,
-  batchInterval: 5000,    // 根据业务需求调整间隔
-  batchSize: 30,          // 根据网络条件调整批量大小
-});
+  batchInterval: 5000, // 根据业务需求调整间隔
+  batchSize: 30, // 根据网络条件调整批量大小
+})
 
 // 合理使用事件过滤器
 const trackingPlugin = new TrackingPlugin({
   eventFilter: (eventName, properties) => {
     // 过滤高频但价值较低的事件
-    if (eventName === 'mouse_move') return false;
-    if (eventName === 'scroll' && Math.random() > 0.1) return false; // 采样
-    return true;
+    if (eventName === 'mouse_move')
+      return false
+    if (eventName === 'scroll' && Math.random() > 0.1)
+      return false // 采样
+    return true
   },
-});
+})
 ```
 
 ### 4. 错误处理
@@ -289,10 +291,10 @@ const trackingPlugin = new TrackingPlugin({
 // 监听插件错误
 sdk.eventBus.on('plugin:error', (payload) => {
   if (payload.pluginName === 'tracking') {
-    console.error('埋点插件错误:', payload.error);
+    console.error('埋点插件错误:', payload.error)
     // 进行错误上报或降级处理
   }
-});
+})
 ```
 
 ## 常见问题
@@ -304,7 +306,7 @@ A: 插件提供了离线缓存功能，即使在网络不稳定的情况下也�
 const trackingPlugin = new TrackingPlugin({
   enableOfflineCache: true,
   offlineCacheSize: 2000, // 增大缓存容量
-});
+})
 ```
 
 ### Q: 如何减少埋点对性能的影响？
@@ -313,9 +315,9 @@ A: 使用批量上报和合理的配置：
 ```typescript
 const trackingPlugin = new TrackingPlugin({
   enableBatch: true,
-  batchInterval: 10000,   // 适当增加间隔
-  batchSize: 100,         // 适当增加批量大小
-});
+  batchInterval: 10000, // 适当增加间隔
+  batchSize: 100, // 适当增加批量大小
+})
 ```
 
 ### Q: 如何实现A/B测试埋点？
@@ -326,8 +328,8 @@ A: 使用自定义上下文：
 trackingPlugin.setContext({
   abTestGroup: 'group_a',
   experimentId: 'exp_001',
-});
+})
 
 // 所有后续埋点都会包含这个上下文
-trackingPlugin.track('button_click', { buttonType: 'cta' });
+trackingPlugin.track('button_click', { buttonType: 'cta' })
 ```

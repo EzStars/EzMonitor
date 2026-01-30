@@ -143,4 +143,3 @@ pnpm dlx shadcn@latest add [组件名]
 - [Tailwind CSS 文档](https://tailwindcss.com/docs)
 - [shadcn/ui 文档](https://ui.shadcn.com)
 - [EzMonitor SDK 文档](https://ezstars.github.io/EzMonitor/)
-

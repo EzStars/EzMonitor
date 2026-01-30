@@ -69,14 +69,14 @@ createSDK({
   batchInterval: 10000,
   enableOfflineCache: true,
   maxCacheSize: 1000,
-});
+})
 
 // ❌ Old (scattered in plugins)
 new TrackingPlugin({
   enableBatch: true,
   batchSize: 50,
   // ...
-});
+})
 ```
 
 **2. Event-Driven Communication**
@@ -210,7 +210,7 @@ Manages plugin lifecycle with dependency resolution:
 ```typescript
 // Plugin declares dependencies
 class ErrorPlugin implements IPlugin {
-  dependencies = ['context'];  // Needs ContextPlugin first
+  dependencies = ['context'] // Needs ContextPlugin first
 }
 
 // PluginManager ensures ContextPlugin.init() runs before ErrorPlugin.init()
@@ -238,10 +238,10 @@ Simplified user behavior tracking plugin (post-migration):
 **Configuration** (minimal):
 ```typescript
 new TrackingPlugin({
-  autoTrackPage: true,      // Auto-track navigation
-  dataProcessor: (data) => data,  // Transform data
-  eventFilter: () => true,  // Filter events
-});
+  autoTrackPage: true, // Auto-track navigation
+  dataProcessor: data => data, // Transform data
+  eventFilter: () => true, // Filter events
+})
 ```
 
 ### ContextCollector (`src/plugins/tracking/ContextCollector.ts`)
@@ -258,41 +258,41 @@ Auto-collects environmental context:
 ```typescript
 interface SDKConfig {
   // Identity
-  appId?: string;
-  userId?: string;
-  sessionId?: string;      // Auto-generated
+  appId?: string
+  userId?: string
+  sessionId?: string // Auto-generated
 
   // Endpoints
-  reportUrl?: string;
+  reportUrl?: string
 
   // Batch & Cache (unified in Reporter)
-  enableBatch?: boolean;          // Default: true
-  batchSize?: number;             // Default: 50
-  batchInterval?: number;         // Default: 10000ms
-  enableOfflineCache?: boolean;   // Default: true
-  maxCacheSize?: number;          // Default: 1000
+  enableBatch?: boolean // Default: true
+  batchSize?: number // Default: 50
+  batchInterval?: number // Default: 10000ms
+  enableOfflineCache?: boolean // Default: true
+  maxCacheSize?: number // Default: 1000
 
   // Transport
-  forceXHR?: boolean;             // Force XHR instead of beacon
+  forceXHR?: boolean // Force XHR instead of beacon
 
   // Retry
-  enableRetry?: boolean;
+  enableRetry?: boolean
   retryStrategy?: {
-    maxRetries: number;
-    initialDelay: number;
-    backoffMultiplier: number;
-    maxDelay: number;
-  };
+    maxRetries: number
+    initialDelay: number
+    backoffMultiplier: number
+    maxDelay: number
+  }
 
   // Lifecycle Hooks
-  beforeReport?: (data: unknown) => void | Promise<void>;
-  onReportSuccess?: (data: unknown) => void;
-  onReportError?: (data: unknown, error: Error) => void;
-  afterReport?: (data: unknown) => void;
+  beforeReport?: (data: unknown) => void | Promise<void>
+  onReportSuccess?: (data: unknown) => void
+  onReportError?: (data: unknown, error: Error) => void
+  afterReport?: (data: unknown) => void
 
   // Misc
-  debug?: boolean;
-  sampleRate?: number;            // 0-1
+  debug?: boolean
+  sampleRate?: number // 0-1
 }
 ```
 
@@ -365,10 +365,10 @@ if (reportQueue.size() >= batchSize) {
 1. Create plugin class implementing `IPlugin`:
 ```typescript
 export class MyPlugin implements IPlugin {
-  name = 'my-plugin';
-  version = '1.0.0';
-  dependencies = [];  // Add dependencies if needed
-  status: PluginStatus = 'registered';
+  name = 'my-plugin'
+  version = '1.0.0'
+  dependencies = [] // Add dependencies if needed
+  status: PluginStatus = 'registered'
 
   async init(config: SDKConfig, eventBus: EventBus) {
     // Setup listeners, initialize state
@@ -393,7 +393,7 @@ export class MyPlugin implements IPlugin {
 this.eventBus.emit(INTERNAL_EVENTS.REPORT_DATA, {
   type: 'my-plugin',
   data: collectedData,
-});
+})
 ```
 
 3. Register plugin:
@@ -433,7 +433,7 @@ export enum TransportType {
   BEACON = 'beacon',
   XHR = 'xhr',
   IMAGE = 'image',
-  FETCH = 'fetch',  // NEW
+  FETCH = 'fetch', // NEW
 }
 ```
 
@@ -441,8 +441,8 @@ export enum TransportType {
 ```typescript
 switch (transportType) {
   case TransportType.FETCH:
-    response = await this.sendViaFetch(jsonData);
-    break;
+    response = await this.sendViaFetch(jsonData)
+    break
 }
 ```
 
@@ -491,15 +491,15 @@ Check browser console for `[Reporter]` logs and localStorage for `{appId}_report
 Plugins **must** be registered before `sdk.start()`:
 ```typescript
 // ✅ Correct
-const sdk = createSDK(config);
-sdk.use(plugin1);
-sdk.use(plugin2);
-await sdk.init();
-await sdk.start();
+const sdk = createSDK(config)
+sdk.use(plugin1)
+sdk.use(plugin2)
+await sdk.init()
+await sdk.start()
 
 // ❌ Wrong - throws error
-await sdk.start();
-sdk.use(plugin3);  // Error: Cannot register after started
+await sdk.start()
+sdk.use(plugin3) // Error: Cannot register after started
 ```
 
 ### TypeScript Patterns
@@ -517,20 +517,20 @@ properties?: Record<string, unknown>
 ```typescript
 // Define payload types in src/types/events.ts
 interface ReportEvents {
-  'report:data': { type: string; data: unknown };
+  'report:data': { type: string, data: unknown }
 }
 
 // Use in EventBus
 eventBus.on(INTERNAL_EVENTS.REPORT_DATA, (payload) => {
   // payload is typed as { type: string; data: unknown }
-});
+})
 ```
 
 ### Debugging
 
 **Enable debug mode**:
 ```typescript
-createSDK({ debug: true });
+createSDK({ debug: true })
 ```
 
 Logs include:
@@ -544,7 +544,7 @@ Logs include:
 **Check offline cache**:
 ```javascript
 // In browser console
-localStorage.getItem('your-app-id_report_queue');
+localStorage.getItem('your-app-id_report_queue')
 ```
 
 **Monitor network**:

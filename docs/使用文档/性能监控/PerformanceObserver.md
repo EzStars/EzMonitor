@@ -2,11 +2,7 @@
 
 我们直接切入主题，看看这个API可以监测哪些性能数据（带 `*` 是比较常用的性能指标的条目）
 
-我们也可以通过 `PerformanceObserver.supportedEntryTypes` 来查看浏览器支持哪些性能条目，下面是我谷歌浏览器所输出的 `entryTypes`。  
-
-
-
-
+我们也可以通过 `PerformanceObserver.supportedEntryTypes` 来查看浏览器支持哪些性能条目，下面是我谷歌浏览器所输出的 `entryTypes`。
 
 ## 为什么使用 PerformanceObserver
 
@@ -26,13 +22,9 @@ function perf_observer(list, observer) {
   // Process the "measure" event
   // 处理 "measure" 事件
 }
-var observer2 = new PerformanceObserver(perf_observer);
-observer2.observe({ entryTypes: ["measure"] });
-
+const observer2 = new PerformanceObserver(perf_observer)
+observer2.observe({ entryTypes: ['measure'] })
 ```
-
-
-
 
 ## 参考资料
 
