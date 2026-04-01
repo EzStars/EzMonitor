@@ -134,17 +134,13 @@ EzMonitor 采用 **Monorepo** 架构和模块化设计：
 ```
 EzMonitor/
 ├── packages/
-│   ├── monitor-sdk/     # 核心 SDK 包
+│   ├── monitor-sdkv2/   # 核心 SDK 包（TypeScript，插件化架构）
 │   │   ├── src/
-│   │   │   ├── plugins/
-│   │   │   │   ├── error/      # 错误监控模块
-│   │   │   │   ├── performance/ # 性能监控模块
-│   │   │   │   ├── behavior/    # 行为分析模块
-│   │   │   │   └── exception/   # 异常检测模块
-│   │   │   ├── common/          # 公共工具
+│   │   │   ├── core/            # 内核：事件总线、插件管理、上报器
+│   │   │   ├── plugins/         # 官方插件（如 tracking）
 │   │   │   └── types/           # TypeScript 类型定义
 │   │   └── package.json
-│   └── monitor-web/     # Web 管理后台
+│   └── monitor-app/     # Next.js 演示应用
 ├── docs/                # 项目文档
 └── package.json
 ```
@@ -184,24 +180,48 @@ interface ConfigType {
 
 ### 环境要求
 
-- Node.js >= 16
-- pnpm >= 8
+- Node.js >= 20（推荐 22 LTS）
+- pnpm >= 10
 
-### 本地开发
+### 快速启动（推荐）
 
 ```bash
 # 安装依赖
 pnpm install
 
-# 构建所有包
+# 启动演示应用（Next.js）
+pnpm run dev:monitor-app
+```
+
+启动后访问：`http://localhost:3000`
+
+### 常用开发命令
+
+```bash
+# 构建整个仓库（turbo）
 pnpm run build:all
 
-# 启动 Web 端开发
-pnpm run dev:monitor-web
+# 构建 SDK v2
+pnpm --filter @ezstars/monitor-sdkv2 run build
+
+# SDK v2 watch 模式
+pnpm --filter @ezstars/monitor-sdkv2 run dev
+
+# 运行测试
+pnpm test
+
+# 代码检查
+pnpm lint
 
 # 运行文档网站
 pnpm run docs:dev
 ```
+
+### 常见问题
+
+- 端口占用：如果 `3000` 端口被占用，Next.js 会自动切换到其他端口，启动日志里会显示实际地址。
+- 首次安装较慢：`monitor-sdkv2` 的 `prepare` 会自动构建一次 SDK，属于正常现象。
+- Next.js 告警：`images.domains` 废弃和 `baseline-browser-mapping` 过期提示不会阻塞开发启动。
 
 ### 构建
 
