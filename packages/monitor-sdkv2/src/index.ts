@@ -30,7 +30,7 @@ export type {
   RetryStrategy,
 } from './core/types/reporter'
 // 工厂函数
-export { default as createSDK } from './createSDK'
+export { default as createSDK } from './factory/createSDK'
 export { ExamplePlugin } from './plugins/example/ExamplePlugin'
 // 插件（显式导出）
 export { TrackingPlugin } from './plugins/tracking'

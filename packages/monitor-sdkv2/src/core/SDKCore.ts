@@ -249,10 +249,22 @@ export class SDKCore implements ISDKCore {
     this._eventBus.off(INTERNAL_EVENTS.CONFIG_CHANGED, this.handleConfigChange)
   }
 
-  private handleConfigChange = (payload: SystemEvents['config:changed']) => {
+  private handleConfigChange = async (
+    payload: SystemEvents['config:changed'],
+  ) => {
     const { key, value, oldValue } = payload
     // 更新本地配置缓存
     this.refreshConfig()
+    try {
+      await this._pluginManager.updateConfig(this._config, {
+        key,
+        value,
+        oldValue,
+      })
+    }
+    catch (error) {
+      console.error('[SDKCore] Failed to sync plugin config:', error)
+    }
 
     if (this._config.debug) {
       console.log(

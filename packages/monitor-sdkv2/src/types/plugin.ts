@@ -52,6 +52,12 @@ export interface IPlugin {
     eventBus: EventBus,
     context?: PluginContext,
   ) => Promise<void> | void
+  /** 更新插件配置（可选） */
+  configure?: (
+    pluginConfig: Record<string, unknown>,
+    config: SDKConfig,
+    context?: PluginContext,
+  ) => Promise<void> | void
   /** 停止插件 */
   stop?: () => Promise<void> | void
   /** 销毁插件 */
@@ -133,4 +139,14 @@ export interface IPluginManager {
    * @note 即使某个插件销毁失败也会继续销毁其他插件
    */
   destroyAll: () => Promise<void>
+
+  /** 更新 SDK 配置快照，必要时同步插件配置 */
+  updateConfig: (
+    config: SDKConfig,
+    change?: {
+      key: string
+      value: unknown
+      oldValue: unknown
+    },
+  ) => Promise<void>
 }

@@ -22,6 +22,8 @@
   "sideEffects": false,
   "exports": {
     ".": "./dist/index.mjs",
+    "./core": "./dist/core/index.mjs",
+    "./plugins/tracking": "./dist/plugins/tracking/index.mjs",
     "./package.json": "./package.json"
   },
   "main": "./dist/index.mjs",

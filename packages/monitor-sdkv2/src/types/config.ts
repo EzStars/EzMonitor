@@ -1,5 +1,11 @@
 import type { TransportStrategy } from '../core/transports/strategy'
 import type { RetryStrategy } from '../core/types/reporter'
+import type { TrackingPluginConfig } from '../plugins/tracking/types'
+
+export interface SDKPluginSettings {
+  tracking?: Partial<TrackingPluginConfig>
+  [pluginName: string]: Record<string, unknown> | undefined
+}
 
 /**
  * SDK 基础配置
@@ -57,6 +63,8 @@ export interface SDKConfig {
 
   /** 自定义配置 */
   customConfig?: Record<string, unknown>
+  /** 插件配置命名空间（推荐） */
+  pluginSettings?: SDKPluginSettings
   /** 索引签名，允许动态属性 */
   [key: string]: unknown
 }

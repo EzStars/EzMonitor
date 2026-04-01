@@ -24,6 +24,36 @@ export class PluginManager implements IPluginManager {
     this.config = config
   }
 
+  async updateConfig(
+    config: SDKConfig,
+    change?: {
+      key: string
+      value: unknown
+      oldValue: unknown
+    },
+  ): Promise<void> {
+    this.config = config
+
+    if (!change) {
+      await this.syncPluginConfigs()
+      return
+    }
+
+    if (change.key.startsWith('pluginSettings.')) {
+      const pluginName = change.key.slice('pluginSettings.'.length)
+      if (pluginName)
+        await this.syncPluginConfig(pluginName)
+      return
+    }
+
+    if (change.key === 'pluginSettings') {
+      await this.syncPluginConfigsByDiff(
+        change.oldValue as SDKConfig['pluginSettings'] | undefined,
+        change.value as SDKConfig['pluginSettings'] | undefined,
+      )
+    }
+  }
+
   register(plugin: IPlugin, config?: Record<string, unknown>): void {
     if (this.plugins.has(plugin.name)) {
       throw new Error(`Plugin ${plugin.name} already registered`)
@@ -124,9 +154,12 @@ export class PluginManager implements IPluginManager {
       return
 
     try {
+      await this.applyPluginConfig(plugin)
+
       // 兼容旧签名：仍传 config/eventBus，同时提供第三参 context（插件可选择使用）
       const context = createPluginContext({
-        config: this.config,
+        getConfig: () => this.config,
+        getPluginConfig: pluginName => this.resolvePluginConfig(pluginName),
         eventBus: this.eventBus,
       })
       await (plugin as any).init?.(this.config, this.eventBus, context)
@@ -154,8 +187,11 @@ export class PluginManager implements IPluginManager {
       return
 
     try {
+      await this.applyPluginConfig(plugin)
+
       const context = createPluginContext({
-        config: this.config,
+        getConfig: () => this.config,
+        getPluginConfig: pluginName => this.resolvePluginConfig(pluginName),
         eventBus: this.eventBus,
       })
       await (plugin as any).start?.(this.config, this.eventBus, context)
@@ -223,6 +259,89 @@ export class PluginManager implements IPluginManager {
         error: error as Error,
       })
       console.error(`Failed to destroy plugin ${plugin.name}:`, error)
+    }
+  }
+
+  private async syncPluginConfigs(): Promise<void> {
+    for (const { plugin } of this.plugins.values()) {
+      if (
+        plugin.status === PluginStatus.INITIALIZED
+        || plugin.status === PluginStatus.STARTED
+      ) {
+        await this.applyPluginConfig(plugin)
+      }
+    }
+  }
+
+  private async syncPluginConfig(pluginName: string): Promise<void> {
+    const registration = this.plugins.get(pluginName)
+    if (!registration)
+      return
+
+    const { plugin } = registration
+    if (
+      plugin.status !== PluginStatus.INITIALIZED
+      && plugin.status !== PluginStatus.STARTED
+    ) {
+      return
+    }
+
+    await this.applyPluginConfig(plugin)
+  }
+
+  private async syncPluginConfigsByDiff(
+    oldSettings?: SDKConfig['pluginSettings'],
+    newSettings?: SDKConfig['pluginSettings'],
+  ): Promise<void> {
+    const pluginNames = new Set<string>([
+      ...Object.keys(oldSettings || {}),
+      ...Object.keys(newSettings || {}),
+    ])
+
+    for (const pluginName of pluginNames) {
+      const oldConfig = oldSettings?.[pluginName]
+      const newConfig = newSettings?.[pluginName]
+      if (oldConfig === newConfig)
+        continue
+
+      await this.syncPluginConfig(pluginName)
+    }
+  }
+
+  private async applyPluginConfig(plugin: IPlugin): Promise<void> {
+    if (!plugin.configure)
+      return
+
+    const resolvedConfig = this.resolvePluginConfig(plugin.name)
+    if (!resolvedConfig)
+      return
+
+    const context = createPluginContext({
+      getConfig: () => this.config,
+      getPluginConfig: pluginName => this.resolvePluginConfig(pluginName),
+      eventBus: this.eventBus,
+    })
+
+    await plugin.configure(resolvedConfig, this.config, context)
+  }
+
+  private resolvePluginConfig(
+    pluginName: string,
+  ): Record<string, unknown> | undefined {
+    const registration = this.plugins.get(pluginName)
+    const sdkLevelConfig = this.config.pluginSettings?.[pluginName]
+    const registrationConfig = registration?.config
+
+    const hasSDKLevel = sdkLevelConfig && Object.keys(sdkLevelConfig).length > 0
+    const hasRegistration
+      = registrationConfig && Object.keys(registrationConfig).length > 0
+
+    if (!hasSDKLevel && !hasRegistration)
+      return undefined
+
+    return {
+      ...(sdkLevelConfig || {}),
+      ...(registrationConfig || {}),
     }
   }
 

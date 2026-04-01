@@ -46,13 +46,7 @@ export class TrackingPlugin implements IPlugin {
   private originalReplaceState?: History['replaceState']
 
   constructor(config: Partial<TrackingPluginConfig> = {}) {
-    // 设置默认配置
-    this.pluginConfig = {
-      autoTrackPage: true,
-      dataProcessor: data => data, // 默认不处理
-      eventFilter: () => true, // 默认不过滤
-      ...config,
-    }
+    this.pluginConfig = this.normalizePluginConfig(config)
 
     this.contextCollector = new ContextCollector()
   }
@@ -88,6 +82,19 @@ export class TrackingPlugin implements IPlugin {
     if (ctx)
       this.ctx = ctx
     this.status = 'started' as PluginStatus
+  }
+
+  configure(
+    pluginConfig: Record<string, unknown>,
+    _config?: SDKConfig,
+    ctx?: PluginContext,
+  ): void {
+    if (ctx)
+      this.ctx = ctx
+
+    this.pluginConfig = this.normalizePluginConfig(
+      pluginConfig as Partial<TrackingPluginConfig>,
+    )
   }
 
   /**
@@ -366,6 +373,17 @@ export class TrackingPlugin implements IPlugin {
       catch {
         // ignore
       }
+    }
+  }
+
+  private normalizePluginConfig(
+    config: Partial<TrackingPluginConfig>,
+  ): Required<TrackingPluginConfig> {
+    return {
+      autoTrackPage: true,
+      dataProcessor: data => data,
+      eventFilter: () => true,
+      ...config,
     }
   }
 }

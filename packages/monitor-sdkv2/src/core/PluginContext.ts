@@ -17,16 +17,23 @@ export interface LoggerFacade {
 
 export interface PluginContext {
   readonly config: Readonly<SDKConfig>
+  getConfig: () => Readonly<SDKConfig>
+  getPluginConfig: <T = Record<string, unknown>>(
+    pluginName: string,
+  ) => T | undefined
   readonly events: TypedEventBus<AllEvents>
   readonly reporter: ReporterFacade
   readonly logger: LoggerFacade
 }
 
 export function createPluginContext(args: {
-  config: SDKConfig
+  getConfig: () => SDKConfig
+  getPluginConfig?: (
+    pluginName: string,
+  ) => Record<string, unknown> | undefined
   eventBus: import('./EventBus').EventBus
 }): PluginContext {
-  const { config, eventBus } = args
+  const { getConfig, getPluginConfig, eventBus } = args
   const events = new TypedEventBus<AllEvents>(eventBus)
 
   const reporter: ReporterFacade = {
@@ -39,16 +46,23 @@ export function createPluginContext(args: {
   }
 
   const logger: LoggerFacade = {
-    debug: (...a) => config.debug && console.debug('[Plugin]', ...a),
-    info: (...a) => console.info('[Plugin]', ...a),
+    debug: (...a) => getConfig().debug && console.warn('[Plugin:debug]', ...a),
+    info: (...a) => console.warn('[Plugin:info]', ...a),
     warn: (...a) => console.warn('[Plugin]', ...a),
     error: (...a) => console.error('[Plugin]', ...a),
   }
 
-  return {
-    config,
+  const context: PluginContext = {
+    get config() {
+      return getConfig()
+    },
+    getConfig,
+    getPluginConfig: <T = Record<string, unknown>>(pluginName: string) =>
+      getPluginConfig?.(pluginName) as T | undefined,
     events,
     reporter,
     logger,
   }
+
+  return context
 }
