@@ -4,6 +4,7 @@ trustPolicy: no-downgrade
 
 packages:
   - packages/*
+  - app/*
 
 overrides:
   '@types/react': ^19.2.10
