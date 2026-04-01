@@ -1,68 +1,35 @@
-import { createSDK, TrackingPlugin } from '@ezstars/monitor-sdkv2'
-import { useState } from 'react'
+import { NavLink, Route, Routes } from 'react-router-dom'
+import ErrorPage from './pages/ErrorPage'
+import HomePage from './pages/HomePage'
+import NotFoundPage from './pages/NotFoundPage'
+import PerformancePage from './pages/PerformancePage'
+import TrackingPage from './pages/TrackingPage'
 import './App.css'
 
-const sdk = createSDK({
-  appId: 'monitor-test-app',
-  debug: true,
-  enabled: true,
-})
-
-const trackingPlugin = new TrackingPlugin({ autoTrackPage: true })
-sdk.use(trackingPlugin)
-
-const sdkReady = sdk
-  .init()
-  .then(() => sdk.start())
-  .catch((error: unknown) => {
-    console.error('[TrackingPlugin] SDK start failed', error)
-    throw error
-  })
-
-function trackEvent(eventName: string, properties?: Record<string, unknown>) {
-  void sdkReady
-    .then(() => {
-      trackingPlugin.track(eventName, properties)
-    })
-    .catch((error: unknown) => {
-      console.error('[TrackingPlugin] track failed', error)
-    })
-}
-
 function App() {
-  const [count, setCount] = useState(0)
-
-  const handleCountTrack = () => {
-    const nextCount = count + 1
-    setCount(nextCount)
-    trackEvent('count_button_click', {
-      count: nextCount,
-    })
-  }
-
-  const handleCustomTrack = () => {
-    trackEvent('manual_custom_event', {
-      page: '/monitor-test',
-      action: 'manual-trigger',
-      now: new Date().toISOString(),
-    })
-  }
-
   return (
-    <section id="center">
-      <h1>monitor-test SDK 内置埋点联调页</h1>
-      <button className="counter" onClick={handleCountTrack}>
-        触发计数埋点（Count:
-        {' '}
-        {count}
-        ）
-      </button>
-      <button className="counter" onClick={handleCustomTrack}>
-        触发自定义埋点
-      </button>
-      <p>这里直接调用 SDK 内置 TrackingPlugin，未增加额外业务封装文件。</p>
-      <p>提示：打开浏览器控制台，搜索 [TrackingPlugin] 查看完整 payload。</p>
-    </section>
+    <div className="portal-shell">
+      <header className="portal-header">
+        <h1>EzMonitor Test Portal</h1>
+        <p>统一测试主页，按能力路由进入专项验证页面。</p>
+        <nav className="portal-nav">
+          <NavLink to="/" end>主页</NavLink>
+          <NavLink to="/tracking">Tracking</NavLink>
+          <NavLink to="/performance">性能</NavLink>
+          <NavLink to="/error">错误</NavLink>
+        </nav>
+      </header>
+
+      <main className="portal-main">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/tracking" element={<TrackingPage />} />
+          <Route path="/performance" element={<PerformancePage />} />
+          <Route path="/error" element={<ErrorPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </main>
+    </div>
   )
 }
 

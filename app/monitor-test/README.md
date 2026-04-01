@@ -1,75 +1,49 @@
-# React + TypeScript + Vite
+# monitor-test
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+monitor-test 是 EzMonitor SDK 的测试门户应用，不是单一 demo 页面。
 
-Currently, two official plugins are available:
+## 目标
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- 提供统一测试主页
+- 通过路由进入专项测试页
+- 在不入侵业务代码的前提下验证 SDK 现有能力
 
-## React Compiler
+## 路由清单
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+- `/`：测试主页
+- `/tracking`：TrackingPlugin（track / trackPage / trackUser）
+- `/performance`：性能测试首版（long task 模拟）
+- `/error`：错误测试首版（JS/Promise/资源错误）
 
-Note: This will impact Vite dev & build performances.
+## 运行
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm install
+pnpm --filter monitor-test run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 验收步骤
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+1. 打开主页，确认可跳转到三个专题页。
+2. 在 tracking 页分别触发 track、trackPage、trackUser，确认页面日志有回显。
+3. 在 performance 页触发 long task，确认耗时显示并触发事件上报。
+4. 在 error 页触发三类错误，确认错误回显区域可见记录。
+5. 运行构建与 lint：
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm --filter monitor-test run build
+pnpm --filter monitor-test run lint
+```
+
+## 目录结构
+
+```text
+src/
+  hooks/useMonitorSDK.ts
+  services/sdkRuntime.ts
+  pages/HomePage.tsx
+  pages/TrackingPage.tsx
+  pages/PerformancePage.tsx
+  pages/ErrorPage.tsx
+  pages/NotFoundPage.tsx
 ```
