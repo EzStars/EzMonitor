@@ -1,29 +1,31 @@
-import { Injectable, BadRequestException } from '@nestjs/common'
-import { InjectModel } from '@nestjs/mongoose'
-import { Model } from 'mongoose'
-import {
+import type { Model } from 'mongoose'
+import type {
   CreateErrorLogDto,
   CreatePerformanceMetricDto,
   CreateTrackingEventDto,
-  MonitorBatchItemDto,
-  MonitorBatchItemType,
   ErrorQueryDto,
+  MonitorBatchItemDto,
   PerformanceQueryDto,
   StatsQueryDto,
   TrackingQueryDto,
+} from '../dto'
+import { BadRequestException, Injectable } from '@nestjs/common'
+import { InjectModel } from '@nestjs/mongoose'
+import {
+  MonitorBatchItemType,
 } from '../dto'
 import { ErrorLog } from '../schemas/error-log.schema'
 import { PerformanceMetric } from '../schemas/performance-metric.schema'
 import { TrackingEvent } from '../schemas/tracking-event.schema'
 
-type WriteSummary = {
+interface WriteSummary {
   tracking: number
   performance: number
   error: number
   total: number
 }
 
-type PaginatedResult<T> = {
+interface PaginatedResult<T> {
   items: T[]
   page: number
   pageSize: number
@@ -31,19 +33,19 @@ type PaginatedResult<T> = {
   totalPages: number
 }
 
-type OverviewStats = {
+interface OverviewStats {
   tracking: number
   performance: number
   error: number
   total: number
 }
 
-type TrackingStatsItem = {
+interface TrackingStatsItem {
   eventName: string
   count: number
 }
 
-type PerformanceStatsItem = {
+interface PerformanceStatsItem {
   metricType: string
   count: number
   avgValue: number
@@ -52,7 +54,7 @@ type PerformanceStatsItem = {
   p95Value: number
 }
 
-type ErrorStatsItem = {
+interface ErrorStatsItem {
   errorType: string
   count: number
 }
@@ -201,7 +203,7 @@ export class MonitorService {
       { $sort: { count: -1, _id: 1 } },
     ])
 
-    return rows.map((row) => ({
+    return rows.map(row => ({
       eventName: row._id ?? 'unknown',
       count: row.count,
     }))
@@ -244,7 +246,7 @@ export class MonitorService {
   }
 
   async getErrorStats(query: StatsQueryDto): Promise<ErrorStatsItem[]> {
-    const rows = await this.errorModel.aggregate<{ _id: string | null; count: number }>([
+    const rows = await this.errorModel.aggregate<{ _id: string | null, count: number }>([
       { $match: this.buildTimeAppFilter(query) },
       {
         $group: {
@@ -255,7 +257,7 @@ export class MonitorService {
       { $sort: { count: -1, _id: 1 } },
     ])
 
-    return rows.map((row) => ({
+    return rows.map(row => ({
       errorType: row._id ?? 'unknown',
       count: row.count,
     }))
