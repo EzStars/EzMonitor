@@ -1,16 +1,17 @@
 /**
  * Monitor 模块自动化设置脚本
- * 
+ *
  * 用法：node setup-monitor-module.js
- * 
+ *
  * 此脚本将：
  * 1. 创建必要的目录结构
  * 2. 创建所有 TypeScript 文件
  * 3. 提示安装依赖
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs')
+const path = require('node:path')
+const process = require('node:process')
 
 // 文件内容定义
 const files = {
@@ -363,48 +364,50 @@ import { MonitorService } from './services/monitor.service'
 })
 export class MonitorModule {}
 `,
-};
+}
 
 // 创建文件函数
 function createFile(filePath, content) {
-  const fullPath = path.join(__dirname, filePath);
-  const dir = path.dirname(fullPath);
-  
+  const fullPath = path.join(__dirname, filePath)
+  const dir = path.dirname(fullPath)
+
   // 确保目录存在
-  fs.mkdirSync(dir, { recursive: true });
-  
+  fs.mkdirSync(dir, { recursive: true })
+
   // 写入文件
-  fs.writeFileSync(fullPath, content, 'utf8');
-  console.log(`✓ Created: ${filePath}`);
+  fs.writeFileSync(fullPath, content, 'utf8')
+  console.log(`✓ Created: ${filePath}`)
 }
 
 // 主函数
 function main() {
-  console.log('=== Monitor 模块设置 ===\n');
-  
-  console.log('1. 创建文件...\n');
+  console.log('=== Monitor 模块设置 ===\n')
+
+  console.log('1. 创建文件...\n')
   Object.entries(files).forEach(([filePath, content]) => {
     try {
-      createFile(filePath, content);
-    } catch (error) {
-      console.error(`✗ Failed to create ${filePath}:`, error.message);
+      createFile(filePath, content)
     }
-  });
-  
-  console.log('\n2. 文件创建完成！\n');
-  
-  console.log('3. 下一步操作：');
-  console.log('   a) 安装依赖：pnpm add class-validator class-transformer');
-  console.log('   b) 更新 src/app.module.ts，导入 MonitorModule');
-  console.log('   c) 等待 Schema 创建完成后，实现真实的数据库查询\n');
-  
-  console.log('=== 设置完成 ===');
+    catch (error) {
+      console.error(`✗ Failed to create ${filePath}:`, error.message)
+    }
+  })
+
+  console.log('\n2. 文件创建完成！\n')
+
+  console.log('3. 下一步操作：')
+  console.log('   a) 安装依赖：pnpm add class-validator class-transformer')
+  console.log('   b) 更新 src/app.module.ts，导入 MonitorModule')
+  console.log('   c) 等待 Schema 创建完成后，实现真实的数据库查询\n')
+
+  console.log('=== 设置完成 ===')
 }
 
 // 执行
 try {
-  main();
-} catch (error) {
-  console.error('Error:', error);
-  process.exit(1);
+  main()
+}
+catch (error) {
+  console.error('Error:', error)
+  process.exit(1)
 }

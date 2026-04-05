@@ -3,34 +3,37 @@
  * 独立的文件创建脚本
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs')
+const path = require('node:path')
+const process = require('node:process')
 
-console.log('Starting file creation...\n');
+console.log('Starting file creation...\n')
 
-const baseDir = 'C:\\Users\\Ni0daunn\\Desktop\\work\\EzMonitor\\app\\monitor-app';
-const typesDir = path.join(baseDir, 'src', 'types');
-const apiDir = path.join(baseDir, 'src', 'api');
+const baseDir = 'C:\\Users\\Ni0daunn\\Desktop\\work\\EzMonitor\\app\\monitor-app'
+const typesDir = path.join(baseDir, 'src', 'types')
+const apiDir = path.join(baseDir, 'src', 'api')
 
 // Create directories
 try {
   if (!fs.existsSync(typesDir)) {
-    fs.mkdirSync(typesDir, { recursive: true });
+    fs.mkdirSync(typesDir, { recursive: true })
   }
-  console.log('✓ Created directory: ' + typesDir);
-} catch (err) {
-  console.error('✗ Error creating types directory:', err.message);
-  process.exit(1);
+  console.log(`✓ Created directory: ${typesDir}`)
+}
+catch (err) {
+  console.error('✗ Error creating types directory:', err.message)
+  process.exit(1)
 }
 
 try {
   if (!fs.existsSync(apiDir)) {
-    fs.mkdirSync(apiDir, { recursive: true });
+    fs.mkdirSync(apiDir, { recursive: true })
   }
-  console.log('✓ Created directory: ' + apiDir);
-} catch (err) {
-  console.error('✗ Error creating api directory:', err.message);
-  process.exit(1);
+  console.log(`✓ Created directory: ${apiDir}`)
+}
+catch (err) {
+  console.error('✗ Error creating api directory:', err.message)
+  process.exit(1)
 }
 
 // API types content
@@ -69,7 +72,7 @@ export interface ApiError {
   message: string;
   details?: any;
 }
-`;
+`
 
 // Client content
 const clientContent = `import axios, {
@@ -228,7 +231,7 @@ export const request = {
 };
 
 export default apiClient;
-`;
+`
 
 // Index content
 const indexContent = `/**
@@ -236,25 +239,26 @@ const indexContent = `/**
  */
 export { default as apiClient, request } from './client';
 export type { ApiResponse, ApiError, PaginationParams, PaginationResponse } from '../types/api';
-`;
+`
 
 // Write files
 const files = [
   { path: path.join(typesDir, 'api.ts'), content: apiTypesContent },
   { path: path.join(apiDir, 'client.ts'), content: clientContent },
-  { path: path.join(apiDir, 'index.ts'), content: indexContent }
-];
+  { path: path.join(apiDir, 'index.ts'), content: indexContent },
+]
 
-let successCount = 0;
-files.forEach(file => {
+let successCount = 0
+files.forEach((file) => {
   try {
-    fs.writeFileSync(file.path, file.content, 'utf-8');
-    console.log('✓ Created: ' + file.path);
-    successCount++;
-  } catch (err) {
-    console.error('✗ Error creating ' + file.path + ':', err.message);
+    fs.writeFileSync(file.path, file.content, 'utf-8')
+    console.log(`✓ Created: ${file.path}`)
+    successCount++
   }
-});
+  catch (err) {
+    console.error(`✗ Error creating ${file.path}:`, err.message)
+  }
+})
 
-console.log('\n' + (successCount === files.length ? '✅ All files created successfully!' : '❌ Some files failed to create'));
-process.exit(successCount === files.length ? 0 : 1);
+console.log(`\n${successCount === files.length ? '✅ All files created successfully!' : '❌ Some files failed to create'}`)
+process.exit(successCount === files.length ? 0 : 1)
