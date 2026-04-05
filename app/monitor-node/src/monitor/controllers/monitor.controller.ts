@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Query, Post } from '@nestjs/common'
+import type { MonitorService } from '../services/monitor.service'
+import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs/common'
 import {
   validateCreateErrorLogDto,
   validateCreateMonitorBatchDto,
@@ -9,7 +10,6 @@ import {
   validateStatsQueryDto,
   validateTrackingQueryDto,
 } from '../dto/validation'
-import { MonitorService } from '../services/monitor.service'
 
 @Controller('api/monitor')
 export class MonitorController {
@@ -141,7 +141,8 @@ export class MonitorController {
   private parseDto<T>(parser: (value: unknown) => T, value: unknown, message: string): T {
     try {
       return parser(value)
-    } catch {
+    }
+    catch {
       throw new BadRequestException(message)
     }
   }
