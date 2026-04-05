@@ -1,3 +1,4 @@
+import type { ReporterLike } from '../../reporting/types'
 import type { SDKConfig } from '../../types/config'
 import type { IPlugin, PluginStatus } from '../../types/plugin'
 import type {
@@ -13,6 +14,7 @@ export class TrackingPlugin implements IPlugin {
   status: PluginStatus = 'registered'
 
   private config: SDKConfig = {}
+  private reporter?: ReporterLike
   private pluginConfig: Required<TrackingPluginConfig> = {
     autoTrackPage: true,
     eventFilter: () => true,
@@ -30,6 +32,10 @@ export class TrackingPlugin implements IPlugin {
       ...this.pluginConfig,
       ...(pluginConfig as Partial<TrackingPluginConfig>),
     }
+  }
+
+  setReporter(reporter: ReporterLike): void {
+    this.reporter = reporter
   }
 
   init(config: SDKConfig): void {
@@ -101,6 +107,11 @@ export class TrackingPlugin implements IPlugin {
 
   private report(type: string, data: unknown): void {
     if (!this.config.enabled) {
+      return
+    }
+
+    if (this.reporter) {
+      this.reporter.report(type, data)
       return
     }
 

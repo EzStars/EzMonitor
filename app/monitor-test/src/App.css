@@ -114,6 +114,49 @@ body {
   margin: 12px 0;
 }
 
+.section-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.button-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  margin: 10px 0 16px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 12px 0 18px;
+}
+
+.detail-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+
+.detail-card h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.log-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
 input,
 button,
 textarea {
@@ -152,6 +195,12 @@ button {
 
 .log-item:last-child {
   border-bottom: none;
+}
+
+.log-item pre {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .muted {

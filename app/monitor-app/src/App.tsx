@@ -1,129 +1,1343 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import { Component, useEffect, useMemo, useState, type ReactNode } from 'react'
+import ReactECharts from 'echarts-for-react'
+import {
+  Alert,
+  Button,
+  Card,
+  Col,
+  Descriptions,
+  Drawer,
+  Empty,
+  Input,
+  Layout,
+  List,
+  Menu,
+  Row,
+  Space,
+  Spin,
+  Statistic,
+  Table,
+  Tag,
+  Tabs,
+  Typography,
+} from 'antd'
+import type { TableColumnsType } from 'antd'
+import type { MenuProps } from 'antd'
+import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import './App.css'
+import { useMonitorQuery } from './hooks/useMonitorQuery'
+import {
+  monitorService,
+  type ErrorRecord,
+  type ErrorStatsItem,
+  type PerformanceRecord,
+  type PerformanceStatsItem,
+  type TrackingRecord,
+  type TrackingStatsItem,
+} from './services/monitor'
+import {
+  average,
+  collectLatestRecords,
+  formatDateTime,
+  formatNumber,
+  getRecentDays,
+  groupCountsByDay,
+  groupValuesByDay,
+  percentile,
+  safeStringify,
+} from './utils/monitor'
 
-function App() {
-  const [count, setCount] = useState(0)
+const { Header, Sider, Content } = Layout
+const { Title, Text, Paragraph } = Typography
+
+type RouteKey = '/dashboard' | '/tracking' | '/performance' | '/error' | '/stats'
+
+const routeMeta: Record<RouteKey, { title: string; description: string }> = {
+  '/dashboard': {
+    title: '总览仪表板',
+    description: '关键指标、近 7 天趋势和最新数据预览。',
+  },
+  '/tracking': {
+    title: '埋点数据展示',
+    description: '查看事件列表、分页过滤、详情和事件统计图。',
+  },
+  '/performance': {
+    title: '性能数据展示',
+    description: '查看性能指标、趋势和明细列表。',
+  },
+  '/error': {
+    title: '错误日志展示',
+    description: '查看错误列表、过滤条件、stack 和上下文信息。',
+  },
+  '/stats': {
+    title: '统计分析页面',
+    description: '统一时间范围与应用筛选，查看多维统计分析。',
+  },
+}
+
+function renderEmpty(description: string) {
+  return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={description} />
+}
+
+function getTableLocale(description: string) {
+  return { emptyText: renderEmpty(description) }
+}
+
+class AppErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; message: string }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props)
+    this.state = { hasError: false, message: '' }
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, message: error.message }
+  }
+
+  override render() {
+    if (this.state.hasError) {
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message="页面渲染异常"
+          description={this.state.message || '请刷新页面后重试'}
+          action={
+            <Button type="primary" onClick={() => window.location.reload()}>
+              刷新页面
+            </Button>
+          }
+        />
+      )
+    }
+
+    return this.props.children
+  }
+}
+
+const navItems: MenuProps['items'] = (Object.keys(routeMeta) as RouteKey[]).map((path) => ({
+  key: path,
+  label: <NavLink to={path}>{routeMeta[path].title}</NavLink>,
+}))
+
+type QueryRange = [string, string]
+
+function createDefaultRange(days = 7): QueryRange {
+  const end = new Date()
+  end.setHours(23, 59, 59, 999)
+  const start = new Date(end)
+  start.setDate(end.getDate() - (days - 1))
+  start.setHours(0, 0, 0, 0)
+  return [formatDateInput(start), formatDateInput(end)]
+}
+
+function formatDateInput(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function toStartTimestamp(value: string) {
+  if (!value) {
+    return undefined
+  }
+
+  return new Date(`${value}T00:00:00`).getTime()
+}
+
+function toEndTimestamp(value: string) {
+  if (!value) {
+    return undefined
+  }
+
+  return new Date(`${value}T23:59:59.999`).getTime()
+}
+
+function buildTimeParams(appId: string, range: QueryRange) {
+  const [start, end] = range
+  return {
+    appId: appId.trim() || undefined,
+    startTime: toStartTimestamp(start),
+    endTime: toEndTimestamp(end),
+  }
+}
+
+function useCommonFilters() {
+  const [appId, setAppId] = useState('')
+  const [range, setRange] = useState<QueryRange>(createDefaultRange())
+
+  return {
+    appId,
+    setAppId,
+    range,
+    setRange,
+    reset: () => {
+      setAppId('')
+      setRange(createDefaultRange())
+    },
+  }
+}
+
+function ShellLayout() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const selectedKey =
+    (Object.keys(routeMeta) as RouteKey[]).find((path) => location.pathname.startsWith(path)) ?? '/dashboard'
+  const current = routeMeta[selectedKey]
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <Layout className="app-shell">
+      <Sider width={252} breakpoint="lg" collapsedWidth={0} className="app-sider">
+        <div className="brand">
+          <Title level={4}>EzMonitor</Title>
+          <Text type="secondary">监控控制台</Text>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit
-            {' '}
-            <code>src/App.tsx</code>
-            {' '}
-            and save to test
-            {' '}
-            <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount(count => count + 1)}
+        <Menu mode="inline" selectedKeys={[selectedKey]} items={navItems} onClick={({ key }) => navigate(key)} />
+      </Sider>
+
+      <Layout className="app-main">
+        <Header className="app-header">
+          <Space direction="vertical" size={2}>
+            <Text type="secondary">当前页面</Text>
+            <Title level={3}>{current.title}</Title>
+          </Space>
+          <Space wrap>
+            {(Object.keys(routeMeta) as RouteKey[]).map((path) => (
+              <Button key={path} type={selectedKey === path ? 'primary' : 'default'} onClick={() => navigate(path)}>
+                {routeMeta[path].title}
+              </Button>
+            ))}
+          </Space>
+        </Header>
+
+        <Content className="app-content">
+          <AppErrorBoundary>
+            <Outlet />
+          </AppErrorBoundary>
+        </Content>
+      </Layout>
+    </Layout>
+  )
+}
+
+function SectionCard({
+  title,
+  description,
+  extra,
+  children,
+  className = '',
+}: {
+  title: string
+  description?: string
+  extra?: ReactNode
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <Card className={`section-card ${className}`.trim()} title={title} extra={extra}>
+      {description ? <Paragraph className="section-description">{description}</Paragraph> : null}
+      {children}
+    </Card>
+  )
+}
+
+function SectionStatus({
+  loading,
+  error,
+  hasData,
+  emptyDescription = '暂无数据',
+  children,
+}: {
+  loading: boolean
+  error?: string | null
+  hasData: boolean
+  emptyDescription?: string
+  children: ReactNode
+}) {
+  if (loading) {
+    return <Spin />
+  }
+
+  if (error && !hasData) {
+    return <Alert showIcon type="error" message="加载失败" description={error} />
+  }
+
+  if (!hasData) {
+    return <Empty description={emptyDescription} />
+  }
+
+  return <>{children}</>
+}
+
+function FilterBar({
+  appId,
+  onAppIdChange,
+  range,
+  onRangeChange,
+  onReset,
+  onRefresh,
+  loading,
+  extra,
+}: {
+  appId: string
+  onAppIdChange: (value: string) => void
+  range: QueryRange
+  onRangeChange: (value: QueryRange) => void
+  onReset: () => void
+  onRefresh: () => void
+  loading?: boolean
+  extra?: ReactNode
+}) {
+  return (
+    <Card className="filter-card">
+      <Space wrap size={12} className="filter-toolbar">
+        <Input
+          allowClear
+          placeholder="按 appId 过滤"
+          value={appId}
+          onChange={(event) => onAppIdChange(event.target.value)}
+          className="filter-input"
+        />
+        <Input
+          type="date"
+          value={range[0]}
+          onChange={(event) => onRangeChange([event.target.value, range[1]])}
+          className="filter-date"
+        />
+        <Text type="secondary">至</Text>
+        <Input
+          type="date"
+          value={range[1]}
+          onChange={(event) => onRangeChange([range[0], event.target.value])}
+          className="filter-date"
+        />
+        {extra}
+        <Button onClick={onReset}>重置</Button>
+        <Button type="primary" onClick={onRefresh} loading={loading}>
+          刷新
+        </Button>
+      </Space>
+    </Card>
+  )
+}
+
+function MetricGrid({
+  items,
+}: {
+  items: Array<{ title: string; value: ReactNode; suffix?: ReactNode; tooltip?: string }>
+}) {
+  return (
+    <Row gutter={[16, 16]}>
+      {items.map((item) => (
+        <Col xs={24} sm={12} lg={6} key={item.title}>
+          <Card className="metric-card">
+            <Statistic title={item.title} value={item.value} suffix={item.suffix} />
+            {item.tooltip ? <Text type="secondary">{item.tooltip}</Text> : null}
+          </Card>
+        </Col>
+      ))}
+    </Row>
+  )
+}
+
+function DetailDrawer({
+  open,
+  title,
+  subtitle,
+  items,
+  sections,
+  onClose,
+}: {
+  open: boolean
+  title: string
+  subtitle?: string
+  items: Array<{ label: string; value: ReactNode }>
+  sections?: Array<{ title: string; content: ReactNode }>
+  onClose: () => void
+}) {
+  return (
+    <Drawer open={open} title={title} width={720} onClose={onClose} destroyOnClose>
+      {subtitle ? <Paragraph type="secondary">{subtitle}</Paragraph> : null}
+      <Descriptions bordered column={1} size="small" className="detail-descriptions">
+        {items.map((item) => (
+          <Descriptions.Item label={item.label} key={item.label}>
+            {item.value}
+          </Descriptions.Item>
+        ))}
+      </Descriptions>
+      {sections?.map((section) => (
+        <Card key={section.title} className="detail-section" title={section.title}>
+          {section.content}
+        </Card>
+      ))}
+    </Drawer>
+  )
+}
+
+function queryKey(value: unknown) {
+  return JSON.stringify(value)
+}
+
+function buildCategoryTrend<T extends { timestamp: string | number | Date }>(
+  records: T[],
+  getCount: (record: T) => number,
+) {
+  const days = getRecentDays(7)
+  const counts = groupCountsByDay(records, (record) => record.timestamp, getCount)
+
+  return {
+    labels: days.map((item) => item.label),
+    values: days.map((item) => counts.get(item.key) ?? 0),
+  }
+}
+
+function DashboardPage() {
+  const filters = useCommonFilters()
+  const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
+  const listParams = useMemo(
+    () => ({ ...timeParams, page: 1, pageSize: 100, sortBy: 'timestamp', sortOrder: 'desc' as const }),
+    [timeParams],
+  )
+  const statsKey = useMemo(() => queryKey(timeParams), [timeParams])
+  const listKey = useMemo(() => queryKey(listParams), [listParams])
+
+  const overview = useMonitorQuery(() => monitorService.getOverviewStats(timeParams), statsKey)
+  const tracking = useMonitorQuery(() => monitorService.getTracking(listParams), listKey)
+  const performance = useMonitorQuery(() => monitorService.getPerformance(listParams), listKey)
+  const errors = useMonitorQuery(() => monitorService.getErrors(listParams), listKey)
+
+  const latestPreview = useMemo(
+    () =>
+      collectLatestRecords(
+        tracking.data?.items ?? [],
+        performance.data?.items ?? [],
+        errors.data?.items ?? [],
+      ).slice(0, 8),
+    [errors.data?.items, performance.data?.items, tracking.data?.items],
+  )
+  const trend = useMemo(() => {
+    const trackingTrend = buildCategoryTrend(tracking.data?.items ?? [], () => 1)
+    const performanceTrend = buildCategoryTrend(performance.data?.items ?? [], () => 1)
+    const errorTrend = buildCategoryTrend(errors.data?.items ?? [], () => 1)
+
+    return {
+      labels: trackingTrend.labels,
+      tracking: trackingTrend.values,
+      performance: performanceTrend.values,
+      error: errorTrend.values,
+      total: trackingTrend.values.map((value, index) => value + performanceTrend.values[index] + errorTrend.values[index]),
+    }
+  }, [errors.data?.items, performance.data?.items, tracking.data?.items])
+
+  const trendOption = useMemo(
+    () => ({
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['埋点', '性能', '错误', '总计'] },
+      grid: { left: 10, right: 12, top: 28, bottom: 8, containLabel: true },
+      xAxis: { type: 'category', data: trend.labels },
+      yAxis: { type: 'value' },
+      series: [
+        { name: '埋点', type: 'line', smooth: true, data: trend.tracking },
+        { name: '性能', type: 'line', smooth: true, data: trend.performance },
+        { name: '错误', type: 'line', smooth: true, data: trend.error },
+        { name: '总计', type: 'line', smooth: true, data: trend.total },
+      ],
+    }),
+    [trend],
+  )
+
+  const metricItems = [
+    {
+      title: '埋点总数',
+      value: overview.data?.tracking ?? 0,
+      tooltip: '当前筛选范围内的埋点事件数量',
+    },
+    {
+      title: '性能指标',
+      value: overview.data?.performance ?? 0,
+      tooltip: '当前筛选范围内的性能数据数量',
+    },
+    {
+      title: '错误日志',
+      value: overview.data?.error ?? 0,
+      tooltip: '当前筛选范围内的错误日志数量',
+    },
+    {
+      title: '合计',
+      value: overview.data?.total ?? 0,
+      tooltip: '三类数据总数',
+    },
+  ]
+
+  return (
+    <Space direction="vertical" size={16} className="page-stack">
+      {overview.error || tracking.error || performance.error || errors.error ? (
+        <Alert
+          type="warning"
+          showIcon
+          message="部分请求失败"
+          description={overview.error ?? tracking.error ?? performance.error ?? errors.error}
+        />
+      ) : null}
+
+      <FilterBar
+        appId={filters.appId}
+        onAppIdChange={filters.setAppId}
+        range={filters.range}
+        onRangeChange={filters.setRange}
+        onReset={filters.reset}
+        onRefresh={() => {
+          void Promise.allSettled([overview.refresh(), tracking.refresh(), performance.refresh(), errors.refresh()])
+        }}
+        loading={overview.loading || tracking.loading || performance.loading || errors.loading}
+      />
+
+      <MetricGrid items={metricItems} />
+
+      <SectionCard title="近 7 天趋势图" description="展示埋点、性能、错误和总量变化。">
+        <SectionStatus
+          loading={tracking.loading || performance.loading || errors.loading}
+          error={tracking.error ?? performance.error ?? errors.error}
+          hasData={
+            (tracking.data?.items.length ?? 0) > 0 ||
+            (performance.data?.items.length ?? 0) > 0 ||
+            (errors.data?.items.length ?? 0) > 0
+          }
+          emptyDescription="当前筛选条件下暂无趋势数据"
         >
-          Count is
-          {' '}
-          {count}
-        </button>
-      </section>
+          <ReactECharts option={trendOption} style={{ height: 360 }} />
+        </SectionStatus>
+      </SectionCard>
 
-      <div className="ticks"></div>
+      <SectionCard title="最新数据预览" description="按时间倒序展示最新的三类数据。">
+        {latestPreview.length === 0 ? (
+          <Empty />
+        ) : (
+          <List
+            dataSource={latestPreview}
+            renderItem={(item) => {
+              const typeLabel =
+                item.type === 'tracking' ? '埋点' : item.type === 'performance' ? '性能' : '错误'
+              const title =
+                item.type === 'tracking'
+                  ? item.eventName
+                  : item.type === 'performance'
+                    ? `${item.metricType}：${formatNumber(item.value)}`
+                    : item.message
+              const extra =
+                item.type === 'tracking'
+                  ? item.userId ?? item.appId
+                  : item.type === 'performance'
+                    ? item.url ?? item.appId
+                    : item.errorType ?? item.appId
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+              return (
+                <List.Item>
+                  <List.Item.Meta
+                    avatar={<Tag color={item.type === 'error' ? 'red' : item.type === 'performance' ? 'blue' : 'green'}>{typeLabel}</Tag>}
+                    title={title}
+                    description={`${formatDateTime(item.timestamp)} · ${extra}`}
+                  />
+                </List.Item>
+              )
+            }}
+          />
+        )}
+      </SectionCard>
+    </Space>
+  )
+}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+function TrackingPage() {
+  const filters = useCommonFilters()
+  const [keyword, setKeyword] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [selected, setSelected] = useState<TrackingRecord | null>(null)
+  const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
+  const listParams = useMemo(
+    () => ({ ...timeParams, page, pageSize, sortBy: 'timestamp', sortOrder: 'desc' as const }),
+    [page, pageSize, timeParams],
+  )
+  const statsKey = useMemo(() => queryKey(timeParams), [timeParams])
+  const listKey = useMemo(() => queryKey(listParams), [listParams])
+
+  useEffect(() => {
+    setPage(1)
+  }, [timeParams])
+
+  const listQuery = useMonitorQuery(() => monitorService.getTracking(listParams), listKey)
+  const statsQuery = useMonitorQuery(() => monitorService.getTrackingStats(timeParams), statsKey)
+  const items = listQuery.data?.items ?? []
+  const visibleItems = useMemo(() => {
+    const normalized = keyword.trim().toLowerCase()
+    if (!normalized) {
+      return items
+    }
+
+    return items.filter((item) => {
+      const searchTarget = [item.eventName, item.appId, item.userId, safeStringify(item.properties)]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return searchTarget.includes(normalized)
+    })
+  }, [items, keyword])
+
+  const chartOption = useMemo(() => {
+    const stats = [...(statsQuery.data ?? [])].sort((a, b) => b.count - a.count).slice(0, 10)
+    return {
+      tooltip: { trigger: 'axis' },
+      grid: { left: 12, right: 12, top: 28, bottom: 12, containLabel: true },
+      xAxis: { type: 'value' },
+      yAxis: { type: 'category', data: stats.map((item) => item.eventName).reverse() },
+      series: [
+        {
+          type: 'bar',
+          data: stats.map((item) => item.count).reverse(),
+          itemStyle: { color: '#1677ff' },
+        },
+      ],
+    }
+  }, [statsQuery.data])
+
+  const columns: TableColumnsType<TrackingRecord> = [
+    {
+      title: '时间',
+      dataIndex: 'timestamp',
+      render: (value: TrackingRecord['timestamp']) => formatDateTime(value),
+      width: 180,
+    },
+    {
+      title: '事件',
+      dataIndex: 'eventName',
+      render: (value: string) => <Tag color="blue">{value}</Tag>,
+      width: 180,
+    },
+    {
+      title: 'appId',
+      dataIndex: 'appId',
+      width: 140,
+    },
+    {
+      title: '用户',
+      dataIndex: 'userId',
+      render: (value: string | undefined) => value ?? '-',
+      width: 140,
+    },
+    {
+      title: '属性',
+      render: (_, record) => {
+        const keys = Object.keys(record.properties ?? {})
+        return keys.length > 0 ? keys.slice(0, 3).join('、') : '-'
+      },
+    },
+    {
+      title: '操作',
+      render: (_, record) => (
+        <Button type="link" onClick={() => setSelected(record)}>
+          详情
+        </Button>
+      ),
+      width: 100,
+    },
+  ]
+
+  return (
+    <Space direction="vertical" size={16} className="page-stack">
+      {listQuery.error || statsQuery.error ? (
+        <Alert type="warning" showIcon message="部分请求失败" description={listQuery.error ?? statsQuery.error} />
+      ) : null}
+
+      <FilterBar
+        appId={filters.appId}
+        onAppIdChange={filters.setAppId}
+        range={filters.range}
+        onRangeChange={filters.setRange}
+        onReset={() => {
+          filters.reset()
+          setKeyword('')
+          setPage(1)
+          setPageSize(10)
+        }}
+        onRefresh={() => {
+          void Promise.allSettled([listQuery.refresh(), statsQuery.refresh()])
+        }}
+        loading={listQuery.loading || statsQuery.loading}
+        extra={<Input allowClear placeholder="过滤当前页事件/属性" value={keyword} onChange={(e) => setKeyword(e.target.value)} className="filter-input" />}
+      />
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={10}>
+          <SectionCard title="事件统计图" description="按事件名称统计当前筛选范围的事件数量。">
+            <SectionStatus
+              loading={statsQuery.loading}
+              error={statsQuery.error}
+              hasData={(statsQuery.data?.length ?? 0) > 0}
+              emptyDescription="当前筛选条件下暂无埋点统计"
+            >
+              <ReactECharts option={chartOption} style={{ height: 360 }} />
+            </SectionStatus>
+          </SectionCard>
+        </Col>
+        <Col xs={24} lg={14}>
+          <SectionCard title="埋点列表" description="支持分页、时间/appId 过滤和当前页关键字筛选。">
+            <Table<TrackingRecord>
+              rowKey={(record) => record._id ?? `${record.appId}-${record.timestamp}-${record.eventName}`}
+              loading={listQuery.loading}
+              dataSource={visibleItems}
+              columns={columns}
+              locale={getTableLocale(
+                listQuery.error ?? (keyword.trim() ? '当前页没有匹配结果' : '暂无埋点数据'),
+              )}
+              pagination={{
+                current: page,
+                pageSize,
+                total: listQuery.data?.total ?? 0,
+                showSizeChanger: true,
+              }}
+              onChange={(pagination) => {
+                setPage(pagination.current ?? 1)
+                setPageSize(pagination.pageSize ?? 10)
+              }}
+              scroll={{ x: 920 }}
+            />
+          </SectionCard>
+        </Col>
+      </Row>
+
+      <DetailDrawer
+        open={selected !== null}
+        title={selected?.eventName ?? '埋点详情'}
+        subtitle={selected ? formatDateTime(selected.timestamp) : undefined}
+        onClose={() => setSelected(null)}
+        items={[
+          { label: 'appId', value: selected?.appId ?? '-' },
+          { label: '用户', value: selected?.userId ?? '-' },
+          { label: '事件', value: selected?.eventName ?? '-' },
+          { label: '属性数量', value: Object.keys(selected?.properties ?? {}).length },
+          { label: '上下文数量', value: Object.keys(selected?.context ?? {}).length },
+        ]}
+        sections={[
+          {
+            title: 'properties',
+            content: <pre className="detail-pre">{safeStringify(selected?.properties ?? {})}</pre>,
+          },
+          {
+            title: 'context',
+            content: <pre className="detail-pre">{safeStringify(selected?.context ?? {})}</pre>,
+          },
+        ]}
+      />
+    </Space>
+  )
+}
+
+function PerformancePage() {
+  const filters = useCommonFilters()
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [selected, setSelected] = useState<PerformanceRecord | null>(null)
+  const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
+  const chartParams = useMemo(
+    () => ({ ...timeParams, page: 1, pageSize: 200, sortBy: 'timestamp', sortOrder: 'desc' as const }),
+    [timeParams],
+  )
+  const listParams = useMemo(
+    () => ({ ...timeParams, page, pageSize, sortBy: 'timestamp', sortOrder: 'desc' as const }),
+    [page, pageSize, timeParams],
+  )
+  const statsKey = useMemo(() => queryKey(timeParams), [timeParams])
+  const chartKey = useMemo(() => queryKey(chartParams), [chartParams])
+  const listKey = useMemo(() => queryKey(listParams), [listParams])
+
+  useEffect(() => {
+    setPage(1)
+  }, [timeParams])
+
+  const listQuery = useMonitorQuery(() => monitorService.getPerformance(listParams), listKey)
+  const chartQuery = useMonitorQuery(() => monitorService.getPerformance(chartParams), chartKey)
+  const statsQuery = useMonitorQuery(() => monitorService.getPerformanceStats(timeParams), statsKey)
+  const items = listQuery.data?.items ?? []
+  const chartItems = chartQuery.data?.items ?? []
+
+  const values = chartItems.map((item) => item.value)
+  const metricCards = [
+    { title: '平均值', value: formatNumber(average(values)) },
+    { title: 'P95', value: formatNumber(percentile(values, 95)) },
+    { title: '最小值', value: formatNumber(values.length ? Math.min(...values) : 0) },
+    { title: '最大值', value: formatNumber(values.length ? Math.max(...values) : 0) },
+  ]
+
+  const trend = useMemo(() => {
+    const days = getRecentDays(7)
+    const valuesByDay = groupValuesByDay(chartItems, (item) => item.timestamp, (item) => item.value)
+    const avgSeries = days.map((day) => average(valuesByDay.get(day.key) ?? []))
+    const p95Series = days.map((day) => percentile(valuesByDay.get(day.key) ?? [], 95))
+
+    return {
+      labels: days.map((day) => day.label),
+      avgSeries,
+      p95Series,
+    }
+  }, [chartItems])
+
+  const chartOption = useMemo(
+    () => ({
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['平均值', 'P95'] },
+      grid: { left: 12, right: 12, top: 30, bottom: 8, containLabel: true },
+      xAxis: { type: 'category', data: trend.labels },
+      yAxis: { type: 'value' },
+      series: [
+        { name: '平均值', type: 'line', smooth: true, data: trend.avgSeries },
+        { name: 'P95', type: 'line', smooth: true, data: trend.p95Series },
+      ],
+    }),
+    [trend],
+  )
+
+  const columns: TableColumnsType<PerformanceRecord> = [
+    {
+      title: '时间',
+      dataIndex: 'timestamp',
+      render: (value: PerformanceRecord['timestamp']) => formatDateTime(value),
+      width: 180,
+    },
+    {
+      title: '指标',
+      dataIndex: 'metricType',
+      render: (value: string) => <Tag color="geekblue">{value}</Tag>,
+      width: 180,
+    },
+    {
+      title: '数值',
+      dataIndex: 'value',
+      render: (value: number) => formatNumber(value),
+      width: 120,
+    },
+    {
+      title: 'URL',
+      dataIndex: 'url',
+      render: (value: string | undefined) => value ?? '-',
+    },
+    {
+      title: '操作',
+      render: (_, record) => (
+        <Button type="link" onClick={() => setSelected(record)}>
+          详情
+        </Button>
+      ),
+      width: 100,
+    },
+  ]
+
+  return (
+    <Space direction="vertical" size={16} className="page-stack">
+      {listQuery.error || statsQuery.error ? (
+        <Alert type="warning" showIcon message="部分请求失败" description={listQuery.error ?? statsQuery.error} />
+      ) : null}
+
+      <FilterBar
+        appId={filters.appId}
+        onAppIdChange={filters.setAppId}
+        range={filters.range}
+        onRangeChange={filters.setRange}
+        onReset={() => {
+          filters.reset()
+          setPage(1)
+          setPageSize(10)
+        }}
+        onRefresh={() => {
+          void Promise.allSettled([listQuery.refresh(), chartQuery.refresh(), statsQuery.refresh()])
+        }}
+        loading={listQuery.loading || chartQuery.loading || statsQuery.loading}
+      />
+
+      <MetricGrid items={metricCards} />
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={10}>
+          <SectionCard title="趋势图" description="展示平均值与 P95 的 7 天变化。">
+            <SectionStatus
+              loading={chartQuery.loading}
+              error={chartQuery.error}
+              hasData={chartItems.length > 0}
+              emptyDescription="当前筛选条件下暂无性能数据"
+            >
+              <ReactECharts option={chartOption} style={{ height: 360 }} />
+            </SectionStatus>
+          </SectionCard>
+        </Col>
+        <Col xs={24} lg={14}>
+          <SectionCard title="性能列表" description="支持分页过滤和详情查看。">
+            <Table<PerformanceRecord>
+              rowKey={(record) => record._id ?? `${record.appId}-${record.timestamp}-${record.metricType}`}
+              loading={listQuery.loading}
+              dataSource={items}
+              columns={columns}
+              locale={getTableLocale(listQuery.error ?? '暂无性能数据')}
+              pagination={{
+                current: page,
+                pageSize,
+                total: listQuery.data?.total ?? 0,
+                showSizeChanger: true,
+              }}
+              onChange={(pagination) => {
+                setPage(pagination.current ?? 1)
+                setPageSize(pagination.pageSize ?? 10)
+              }}
+              scroll={{ x: 920 }}
+            />
+          </SectionCard>
+        </Col>
+      </Row>
+
+      <SectionCard title="性能指标统计" description="按指标类型汇总的统计结果。">
+        <SectionStatus
+          loading={statsQuery.loading}
+          error={statsQuery.error}
+          hasData={(statsQuery.data?.length ?? 0) > 0}
+          emptyDescription="当前筛选条件下暂无性能统计"
+        >
+          <Tabs
+            items={[
+              {
+                key: 'table',
+                label: '统计表',
+                children: (
+                  <Table<PerformanceStatsItem>
+                    rowKey={(record) => record.metricType}
+                    pagination={false}
+                    dataSource={statsQuery.data ?? []}
+                    locale={getTableLocale('暂无性能统计')}
+                    columns={[
+                      { title: '指标', dataIndex: 'metricType' },
+                      { title: '次数', dataIndex: 'count' },
+                      { title: '平均值', dataIndex: 'avgValue', render: (value: number) => formatNumber(value) },
+                      { title: '最小值', dataIndex: 'minValue', render: (value: number) => formatNumber(value) },
+                      { title: '最大值', dataIndex: 'maxValue', render: (value: number) => formatNumber(value) },
+                      { title: 'P95', dataIndex: 'p95Value', render: (value: number) => formatNumber(value) },
+                    ]}
+                  />
+                ),
+              },
+            ]}
+          />
+        </SectionStatus>
+      </SectionCard>
+
+      <DetailDrawer
+        open={selected !== null}
+        title={selected?.metricType ?? '性能详情'}
+        subtitle={selected ? formatDateTime(selected.timestamp) : undefined}
+        onClose={() => setSelected(null)}
+        items={[
+          { label: 'appId', value: selected?.appId ?? '-' },
+          { label: '指标类型', value: selected?.metricType ?? '-' },
+          { label: '数值', value: selected ? formatNumber(selected.value) : '-' },
+          { label: 'URL', value: selected?.url ?? '-' },
+          { label: '上下文数量', value: Object.keys(selected?.context ?? {}).length },
+        ]}
+        sections={[
+          {
+            title: 'extra',
+            content: <pre className="detail-pre">{safeStringify(selected?.extra ?? {})}</pre>,
+          },
+          {
+            title: 'context',
+            content: <pre className="detail-pre">{safeStringify(selected?.context ?? {})}</pre>,
+          },
+        ]}
+      />
+    </Space>
+  )
+}
+
+function ErrorPage() {
+  const filters = useCommonFilters()
+  const [keyword, setKeyword] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [selected, setSelected] = useState<ErrorRecord | null>(null)
+  const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
+  const listParams = useMemo(
+    () => ({ ...timeParams, page, pageSize, sortBy: 'timestamp', sortOrder: 'desc' as const }),
+    [page, pageSize, timeParams],
+  )
+  const statsKey = useMemo(() => queryKey(timeParams), [timeParams])
+  const listKey = useMemo(() => queryKey(listParams), [listParams])
+
+  useEffect(() => {
+    setPage(1)
+  }, [timeParams])
+
+  const listQuery = useMonitorQuery(() => monitorService.getErrors(listParams), listKey)
+  const statsQuery = useMonitorQuery(() => monitorService.getErrorStats(timeParams), statsKey)
+  const items = listQuery.data?.items ?? []
+  const visibleItems = useMemo(() => {
+    const normalized = keyword.trim().toLowerCase()
+    if (!normalized) {
+      return items
+    }
+
+    return items.filter((item) =>
+      [item.errorType, item.message, item.appId, item.url].filter(Boolean).join(' ').toLowerCase().includes(normalized),
+    )
+  }, [items, keyword])
+
+  const chartOption = useMemo(() => {
+    const stats = [...(statsQuery.data ?? [])].sort((a, b) => b.count - a.count)
+    return {
+      tooltip: { trigger: 'item' },
+      legend: { bottom: 0 },
+      series: [
+        {
+          type: 'pie',
+          radius: ['40%', '70%'],
+          data: stats.map((item) => ({ name: item.errorType ?? 'unknown', value: item.count })),
+        },
+      ],
+    }
+  }, [statsQuery.data])
+
+  const columns: TableColumnsType<ErrorRecord> = [
+    {
+      title: '时间',
+      dataIndex: 'timestamp',
+      render: (value: ErrorRecord['timestamp']) => formatDateTime(value),
+      width: 180,
+    },
+    {
+      title: '类型',
+      dataIndex: 'errorType',
+      render: (value: string | undefined) => <Tag color="red">{value ?? 'unknown'}</Tag>,
+      width: 160,
+    },
+    {
+      title: '消息',
+      dataIndex: 'message',
+      ellipsis: true,
+    },
+    {
+      title: 'URL',
+      dataIndex: 'url',
+      render: (value: string | undefined) => value ?? '-',
+      width: 220,
+    },
+    {
+      title: '操作',
+      render: (_, record) => (
+        <Button type="link" onClick={() => setSelected(record)}>
+          详情
+        </Button>
+      ),
+      width: 100,
+    },
+  ]
+
+  const selectedContext = useMemo(
+    () =>
+      selected
+        ? {
+            appId: selected.appId,
+            errorType: selected.errorType ?? 'unknown',
+            url: selected.url ?? '-',
+            userAgent: selected.userAgent ?? '-',
+            timestamp: formatDateTime(selected.timestamp),
+          }
+        : {},
+    [selected],
+  )
+
+  return (
+    <Space direction="vertical" size={16} className="page-stack">
+      {listQuery.error || statsQuery.error ? (
+        <Alert type="warning" showIcon message="部分请求失败" description={listQuery.error ?? statsQuery.error} />
+      ) : null}
+
+      <FilterBar
+        appId={filters.appId}
+        onAppIdChange={filters.setAppId}
+        range={filters.range}
+        onRangeChange={filters.setRange}
+        onReset={() => {
+          filters.reset()
+          setKeyword('')
+          setPage(1)
+          setPageSize(10)
+        }}
+        onRefresh={() => {
+          void Promise.allSettled([listQuery.refresh(), statsQuery.refresh()])
+        }}
+        loading={listQuery.loading || statsQuery.loading}
+        extra={<Input allowClear placeholder="过滤当前页错误消息/类型" value={keyword} onChange={(e) => setKeyword(e.target.value)} className="filter-input" />}
+      />
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={10}>
+          <SectionCard title="错误统计图" description="按错误类型统计当前筛选范围的错误数量。">
+            <SectionStatus
+              loading={statsQuery.loading}
+              error={statsQuery.error}
+              hasData={(statsQuery.data?.length ?? 0) > 0}
+              emptyDescription="当前筛选条件下暂无错误统计"
+            >
+              <ReactECharts option={chartOption} style={{ height: 360 }} />
+            </SectionStatus>
+          </SectionCard>
+        </Col>
+        <Col xs={24} lg={14}>
+          <SectionCard title="错误列表" description="支持分页、过滤和 stack/context 详情查看。">
+            <Table<ErrorRecord>
+              rowKey={(record) => record._id ?? `${record.appId}-${record.timestamp}-${record.message}`}
+              loading={listQuery.loading}
+              dataSource={visibleItems}
+              columns={columns}
+              locale={getTableLocale(
+                listQuery.error ?? (keyword.trim() ? '当前页没有匹配结果' : '暂无错误数据'),
+              )}
+              pagination={{
+                current: page,
+                pageSize,
+                total: listQuery.data?.total ?? 0,
+                showSizeChanger: true,
+              }}
+              onChange={(pagination) => {
+                setPage(pagination.current ?? 1)
+                setPageSize(pagination.pageSize ?? 10)
+              }}
+              scroll={{ x: 920 }}
+            />
+          </SectionCard>
+        </Col>
+      </Row>
+
+      <DetailDrawer
+        open={selected !== null}
+        title={selected?.message ?? '错误详情'}
+        subtitle={selected ? formatDateTime(selected.timestamp) : undefined}
+        onClose={() => setSelected(null)}
+        items={[
+          { label: 'appId', value: selected?.appId ?? '-' },
+          { label: '错误类型', value: selected?.errorType ?? '-' },
+          { label: 'URL', value: selected?.url ?? '-' },
+          { label: 'User-Agent', value: selected?.userAgent ?? '-' },
+        ]}
+        sections={[
+          {
+            title: 'stack',
+            content: <pre className="detail-pre">{selected?.stack ?? '-'}</pre>,
+          },
+          {
+            title: 'context',
+            content: <pre className="detail-pre">{safeStringify(selectedContext)}</pre>,
+          },
+        ]}
+      />
+    </Space>
+  )
+}
+
+function StatsPage() {
+  const filters = useCommonFilters()
+  const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
+  const statsKey = useMemo(() => queryKey(timeParams), [timeParams])
+
+  const overview = useMonitorQuery(() => monitorService.getOverviewStats(timeParams), statsKey)
+  const trackingStats = useMonitorQuery(() => monitorService.getTrackingStats(timeParams), statsKey)
+  const performanceStats = useMonitorQuery(() => monitorService.getPerformanceStats(timeParams), statsKey)
+  const errorStats = useMonitorQuery(() => monitorService.getErrorStats(timeParams), statsKey)
+
+  const trackingOption = useMemo(() => {
+    const stats = [...(trackingStats.data ?? [])].sort((a, b) => b.count - a.count).slice(0, 8)
+    return {
+      tooltip: { trigger: 'axis' },
+      grid: { left: 12, right: 12, top: 28, bottom: 8, containLabel: true },
+      xAxis: { type: 'value' },
+      yAxis: { type: 'category', data: stats.map((item) => item.eventName).reverse() },
+      series: [{ type: 'bar', data: stats.map((item) => item.count).reverse() }],
+    }
+  }, [trackingStats.data])
+
+  const performanceOption = useMemo(() => {
+    const stats = [...(performanceStats.data ?? [])].sort((a, b) => b.count - a.count).slice(0, 8)
+    return {
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['平均值', 'P95', '最大值'] },
+      grid: { left: 12, right: 12, top: 30, bottom: 8, containLabel: true },
+      xAxis: { type: 'category', data: stats.map((item) => item.metricType) },
+      yAxis: { type: 'value' },
+      series: [
+        { name: '平均值', type: 'bar', data: stats.map((item) => item.avgValue) },
+        { name: 'P95', type: 'bar', data: stats.map((item) => item.p95Value) },
+        { name: '最大值', type: 'bar', data: stats.map((item) => item.maxValue) },
+      ],
+    }
+  }, [performanceStats.data])
+
+  const errorOption = useMemo(() => {
+    const stats = [...(errorStats.data ?? [])].sort((a, b) => b.count - a.count)
+    return {
+      tooltip: { trigger: 'item' },
+      legend: { bottom: 0 },
+      series: [
+        {
+          type: 'pie',
+          radius: ['35%', '70%'],
+          data: stats.map((item) => ({ name: item.errorType, value: item.count })),
+        },
+      ],
+    }
+  }, [errorStats.data])
+
+  return (
+    <Space direction="vertical" size={16} className="page-stack">
+      {overview.error || trackingStats.error || performanceStats.error || errorStats.error ? (
+        <Alert
+          type="warning"
+          showIcon
+          message="部分请求失败"
+          description={overview.error ?? trackingStats.error ?? performanceStats.error ?? errorStats.error}
+        />
+      ) : null}
+
+      <FilterBar
+        appId={filters.appId}
+        onAppIdChange={filters.setAppId}
+        range={filters.range}
+        onRangeChange={filters.setRange}
+        onReset={filters.reset}
+        onRefresh={() => {
+          void Promise.allSettled([overview.refresh(), trackingStats.refresh(), performanceStats.refresh(), errorStats.refresh()])
+        }}
+        loading={overview.loading || trackingStats.loading || performanceStats.loading || errorStats.loading}
+      />
+
+      <MetricGrid
+        items={[
+          { title: '总量', value: overview.data?.total ?? 0 },
+          { title: '埋点', value: overview.data?.tracking ?? 0 },
+          { title: '性能', value: overview.data?.performance ?? 0 },
+          { title: '错误', value: overview.data?.error ?? 0 },
+        ]}
+      />
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={8}>
+          <SectionCard title="埋点分析" description="按事件名称聚合后的统计图。">
+            <SectionStatus
+              loading={trackingStats.loading}
+              error={trackingStats.error}
+              hasData={(trackingStats.data?.length ?? 0) > 0}
+              emptyDescription="当前筛选条件下暂无埋点统计"
+            >
+              <ReactECharts option={trackingOption} style={{ height: 360 }} />
+            </SectionStatus>
+          </SectionCard>
+        </Col>
+        <Col xs={24} lg={8}>
+          <SectionCard title="性能分析" description="按指标类型展示 avg / p95 / max。">
+            <SectionStatus
+              loading={performanceStats.loading}
+              error={performanceStats.error}
+              hasData={(performanceStats.data?.length ?? 0) > 0}
+              emptyDescription="当前筛选条件下暂无性能统计"
+            >
+              <ReactECharts option={performanceOption} style={{ height: 360 }} />
+            </SectionStatus>
+          </SectionCard>
+        </Col>
+        <Col xs={24} lg={8}>
+          <SectionCard title="错误分析" description="按错误类型展示分布。">
+            <SectionStatus
+              loading={errorStats.loading}
+              error={errorStats.error}
+              hasData={(errorStats.data?.length ?? 0) > 0}
+              emptyDescription="当前筛选条件下暂无错误统计"
+            >
+              <ReactECharts option={errorOption} style={{ height: 360 }} />
+            </SectionStatus>
+          </SectionCard>
+        </Col>
+      </Row>
+
+      <SectionCard title="统计明细" description="查看各项统计表格。">
+        <Tabs
+          items={[
+            {
+              key: 'tracking',
+              label: '埋点',
+              children: (
+                <Table<TrackingStatsItem>
+                  rowKey={(record) => record.eventName}
+                  pagination={false}
+                  dataSource={trackingStats.data ?? []}
+                  locale={getTableLocale('暂无埋点统计')}
+                  columns={[
+                    { title: '事件名称', dataIndex: 'eventName' },
+                    { title: '数量', dataIndex: 'count' },
+                  ]}
+                />
+              ),
+            },
+            {
+              key: 'performance',
+              label: '性能',
+              children: (
+                <Table<PerformanceStatsItem>
+                  rowKey={(record) => record.metricType}
+                  pagination={false}
+                  dataSource={performanceStats.data ?? []}
+                  locale={getTableLocale('暂无性能统计')}
+                  columns={[
+                    { title: '指标类型', dataIndex: 'metricType' },
+                    { title: '数量', dataIndex: 'count' },
+                    { title: '平均值', dataIndex: 'avgValue', render: (value: number) => formatNumber(value) },
+                    { title: 'P95', dataIndex: 'p95Value', render: (value: number) => formatNumber(value) },
+                    { title: '最大值', dataIndex: 'maxValue', render: (value: number) => formatNumber(value) },
+                  ]}
+                />
+              ),
+            },
+            {
+              key: 'error',
+              label: '错误',
+              children: (
+                <Table<ErrorStatsItem>
+                  rowKey={(record) => record.errorType ?? 'unknown'}
+                  pagination={false}
+                  dataSource={errorStats.data ?? []}
+                  locale={getTableLocale('暂无错误统计')}
+                  columns={[
+                    { title: '错误类型', dataIndex: 'errorType', render: (value: string | undefined) => value ?? 'unknown' },
+                    { title: '数量', dataIndex: 'count' },
+                  ]}
+                />
+              ),
+            },
+          ]}
+        />
+      </SectionCard>
+    </Space>
+  )
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<ShellLayout />}>
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="tracking" element={<TrackingPage />} />
+        <Route path="performance" element={<PerformancePage />} />
+        <Route path="error" element={<ErrorPage />} />
+        <Route path="stats" element={<StatsPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
   )
 }
 
 export default App
+

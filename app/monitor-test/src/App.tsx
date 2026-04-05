@@ -1,4 +1,5 @@
 import { NavLink, Route, Routes } from 'react-router-dom'
+import DataGeneratorPage from './pages/DataGeneratorPage'
 import ErrorPage from './pages/ErrorPage'
 import HomePage from './pages/HomePage'
 import NotFoundPage from './pages/NotFoundPage'
@@ -17,6 +18,7 @@ function App() {
           <NavLink to="/tracking">Tracking</NavLink>
           <NavLink to="/performance">性能</NavLink>
           <NavLink to="/error">错误</NavLink>
+          <NavLink to="/data-generator">数据生成器</NavLink>
         </nav>
       </header>
 
@@ -26,6 +28,7 @@ function App() {
           <Route path="/tracking" element={<TrackingPage />} />
           <Route path="/performance" element={<PerformancePage />} />
           <Route path="/error" element={<ErrorPage />} />
+          <Route path="/data-generator" element={<DataGeneratorPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>

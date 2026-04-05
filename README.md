@@ -140,7 +140,7 @@ EzMonitor/
 │   │   │   ├── plugins/         # 官方插件（如 tracking）
 │   │   │   └── types/           # TypeScript 类型定义
 │   │   └── package.json
-│   └── monitor-app/     # Next.js 演示应用
+│   └── monitor-app/     # React/Vite 监控看板应用
 ├── docs/                # 项目文档
 └── package.json
 ```
@@ -176,62 +176,76 @@ interface ConfigType {
 }
 ```
 
-## 🛠️ 开发
+## 🛠️ 本地联调与部署指南
 
 ### 环境要求
 
 - Node.js >= 20（推荐 22 LTS）
 - pnpm >= 10
+- 本地 MongoDB 可访问
 
-### 快速启动（推荐）
+### 三端启动顺序
+
+1. **MongoDB**
+   - 先确认数据库服务可连接。
+2. **后端 `monitor-node`**
+   - 负责接收埋点、写入 MongoDB、提供聚合查询接口。
+3. **前端 `monitor-test` / `monitor-app`**
+   - `monitor-test` 用于上报联调与数据生成。
+   - `monitor-app` 用于查看监控数据看板。
+
+> 如果同时启动两个前端，Vite 可能自动切到 `5174`；以启动日志里的实际端口为准。
+
+### 环境变量说明
+
+| 变量 | 默认值 | 用途 |
+| --- | --- | --- |
+| `MONGODB_URI` | `mongodb://localhost:27017/ezmonitor` | 后端 MongoDB 连接串 |
+| `PORT` | `3001` | 后端服务端口 |
+| `NODE_ENV` | `development` | 后端运行环境 |
+| `CORS_ORIGINS` | `http://localhost:5173,http://localhost:5174` | 允许的前端来源（当前代码里固定允许 5173/5174，若改端口需同步调整后端 CORS） |
+| `VITE_API_URL` | `http://localhost:3001` | `monitor-app` 查询后端的基础地址 |
+| `VITE_MONITOR_REPORT_URL` | `http://localhost:3001/api/monitor/batch` | `monitor-test` 的上报地址 |
+
+### 启动步骤
 
 ```bash
-# 安装依赖
 pnpm install
 
-# 启动演示应用（Next.js）
-pnpm run dev:monitor-app
+# 1) 启动后端
+pnpm --filter monitor-node run start:dev
+
+# 2) 启动联调前端（按需选择）
+pnpm --filter monitor-test run dev
+pnpm --filter monitor-app run dev
 ```
 
-启动后访问：`http://localhost:3000`
+### 端到端验证步骤
+
+1. 打开 `monitor-test`，确认首页可正常加载。
+2. 依次进入 `tracking`、`performance`、`error` 页面，触发一次埋点、一次性能事件和一次错误事件。
+3. 检查浏览器 Network / 控制台，确认请求已发送到 `monitor-node`。
+4. 打开 `monitor-app`，确认列表和统计面板能查到刚写入的数据。
+5. 如有需要，可直接在 MongoDB 中确认数据已落库。
 
 ### 常用开发命令
 
 ```bash
-# 构建整个仓库（turbo）
 pnpm run build:all
-
-# 构建 SDK v2
 pnpm --filter @ezstars/monitor-sdkv2 run build
-
-# SDK v2 watch 模式
 pnpm --filter @ezstars/monitor-sdkv2 run dev
-
-# 运行测试
 pnpm test
-
-# 代码检查
 pnpm lint
-
-# 运行文档网站
 pnpm run docs:dev
-```
-
-### 常见问题
-
-- 端口占用：如果 `3000` 端口被占用，Next.js 会自动切换到其他端口，启动日志里会显示实际地址。
-- 首次安装较慢：`monitor-sdkv2` 的 `prepare` 会自动构建一次 SDK，属于正常现象。
-- Next.js 告警：`images.domains` 废弃和 `baseline-browser-mapping` 过期提示不会阻塞开发启动。
-
-### 构建
-
-```bash
-# 构建 SDK
-pnpm run build:all
-
-# 构建文档
 pnpm run docs:build
 ```
+
+### 常见问题排查
+
+- **端口占用**：先看终端启动日志，前端可能自动切换端口；后端 `PORT` 冲突则手动换端口，并同步修改 `VITE_API_URL` / `VITE_MONITOR_REPORT_URL`。
+- **MongoDB 未启动**：后端会连接失败或接口无数据；先确认 `MONGODB_URI` 指向的实例可访问。
+- **跨域问题**：确认前端来源在后端 `app.enableCors(...)` 白名单内；如果前端使用了非 `5173/5174` 端口，需要同步更新后端 CORS。
+- **首次安装较慢**：`monitor-sdkv2` 的 `prepare` 会先构建一次 SDK，属于正常现象。
 
 ## 📚 文档
 

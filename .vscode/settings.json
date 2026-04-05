@@ -34,5 +34,10 @@
     "json",
     "jsonc",
     "yaml"
-  ]
+  ],
+  "chat.tools.terminal.autoApprove": {
+    "pnpm": true,
+    "git add": true,
+    "git commit": true
+  }
 }

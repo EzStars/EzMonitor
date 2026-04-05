@@ -1,5 +1,7 @@
+import type { ReporterLike } from '../reporting/types'
 import type { SDKConfig } from '../types/config'
 import type { IPlugin } from '../types/plugin'
+import { Reporter } from '../reporting/Reporter'
 import { DEFAULT_CONFIG } from '../types/config'
 
 export type SDKStatus
@@ -27,6 +29,7 @@ export default function createSDK(initialConfig?: Partial<SDKConfig>) {
   }
 
   const plugins: IPlugin[] = []
+  const reporter = new Reporter(() => config)
 
   const applyPluginConfig = async (plugin: IPlugin) => {
     const pluginConfig = config.pluginSettings?.[plugin.name]
@@ -46,6 +49,8 @@ export default function createSDK(initialConfig?: Partial<SDKConfig>) {
       }
 
       plugin.status = 'registered'
+      //  如果插件实现了 setReporter 方法，则注入 reporter 实例
+      plugin.setReporter?.(reporter)
       plugins.push(plugin)
 
       if (pluginConfig) {
@@ -76,6 +81,8 @@ export default function createSDK(initialConfig?: Partial<SDKConfig>) {
         sessionId,
       }
 
+      await reporter.prepare()
+
       for (const plugin of plugins) {
         await applyPluginConfig(plugin)
         await plugin.init?.(config)
@@ -91,6 +98,7 @@ export default function createSDK(initialConfig?: Partial<SDKConfig>) {
       }
 
       status = 'starting'
+      await reporter.start()
       for (const plugin of plugins) {
         await applyPluginConfig(plugin)
         await plugin.start?.(config)
@@ -109,6 +117,7 @@ export default function createSDK(initialConfig?: Partial<SDKConfig>) {
         await plugin.stop?.()
         plugin.status = 'stopped'
       }
+      await reporter.stop()
       status = 'stopped'
     },
 
@@ -128,7 +137,13 @@ export default function createSDK(initialConfig?: Partial<SDKConfig>) {
         plugin.status = 'destroyed'
       }
 
+      await reporter.destroy()
+
       status = 'destroyed'
+    },
+
+    report(type: string, payload: unknown) {
+      reporter.report(type, payload)
     },
 
     getConfig() {
@@ -141,6 +156,10 @@ export default function createSDK(initialConfig?: Partial<SDKConfig>) {
 
     getSessionId() {
       return sessionId
+    },
+
+    getReporter() {
+      return reporter as ReporterLike
     },
   }
 

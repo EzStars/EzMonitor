@@ -1,0 +1,169 @@
+import { BadRequestException } from '@nestjs/common'
+import { MonitorService } from './monitor.service'
+import { MonitorBatchItemType } from '../dto'
+
+function createExecQuery<T>(result: T) {
+  return {
+    sort: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue(result),
+  }
+}
+
+describe('MonitorService', () => {
+  it('should create tracking records with normalized timestamp', async () => {
+    const trackingModel = { create: jest.fn().mockResolvedValue({ id: 'tracking-1' }) }
+    const service = new MonitorService(trackingModel as never, {} as never, {} as never)
+    const timestamp = '2024-01-01T00:00:00.000Z'
+
+    await expect(
+      service.createTracking({
+        appId: 'app-1',
+        eventName: 'page_view',
+        timestamp: new Date(timestamp),
+      }),
+    ).resolves.toEqual({ id: 'tracking-1' })
+
+    expect(trackingModel.create).toHaveBeenCalledWith({
+      appId: 'app-1',
+      eventName: 'page_view',
+      timestamp: new Date(timestamp),
+    })
+  })
+
+  it('should create batches and summarize counts', async () => {
+    const trackingModel = { create: jest.fn().mockResolvedValue({ id: 'tracking-1' }) }
+    const performanceModel = { create: jest.fn().mockResolvedValue({ id: 'performance-1' }) }
+    const errorModel = { create: jest.fn().mockResolvedValue({ id: 'error-1' }) }
+    const service = new MonitorService(
+      trackingModel as never,
+      performanceModel as never,
+      errorModel as never,
+    )
+
+    await expect(
+      service.createBatch([
+        {
+          type: MonitorBatchItemType.TRACKING,
+          appId: 'app-1',
+          timestamp: new Date('2024-01-01T00:00:00.000Z'),
+          eventName: 'page_view',
+        },
+        {
+          type: MonitorBatchItemType.PERFORMANCE,
+          appId: 'app-1',
+          timestamp: new Date('2024-01-01T00:00:01.000Z'),
+          metricType: 'ttfb',
+          value: 120,
+        },
+        {
+          type: MonitorBatchItemType.ERROR,
+          appId: 'app-1',
+          timestamp: new Date('2024-01-01T00:00:02.000Z'),
+          message: 'boom',
+        },
+      ]),
+    ).resolves.toMatchObject({
+      summary: {
+        tracking: 1,
+        performance: 1,
+        error: 1,
+        total: 3,
+      },
+    })
+  })
+
+  it('should query tracking records with paging and sorting', async () => {
+    const items = [{ appId: 'app-1' }]
+    const trackingModel = {
+      countDocuments: jest.fn().mockReturnValue(createExecQuery(1)),
+      find: jest.fn().mockReturnValue(createExecQuery(items)),
+    }
+    const service = new MonitorService(trackingModel as never, {} as never, {} as never)
+
+    await expect(
+      service.queryTracking({
+        appId: 'app-1',
+        page: 1,
+        pageSize: 20,
+        sortBy: 'timestamp',
+        sortOrder: 'desc',
+      }),
+    ).resolves.toMatchObject({
+      items,
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    })
+  })
+
+  it('should calculate overview and grouped stats', async () => {
+    const trackingModel = {
+      countDocuments: jest.fn().mockResolvedValue(2),
+      aggregate: jest.fn().mockResolvedValue([{ _id: 'page_view', count: 2 }]),
+    }
+    const performanceModel = {
+      countDocuments: jest.fn().mockResolvedValue(1),
+      aggregate: jest.fn().mockResolvedValue([
+        {
+          _id: 'ttfb',
+          count: 2,
+          avgValue: 150,
+          minValue: 120,
+          maxValue: 180,
+          values: [120, 180],
+        },
+      ]),
+    }
+    const errorModel = {
+      countDocuments: jest.fn().mockResolvedValue(0),
+      aggregate: jest.fn().mockResolvedValue([{ _id: 'fatal', count: 1 }]),
+    }
+    const service = new MonitorService(
+      trackingModel as never,
+      performanceModel as never,
+      errorModel as never,
+    )
+
+    await expect(service.getStatsOverview({ appId: 'app-1' })).resolves.toEqual({
+      tracking: 2,
+      performance: 1,
+      error: 0,
+      total: 3,
+    })
+    await expect(service.getTrackingStats({ appId: 'app-1' })).resolves.toEqual([
+      { eventName: 'page_view', count: 2 },
+    ])
+    await expect(service.getPerformanceStats({ appId: 'app-1' })).resolves.toEqual([
+      {
+        metricType: 'ttfb',
+        count: 2,
+        avgValue: 150,
+        minValue: 120,
+        maxValue: 180,
+        p95Value: 180,
+      },
+    ])
+    await expect(service.getErrorStats({ appId: 'app-1' })).resolves.toEqual([
+      { errorType: 'fatal', count: 1 },
+    ])
+  })
+
+  it('should reject unsupported batch types', async () => {
+    const trackingModel = { create: jest.fn() }
+    const service = new MonitorService(trackingModel as never, {} as never, {} as never)
+
+    await expect(
+      service.createBatch([
+        {
+          type: 'unsupported',
+          appId: 'app-1',
+          timestamp: new Date(),
+        } as never,
+      ]),
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
+})

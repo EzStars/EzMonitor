@@ -14,6 +14,13 @@ export interface SDKConfig {
   batchSize?: number
   batchInterval?: number
   enableBatch?: boolean
+  forceXHR?: boolean
+  enableRetry?: boolean
+  maxRetryCount?: number
+  retryDelay?: number
+  enableLocalStorage?: boolean
+  localStorageKey?: string
+  cacheExpireTime?: number
   pluginSettings?: SDKPluginSettings
   [key: string]: unknown
 }
@@ -21,7 +28,18 @@ export interface SDKConfig {
 export const DEFAULT_CONFIG: Required<
   Pick<
     SDKConfig,
-    'enabled' | 'debug' | 'batchSize' | 'batchInterval' | 'enableBatch'
+    | 'enabled'
+    | 'debug'
+    | 'batchSize'
+    | 'batchInterval'
+    | 'enableBatch'
+    | 'forceXHR'
+    | 'enableRetry'
+    | 'maxRetryCount'
+    | 'retryDelay'
+    | 'enableLocalStorage'
+    | 'localStorageKey'
+    | 'cacheExpireTime'
   >
 > = {
   enabled: true,
@@ -29,4 +47,11 @@ export const DEFAULT_CONFIG: Required<
   batchSize: 50,
   batchInterval: 10000,
   enableBatch: true,
+  forceXHR: false,
+  enableRetry: true,
+  maxRetryCount: 3,
+  retryDelay: 1000,
+  enableLocalStorage: true,
+  localStorageKey: 'ez_monitor_report_queue',
+  cacheExpireTime: 24 * 60 * 60 * 1000,
 }

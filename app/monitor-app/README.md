@@ -1,75 +1,41 @@
-# React + TypeScript + Vite
+# monitor-app
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+监控数据看板应用，用于查询 `monitor-node` 写入的埋点、性能和错误数据。
 
-Currently, two official plugins are available:
+## 启动顺序
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. 启动 MongoDB
+2. 启动 `monitor-node`
+3. 启动本应用
 
-## React Compiler
+## 环境变量
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `VITE_API_URL` | `http://localhost:3001` | 后端 API 基础地址 |
 
-Note: This will impact Vite dev & build performances.
+## 启动
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm install
+pnpm --filter monitor-app run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 验证
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+1. 打开首页，确认图表和列表能正常加载。
+2. 切换到不同监控页，确认接口返回正常。
+3. 如果页面无数据，先在 `monitor-test` 触发一次上报，再刷新本页。
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 构建与检查
+
+```bash
+pnpm --filter monitor-app run build
+pnpm --filter monitor-app run lint
 ```
+
+## 排查
+
+- **接口请求失败**：确认 `VITE_API_URL` 指向的后端已启动。
+- **跨域失败**：确认后端 `src/main.ts` 已允许当前前端端口。
+- **端口冲突**：Vite 可能自动切到别的端口，请以终端日志为准。

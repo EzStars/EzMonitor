@@ -3,10 +3,14 @@ import {
   TrackingPlugin,
 } from '@ezstars/monitor-sdkv2'
 
+const DEFAULT_REPORT_URL = 'http://localhost:3000/api/monitor/batch'
+const reportUrl = import.meta.env.VITE_MONITOR_REPORT_URL?.trim() || DEFAULT_REPORT_URL
+
 const sdk = createSDK({
   appId: 'monitor-test-app',
   debug: true,
   enabled: true,
+  reportUrl,
 })
 
 const trackingPlugin = new TrackingPlugin({ autoTrackPage: true })
@@ -42,6 +46,10 @@ export async function ensureSDKStarted() {
 
 export function getSDKStatus() {
   return sdk.getStatus()
+}
+
+export function getReportUrl() {
+  return reportUrl
 }
 
 export async function trackEvent(
