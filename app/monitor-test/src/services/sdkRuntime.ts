@@ -1,5 +1,6 @@
 import {
   createSDK,
+  ErrorPlugin,
   PerformancePlugin,
   TrackingPlugin,
 } from '@ezstars/monitor-sdkv2'
@@ -24,6 +25,15 @@ sdk.use(trackingPlugin)
 
 const performancePlugin = new PerformancePlugin()
 sdk.use(performancePlugin)
+
+const errorPlugin = new ErrorPlugin({
+  captureJsError: true,
+  captureUnhandledRejection: true,
+  captureResourceError: true,
+  // demo 页里手动触发 console.error 时避免噪音
+  captureConsoleError: false,
+})
+sdk.use(errorPlugin)
 
 type TrackEventResult = Awaited<ReturnType<typeof trackingPlugin.track>>
 type TrackPageResult = Awaited<ReturnType<typeof trackingPlugin.trackPage>>
