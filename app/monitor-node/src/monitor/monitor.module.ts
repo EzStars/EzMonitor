@@ -9,7 +9,7 @@ import {
   TrackingEvent,
   TrackingEventSchema,
 } from './schemas'
-import { MonitorService } from './services'
+import { MonitorService, SourceMapService } from './services'
 
 @Module({
   controllers: [MonitorController],
@@ -20,7 +20,7 @@ import { MonitorService } from './services'
       { name: ErrorLog.name, schema: ErrorLogSchema },
     ]),
   ],
-  providers: [MonitorService],
+  providers: [MonitorService, SourceMapService],
   exports: [MongooseModule, MonitorService],
 })
 export class MonitorModule {}

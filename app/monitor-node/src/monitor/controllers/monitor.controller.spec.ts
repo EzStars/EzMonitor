@@ -2,6 +2,7 @@
 import { BadRequestException } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { MonitorService } from '../services/monitor.service'
+import { SourceMapService } from '../services/sourcemap.service'
 import { MonitorController } from './monitor.controller'
 
 describe('monitorController', () => {
@@ -10,6 +11,9 @@ describe('monitorController', () => {
     queryTracking: jest.fn(),
     createTracking: jest.fn(),
     createBatch: jest.fn(),
+  }
+  const sourceMapService = {
+    saveSourceMap: jest.fn(),
   }
 
   beforeEach(async () => {
@@ -21,6 +25,10 @@ describe('monitorController', () => {
         {
           provide: MonitorService,
           useValue: monitorService,
+        },
+        {
+          provide: SourceMapService,
+          useValue: sourceMapService,
         },
       ],
     }).compile()

@@ -23,6 +23,7 @@
   "exports": {
     ".": "./dist/index.mjs",
     "./core": "./dist/core/index.mjs",
+    "./plugins/error": "./dist/plugins/error/index.mjs",
     "./plugins/performance": "./dist/plugins/performance/index.mjs",
     "./plugins/tracking": "./dist/plugins/tracking/index.mjs",
     "./package.json": "./package.json"

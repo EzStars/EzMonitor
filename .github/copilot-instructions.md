@@ -41,6 +41,18 @@
 - `monitor-app` depends on built SDK artifacts; if app import/type errors appear, rebuild SDK package first.
 - Next.js default port may change when 3000 is occupied; verify actual startup port from logs.
 
+## API Consistency Guardrails
+- Treat root `.env` as the single source of truth for local API endpoints and ports. Do not hardcode new `localhost` ports in feature code.
+- Keep frontend defaults aligned with backend runtime defaults (`PORT`, `VITE_API_URL`, `VITE_MONITOR_REPORT_URL`) and update docs/examples in the same change.
+- Before concluding an API mismatch bug, verify actual runtime port from server logs and current env values.
+- For monitor data types, keep channel semantics strict:
+  - tracking behavior must use tracking channel (`tracking:event|page|user`)
+  - performance metrics must use performance channel (`performance_*`)
+  - error data must use error channel (`error_*`)
+- Do not report error test data via `trackEvent` when the expectation is error dashboards or `error_logs` storage.
+- When adding a new SDK plugin or telemetry type, verify end-to-end contract in one pass:
+  - SDK payload shape -> Reporter serialization -> monitor-node DTO validation -> DB schema -> monitor-app query rendering.
+
 ## Link-First References
 - Monorepo overview and commands: `README.md`
 - SDK v2 architecture details: `packages/monitor-sdkv2/CLAUDE.md`

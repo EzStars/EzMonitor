@@ -9,7 +9,7 @@ interface GenerationLog {
 }
 
 export default function DataGeneratorPage() {
-  const { status, trackEvent, trackPage, trackUser } = useMonitorSDK()
+  const { status, reportError, trackEvent, trackPage, trackUser } = useMonitorSDK()
   const [trackingCount, setTrackingCount] = useState(100)
   const [performanceCount, setPerformanceCount] = useState(50)
   const [errorCount, setErrorCount] = useState(20)
@@ -57,11 +57,11 @@ export default function DataGeneratorPage() {
   const generateTrackingData = async () => {
     setIsGenerating(true)
     addLog('info', `开始生成 ${trackingCount} 条 Tracking 事件...`)
-    
+
     try {
       for (let i = 0; i < trackingCount; i++) {
         const eventType = Math.random()
-        
+
         if (eventType < 0.5) {
           // 生成 trackEvent
           await trackEvent(randomEventName(), {
@@ -70,14 +70,16 @@ export default function DataGeneratorPage() {
             random: Math.random(),
             source: 'data-generator',
           })
-        } else if (eventType < 0.8) {
+        }
+        else if (eventType < 0.8) {
           // 生成 trackPage
           await trackPage(randomPagePath(), {
             timestamp: Date.now(),
             index: i,
             referrer: randomPagePath(),
           })
-        } else {
+        }
+        else {
           // 生成 trackUser
           await trackUser(randomUserId(), {
             timestamp: Date.now(),
@@ -85,19 +87,21 @@ export default function DataGeneratorPage() {
             vip: Math.random() > 0.7,
           })
         }
-        
+
         setProgress(Math.round(((i + 1) / trackingCount) * 100))
-        
+
         // 每10条暂停一下，避免阻塞UI
         if (i % 10 === 0) {
           await new Promise(resolve => setTimeout(resolve, 10))
         }
       }
-      
+
       addLog('success', `成功生成 ${trackingCount} 条 Tracking 事件`)
-    } catch (error) {
+    }
+    catch (error) {
       addLog('error', `生成 Tracking 事件失败: ${error}`)
-    } finally {
+    }
+    finally {
       setIsGenerating(false)
       setProgress(0)
     }
@@ -107,12 +111,12 @@ export default function DataGeneratorPage() {
   const generatePerformanceData = async () => {
     setIsGenerating(true)
     addLog('info', `开始生成 ${performanceCount} 条 Performance 数据...`)
-    
+
     try {
       for (let i = 0; i < performanceCount; i++) {
         // 模拟长任务性能数据
         const duration = Math.floor(Math.random() * 1000) + 50
-        
+
         await trackEvent('performance_long_task', {
           type: 'longtask',
           duration,
@@ -120,18 +124,20 @@ export default function DataGeneratorPage() {
           index: i,
           taskName: `task_${Math.floor(Math.random() * 100)}`,
         })
-        
+
         setProgress(Math.round(((i + 1) / performanceCount) * 100))
-        
+
         if (i % 10 === 0) {
           await new Promise(resolve => setTimeout(resolve, 10))
         }
       }
-      
+
       addLog('success', `成功生成 ${performanceCount} 条 Performance 数据`)
-    } catch (error) {
+    }
+    catch (error) {
       addLog('error', `生成 Performance 数据失败: ${error}`)
-    } finally {
+    }
+    finally {
       setIsGenerating(false)
       setProgress(0)
     }
@@ -141,7 +147,7 @@ export default function DataGeneratorPage() {
   const generateErrorData = async () => {
     setIsGenerating(true)
     addLog('info', `开始生成 ${errorCount} 条 Error 日志...`)
-    
+
     try {
       const errorTypes = [
         'TypeError: Cannot read property',
@@ -150,30 +156,33 @@ export default function DataGeneratorPage() {
         'RangeError: Maximum call stack size exceeded',
         'Network Error: Failed to fetch',
       ]
-      
+
       for (let i = 0; i < errorCount; i++) {
         const errorMessage = errorTypes[Math.floor(Math.random() * errorTypes.length)]
-        
-        await trackEvent('error_occurred', {
-          type: 'error',
+
+        await reportError('generated', {
           message: errorMessage,
           stack: `Error at line ${Math.floor(Math.random() * 1000)}`,
-          timestamp: Date.now(),
-          index: i,
-          severity: Math.random() > 0.5 ? 'warning' : 'error',
+          detail: {
+            index: i,
+            severity: Math.random() > 0.5 ? 'warning' : 'error',
+            source: 'data-generator',
+          },
         })
-        
+
         setProgress(Math.round(((i + 1) / errorCount) * 100))
-        
+
         if (i % 5 === 0) {
           await new Promise(resolve => setTimeout(resolve, 10))
         }
       }
-      
+
       addLog('success', `成功生成 ${errorCount} 条 Error 日志`)
-    } catch (error) {
+    }
+    catch (error) {
       addLog('error', `生成 Error 日志失败: ${error}`)
-    } finally {
+    }
+    finally {
       setIsGenerating(false)
       setProgress(0)
     }
@@ -265,13 +274,14 @@ export default function DataGeneratorPage() {
 
         {isGenerating && (
           <div style={{ marginTop: '20px' }}>
-            <div style={{ 
-              width: '100%', 
-              height: '30px', 
-              backgroundColor: '#f0f0f0', 
-              borderRadius: '5px', 
-              overflow: 'hidden' 
-            }}>
+            <div style={{
+              width: '100%',
+              height: '30px',
+              backgroundColor: '#f0f0f0',
+              borderRadius: '5px',
+              overflow: 'hidden',
+            }}
+            >
               <div
                 style={{
                   width: `${progress}%`,
@@ -285,7 +295,8 @@ export default function DataGeneratorPage() {
                   fontWeight: 'bold',
                 }}
               >
-                {progress}%
+                {progress}
+                %
               </div>
             </div>
           </div>
@@ -294,41 +305,47 @@ export default function DataGeneratorPage() {
 
       <h3>生成日志</h3>
       <div className="log-list" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-        {logs.length === 0 ? (
-          <p className="muted">暂无日志</p>
-        ) : (
-          logs.map(log => (
-            <div
-              key={log.id}
-              className="log-item"
-              style={{
-                padding: '8px',
-                marginBottom: '8px',
-                borderRadius: '4px',
-                backgroundColor:
+        {logs.length === 0
+          ? (
+              <p className="muted">暂无日志</p>
+            )
+          : (
+              logs.map(log => (
+                <div
+                  key={log.id}
+                  className="log-item"
+                  style={{
+                    padding: '8px',
+                    marginBottom: '8px',
+                    borderRadius: '4px',
+                    backgroundColor:
                   log.type === 'success'
                     ? '#e8f5e9'
                     : log.type === 'error'
                       ? '#ffebee'
                       : '#e3f2fd',
-              }}
-            >
-              <strong style={{ marginRight: '10px' }}>[{log.timestamp}]</strong>
-              <span
-                style={{
-                  color:
+                  }}
+                >
+                  <strong style={{ marginRight: '10px' }}>
+                    [
+                    {log.timestamp}
+                    ]
+                  </strong>
+                  <span
+                    style={{
+                      color:
                     log.type === 'success'
                       ? '#2e7d32'
                       : log.type === 'error'
                         ? '#c62828'
                         : '#1565c0',
-                }}
-              >
-                {log.message}
-              </span>
-            </div>
-          ))
-        )}
+                    }}
+                  >
+                    {log.message}
+                  </span>
+                </div>
+              ))
+            )}
       </div>
     </section>
   )

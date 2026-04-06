@@ -10,7 +10,7 @@ interface ErrorLog {
 }
 
 export default function ErrorPage() {
-  const { status, trackEvent } = useMonitorSDK()
+  const { status, reportError } = useMonitorSDK()
   const [logs, setLogs] = useState<ErrorLog[]>([])
 
   const pushLog = (kind: ErrorLog['kind'], title: string, detail: string, payload: unknown) => {
@@ -35,12 +35,12 @@ export default function ErrorPage() {
           src: target instanceof HTMLImageElement || target instanceof HTMLScriptElement ? target.src : undefined,
           href: target instanceof HTMLLinkElement ? target.href : undefined,
         }
-        const payload = await trackEvent('error_resource', {
-          type: 'resource',
-          page: '/error',
+        await reportError('resource', {
+          message: `${target.tagName.toLowerCase()} load failed`,
+          url: detail.src ?? detail.href ?? window.location.href,
           detail,
         })
-        pushLog('resource', '资源加载错误已捕获', 'window error 捕获到资源错误', payload ?? detail)
+        pushLog('resource', '资源加载错误已捕获', 'window error 捕获到资源错误', detail)
         return
       }
 
@@ -52,12 +52,17 @@ export default function ErrorPage() {
         colno: errorEvent.colno,
         stack: errorEvent.error instanceof Error ? errorEvent.error.stack : undefined,
       }
-      const result = await trackEvent('error_js', {
-        type: 'sync',
-        page: '/error',
-        ...payload,
+      await reportError('js', {
+        message: payload.message || 'JavaScript runtime error',
+        url: errorEvent.filename || window.location.href,
+        stack: payload.stack,
+        detail: {
+          filename: payload.filename,
+          lineno: payload.lineno,
+          colno: payload.colno,
+        },
       })
-      pushLog('listener', '同步 JS 错误已捕获', 'window.onerror 捕获到同步错误', result ?? payload)
+      pushLog('listener', '同步 JS 错误已捕获', 'window.onerror 捕获到同步错误', payload)
     }
 
     const onUnhandledRejection = async (event: PromiseRejectionEvent) => {
@@ -65,12 +70,12 @@ export default function ErrorPage() {
         message: event.reason instanceof Error ? event.reason.message : String(event.reason),
         stack: event.reason instanceof Error ? event.reason.stack : undefined,
       }
-      const result = await trackEvent('error_promise', {
-        type: 'promise',
-        page: '/error',
-        ...payload,
+      await reportError('promise', {
+        message: payload.message,
+        url: window.location.href,
+        stack: payload.stack,
       })
-      pushLog('promise', 'Promise rejection 已捕获', 'unhandledrejection 捕获到 Promise rejection', result ?? payload)
+      pushLog('promise', 'Promise rejection 已捕获', 'unhandledrejection 捕获到 Promise rejection', payload)
     }
 
     window.addEventListener('error', onError, true)
@@ -80,7 +85,7 @@ export default function ErrorPage() {
       window.removeEventListener('error', onError, true)
       window.removeEventListener('unhandledrejection', onUnhandledRejection)
     }
-  }, [trackEvent])
+  }, [reportError])
 
   const triggerCaughtSyncError = async () => {
     try {
@@ -88,9 +93,14 @@ export default function ErrorPage() {
     }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      const payload = { type: 'sync', message, page: '/error', handled: true }
-      const result = await trackEvent('error_js_caught', payload)
-      pushLog('sync', '已捕获同步错误', message, result ?? payload)
+      const stack = error instanceof Error ? error.stack : undefined
+      const payload = { message, handled: true }
+      await reportError('js_caught', {
+        message,
+        stack,
+        detail: { handled: true, page: '/error' },
+      })
+      pushLog('sync', '已捕获同步错误', message, payload)
     }
   }
 

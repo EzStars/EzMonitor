@@ -1,39 +1,42 @@
-import {
+import type {
   CreateMonitorBatchDto,
   MonitorBatchItemDto,
-  MonitorBatchItemType,
-} from './batch-monitor.dto';
-import { CreateErrorLogDto } from './error-log.dto';
-import { CreatePerformanceMetricDto } from './performance-metric.dto';
-import {
+} from './batch-monitor.dto'
+import type { CreateErrorLogDto } from './error-log.dto'
+import type { CreatePerformanceMetricDto } from './performance-metric.dto'
+import type {
   ErrorQueryDto,
   PerformanceQueryDto,
   SortOrder,
   StatsQueryDto,
   TrackingQueryDto,
-} from './query.dto';
-import { CreateTrackingEventDto } from './tracking-event.dto';
+} from './query.dto'
+import type { UploadSourceMapDto } from './sourcemap.dto'
+import type { CreateTrackingEventDto } from './tracking-event.dto'
+import {
+  MonitorBatchItemType,
+} from './batch-monitor.dto'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isString(value: unknown): value is string {
-  return typeof value === 'string';
+  return typeof value === 'string'
 }
 
 function isNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
+  return typeof value === 'number' && Number.isFinite(value)
 }
 
 function parseTimestamp(value: unknown, fieldName: string): Date {
-  const date = parseDateLike(value);
+  const date = parseDateLike(value)
 
   if (!date || Number.isNaN(date.getTime())) {
-    throw new Error(`${fieldName} must be a valid date`);
+    throw new Error(`${fieldName} must be a valid date`)
   }
 
-  return date;
+  return date
 }
 
 function validateObjectFields(
@@ -41,14 +44,54 @@ function validateObjectFields(
   fieldName: string,
 ): Record<string, unknown> | undefined {
   if (value === undefined) {
-    return undefined;
+    return undefined
   }
 
   if (!isRecord(value)) {
-    throw new Error(`${fieldName} must be an object`);
+    throw new Error(`${fieldName} must be an object`)
   }
 
-  return value;
+  return value
+}
+
+function parseErrorFrames(value: unknown): Array<Record<string, unknown>> | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (!Array.isArray(value)) {
+    throw new TypeError('frames must be an array')
+  }
+
+  return value.map((entry, index) => {
+    if (!isRecord(entry)) {
+      throw new Error(`frames[${index}] must be an object`)
+    }
+
+    const parsed: Record<string, unknown> = {}
+    const stringFields = ['file', 'functionName', 'raw', 'originalFile', 'originalFunctionName']
+    const numberFields = ['line', 'column', 'originalLine', 'originalColumn']
+
+    for (const field of stringFields) {
+      if (entry[field] !== undefined && !isString(entry[field])) {
+        throw new Error(`frames[${index}].${field} must be a string`)
+      }
+      if (entry[field] !== undefined) {
+        parsed[field] = entry[field]
+      }
+    }
+
+    for (const field of numberFields) {
+      if (entry[field] !== undefined && !isNumber(entry[field])) {
+        throw new Error(`frames[${index}].${field} must be a number`)
+      }
+      if (entry[field] !== undefined) {
+        parsed[field] = entry[field]
+      }
+    }
+
+    return parsed
+  })
 }
 
 function parseOptionalString(
@@ -56,14 +99,14 @@ function parseOptionalString(
   fieldName: string,
 ): string | undefined {
   if (value === undefined) {
-    return undefined;
+    return undefined
   }
 
   if (!isString(value) || value.trim() === '') {
-    throw new Error(`${fieldName} must be a string`);
+    throw new Error(`${fieldName} must be a string`)
   }
 
-  return value;
+  return value
 }
 
 function parseOptionalPositiveInt(
@@ -74,22 +117,22 @@ function parseOptionalPositiveInt(
   maximum = Number.MAX_SAFE_INTEGER,
 ): number {
   if (value === undefined) {
-    return defaultValue;
+    return defaultValue
   }
 
-  const parsed = typeof value === 'string' ? Number(value) : value;
+  const parsed = typeof value === 'string' ? Number(value) : value
   if (
-    !isNumber(parsed) ||
-    !Number.isInteger(parsed) ||
-    parsed < minimum ||
-    parsed > maximum
+    !isNumber(parsed)
+    || !Number.isInteger(parsed)
+    || parsed < minimum
+    || parsed > maximum
   ) {
     throw new Error(
       `${fieldName} must be an integer between ${minimum} and ${maximum}`,
-    );
+    )
   }
 
-  return parsed;
+  return parsed
 }
 
 function parseOptionalDate(
@@ -97,79 +140,79 @@ function parseOptionalDate(
   fieldName: string,
 ): Date | undefined {
   if (value === undefined) {
-    return undefined;
+    return undefined
   }
 
-  const date = parseDateLike(value);
+  const date = parseDateLike(value)
 
   if (!date || Number.isNaN(date.getTime())) {
-    throw new Error(`${fieldName} must be a valid date`);
+    throw new Error(`${fieldName} must be a valid date`)
   }
 
-  return date;
+  return date
 }
 
 function parseDateLike(value: unknown): Date | null {
   if (value instanceof Date) {
-    return value;
+    return value
   }
 
   if (typeof value === 'number') {
-    return new Date(value);
+    return new Date(value)
   }
 
   if (typeof value === 'string') {
-    const normalized = value.trim();
+    const normalized = value.trim()
     if (normalized === '') {
-      return null;
+      return null
     }
 
-    const numeric = Number(normalized);
-    return Number.isFinite(numeric) &&
-      String(numeric) === normalized.replace(/^0+(?=\d)/, '')
+    const numeric = Number(normalized)
+    return Number.isFinite(numeric)
+      && String(numeric) === normalized.replace(/^0+(?=\d)/, '')
       ? new Date(numeric)
-      : new Date(normalized);
+      : new Date(normalized)
   }
 
-  return null;
+  return null
 }
 
 function validateSortOrder(value: unknown): SortOrder {
   if (value === undefined) {
-    return 'desc';
+    return 'desc'
   }
 
   if (value === 'asc' || value === 'desc') {
-    return value;
+    return value
   }
 
-  throw new Error('sortOrder must be asc or desc');
+  throw new Error('sortOrder must be asc or desc')
 }
 
 function validateBaseQuery<
   T extends {
-    appId?: string;
-    startTime?: Date;
-    endTime?: Date;
+    appId?: string
+    startTime?: Date
+    endTime?: Date
   },
 >(body: unknown): T {
   if (!isRecord(body)) {
-    throw new Error('query must be an object');
+    throw new Error('query must be an object')
   }
 
-  const appId = parseOptionalString(body.appId, 'appId');
-  const startTime = parseOptionalDate(body.startTime, 'startTime');
-  const endTime = parseOptionalDate(body.endTime, 'endTime');
+  const appId = parseOptionalString(body.appId, 'appId')
+  const startTime = parseOptionalDate(body.startTime, 'startTime')
+  const endTime = parseOptionalDate(body.endTime, 'endTime')
 
   if (startTime && endTime && startTime.getTime() > endTime.getTime()) {
-    throw new Error('startTime must be earlier than or equal to endTime');
+    throw new Error('startTime must be earlier than or equal to endTime')
   }
 
   return {
     appId,
     startTime,
     endTime,
-  } as T;
+  } as T
 }
 
 const TRACKING_SORT_FIELDS = new Set([
@@ -179,7 +222,7 @@ const TRACKING_SORT_FIELDS = new Set([
   'userId',
   'createdAt',
   'updatedAt',
-]);
+])
 const PERFORMANCE_SORT_FIELDS = new Set([
   'timestamp',
   'metricType',
@@ -187,7 +230,7 @@ const PERFORMANCE_SORT_FIELDS = new Set([
   'appId',
   'createdAt',
   'updatedAt',
-]);
+])
 const ERROR_SORT_FIELDS = new Set([
   'timestamp',
   'errorType',
@@ -195,30 +238,30 @@ const ERROR_SORT_FIELDS = new Set([
   'appId',
   'createdAt',
   'updatedAt',
-]);
+])
 
 function validateListQuery<
   T extends {
-    appId?: string;
-    startTime?: Date;
-    endTime?: Date;
-    page?: number;
-    pageSize?: number;
-    sortBy?: string;
-    sortOrder?: SortOrder;
+    appId?: string
+    startTime?: Date
+    endTime?: Date
+    page?: number
+    pageSize?: number
+    sortBy?: string
+    sortOrder?: SortOrder
   },
 >(body: unknown, allowedSortFields: Set<string>): T {
-  const base = validateBaseQuery(body);
+  const base = validateBaseQuery(body)
 
   if (!isRecord(body)) {
-    throw new Error('query must be an object');
+    throw new Error('query must be an object')
   }
 
-  const sortBy = parseOptionalString(body.sortBy, 'sortBy') ?? 'timestamp';
+  const sortBy = parseOptionalString(body.sortBy, 'sortBy') ?? 'timestamp'
   if (!allowedSortFields.has(sortBy)) {
     throw new Error(
       `sortBy must be one of: ${Array.from(allowedSortFields).join(', ')}`,
-    );
+    )
   }
 
   return {
@@ -227,42 +270,42 @@ function validateListQuery<
     pageSize: parseOptionalPositiveInt(body.pageSize, 'pageSize', 20, 1, 100),
     sortBy,
     sortOrder: validateSortOrder(body.sortOrder),
-  } as T;
+  } as T
 }
 
 export function validateTrackingQueryDto(body: unknown): TrackingQueryDto {
-  return validateListQuery<TrackingQueryDto>(body, TRACKING_SORT_FIELDS);
+  return validateListQuery<TrackingQueryDto>(body, TRACKING_SORT_FIELDS)
 }
 
 export function validatePerformanceQueryDto(
   body: unknown,
 ): PerformanceQueryDto {
-  return validateListQuery<PerformanceQueryDto>(body, PERFORMANCE_SORT_FIELDS);
+  return validateListQuery<PerformanceQueryDto>(body, PERFORMANCE_SORT_FIELDS)
 }
 
 export function validateErrorQueryDto(body: unknown): ErrorQueryDto {
-  return validateListQuery<ErrorQueryDto>(body, ERROR_SORT_FIELDS);
+  return validateListQuery<ErrorQueryDto>(body, ERROR_SORT_FIELDS)
 }
 
 export function validateStatsQueryDto(body: unknown): StatsQueryDto {
-  return validateBaseQuery<StatsQueryDto>(body);
+  return validateBaseQuery<StatsQueryDto>(body)
 }
 
 export function validateCreateTrackingEventDto(
   body: unknown,
 ): CreateTrackingEventDto {
   if (!isRecord(body)) {
-    throw new Error('body must be an object');
+    throw new Error('body must be an object')
   }
 
   if (!isString(body.appId)) {
-    throw new Error('appId is required');
+    throw new Error('appId is required')
   }
   if (!isString(body.eventName)) {
-    throw new Error('eventName is required');
+    throw new Error('eventName is required')
   }
   if (body.userId !== undefined && !isString(body.userId)) {
-    throw new Error('userId must be a string');
+    throw new Error('userId must be a string')
   }
 
   return {
@@ -272,27 +315,27 @@ export function validateCreateTrackingEventDto(
     properties: validateObjectFields(body.properties, 'properties'),
     context: validateObjectFields(body.context, 'context'),
     userId: body.userId,
-  };
+  }
 }
 
 export function validateCreatePerformanceMetricDto(
   body: unknown,
 ): CreatePerformanceMetricDto {
   if (!isRecord(body)) {
-    throw new Error('body must be an object');
+    throw new Error('body must be an object')
   }
 
   if (!isString(body.appId)) {
-    throw new Error('appId is required');
+    throw new Error('appId is required')
   }
   if (!isString(body.metricType)) {
-    throw new Error('metricType is required');
+    throw new Error('metricType is required')
   }
   if (!isNumber(body.value)) {
-    throw new Error('value is required');
+    throw new Error('value is required')
   }
   if (body.url !== undefined && !isString(body.url)) {
-    throw new Error('url must be a string');
+    throw new Error('url must be a string')
   }
 
   return {
@@ -303,31 +346,49 @@ export function validateCreatePerformanceMetricDto(
     url: body.url,
     extra: validateObjectFields(body.extra, 'extra'),
     context: validateObjectFields(body.context, 'context'),
-  };
+  }
 }
 
 export function validateCreateErrorLogDto(body: unknown): CreateErrorLogDto {
   if (!isRecord(body)) {
-    throw new Error('body must be an object');
+    throw new Error('body must be an object')
   }
 
   if (!isString(body.appId)) {
-    throw new Error('appId is required');
+    throw new Error('appId is required')
   }
   if (!isString(body.message)) {
-    throw new Error('message is required');
+    throw new Error('message is required')
   }
   if (body.errorType !== undefined && !isString(body.errorType)) {
-    throw new Error('errorType must be a string');
+    throw new Error('errorType must be a string')
   }
   if (body.stack !== undefined && !isString(body.stack)) {
-    throw new Error('stack must be a string');
+    throw new Error('stack must be a string')
   }
   if (body.url !== undefined && !isString(body.url)) {
-    throw new Error('url must be a string');
+    throw new Error('url must be a string')
   }
   if (body.userAgent !== undefined && !isString(body.userAgent)) {
-    throw new Error('userAgent must be a string');
+    throw new Error('userAgent must be a string')
+  }
+  if (body.sessionId !== undefined && !isString(body.sessionId)) {
+    throw new Error('sessionId must be a string')
+  }
+  if (body.appVersion !== undefined && !isString(body.appVersion)) {
+    throw new Error('appVersion must be a string')
+  }
+  if (body.release !== undefined && !isString(body.release)) {
+    throw new Error('release must be a string')
+  }
+  if (body.environment !== undefined && !isString(body.environment)) {
+    throw new Error('environment must be a string')
+  }
+  if (body.fingerprint !== undefined && !isString(body.fingerprint)) {
+    throw new Error('fingerprint must be a string')
+  }
+  if (body.traceId !== undefined && !isString(body.traceId)) {
+    throw new Error('traceId must be a string')
   }
 
   return {
@@ -338,7 +399,42 @@ export function validateCreateErrorLogDto(body: unknown): CreateErrorLogDto {
     stack: body.stack,
     url: body.url,
     userAgent: body.userAgent,
-  };
+    sessionId: body.sessionId,
+    userId: parseOptionalString(body.userId, 'userId'),
+    appVersion: body.appVersion,
+    release: body.release,
+    environment: body.environment,
+    fingerprint: body.fingerprint,
+    traceId: body.traceId,
+    frames: parseErrorFrames(body.frames) as CreateErrorLogDto['frames'],
+    detail: validateObjectFields(body.detail, 'detail'),
+  }
+}
+
+export function validateUploadSourceMapDto(body: unknown): UploadSourceMapDto {
+  if (!isRecord(body)) {
+    throw new Error('body must be an object')
+  }
+
+  if (!isString(body.appId) || body.appId.trim() === '') {
+    throw new Error('appId is required')
+  }
+  if (!isString(body.release) || body.release.trim() === '') {
+    throw new Error('release is required')
+  }
+  if (!isString(body.file) || body.file.trim() === '') {
+    throw new Error('file is required')
+  }
+  if (!isString(body.map) || body.map.trim() === '') {
+    throw new Error('map is required')
+  }
+
+  return {
+    appId: body.appId,
+    release: body.release,
+    file: body.file,
+    map: body.map,
+  }
 }
 
 export function validateCreateMonitorBatchDto(
@@ -348,102 +444,144 @@ export function validateCreateMonitorBatchDto(
     ? body
     : isRecord(body) && Array.isArray(body.items)
       ? body.items
-      : null;
+      : null
 
   if (!items) {
-    throw new Error('items is required');
+    throw new Error('items is required')
   }
 
   return {
     items: items.map(validateBatchItem),
-  };
+  }
 }
 
 function validateBatchItem(body: unknown): MonitorBatchItemDto {
   if (!isRecord(body)) {
-    throw new Error('batch item must be an object');
+    throw new Error('batch item must be an object')
   }
   if (
-    body.type !== MonitorBatchItemType.TRACKING &&
-    body.type !== MonitorBatchItemType.PERFORMANCE &&
-    body.type !== MonitorBatchItemType.ERROR
+    body.type !== MonitorBatchItemType.TRACKING
+    && body.type !== MonitorBatchItemType.PERFORMANCE
+    && body.type !== MonitorBatchItemType.ERROR
   ) {
-    throw new Error('type must be tracking, performance, or error');
+    throw new Error('type must be tracking, performance, or error')
   }
   if (!isString(body.appId)) {
-    throw new Error('appId is required');
+    throw new Error('appId is required')
   }
 
   const item: MonitorBatchItemDto = {
     type: body.type as MonitorBatchItemType,
     appId: body.appId,
     timestamp: parseTimestamp(body.timestamp, 'timestamp'),
-  };
+  }
 
   if (body.properties !== undefined) {
-    item.properties = validateObjectFields(body.properties, 'properties');
+    item.properties = validateObjectFields(body.properties, 'properties')
   }
   if (body.context !== undefined) {
-    item.context = validateObjectFields(body.context, 'context');
+    item.context = validateObjectFields(body.context, 'context')
   }
   if (body.userId !== undefined) {
     if (!isString(body.userId)) {
-      throw new Error('userId must be a string');
+      throw new Error('userId must be a string')
     }
-    item.userId = body.userId;
+    item.userId = body.userId
   }
   if (body.url !== undefined) {
     if (!isString(body.url)) {
-      throw new Error('url must be a string');
+      throw new Error('url must be a string')
     }
-    item.url = body.url;
+    item.url = body.url
   }
   if (body.extra !== undefined) {
-    item.extra = validateObjectFields(body.extra, 'extra');
+    item.extra = validateObjectFields(body.extra, 'extra')
   }
   if (body.errorType !== undefined) {
     if (!isString(body.errorType)) {
-      throw new Error('errorType must be a string');
+      throw new Error('errorType must be a string')
     }
-    item.errorType = body.errorType;
+    item.errorType = body.errorType
   }
   if (body.stack !== undefined) {
     if (!isString(body.stack)) {
-      throw new Error('stack must be a string');
+      throw new Error('stack must be a string')
     }
-    item.stack = body.stack;
+    item.stack = body.stack
   }
   if (body.userAgent !== undefined) {
     if (!isString(body.userAgent)) {
-      throw new Error('userAgent must be a string');
+      throw new Error('userAgent must be a string')
     }
-    item.userAgent = body.userAgent;
+    item.userAgent = body.userAgent
+  }
+  if (body.sessionId !== undefined) {
+    if (!isString(body.sessionId)) {
+      throw new Error('sessionId must be a string')
+    }
+    item.sessionId = body.sessionId
+  }
+  if (body.appVersion !== undefined) {
+    if (!isString(body.appVersion)) {
+      throw new Error('appVersion must be a string')
+    }
+    item.appVersion = body.appVersion
+  }
+  if (body.release !== undefined) {
+    if (!isString(body.release)) {
+      throw new Error('release must be a string')
+    }
+    item.release = body.release
+  }
+  if (body.environment !== undefined) {
+    if (!isString(body.environment)) {
+      throw new Error('environment must be a string')
+    }
+    item.environment = body.environment
+  }
+  if (body.fingerprint !== undefined) {
+    if (!isString(body.fingerprint)) {
+      throw new Error('fingerprint must be a string')
+    }
+    item.fingerprint = body.fingerprint
+  }
+  if (body.traceId !== undefined) {
+    if (!isString(body.traceId)) {
+      throw new Error('traceId must be a string')
+    }
+    item.traceId = body.traceId
+  }
+  if (body.frames !== undefined) {
+    item.frames = parseErrorFrames(body.frames) as MonitorBatchItemDto['frames']
+  }
+  if (body.detail !== undefined) {
+    item.detail = validateObjectFields(body.detail, 'detail')
   }
 
   if (body.type === MonitorBatchItemType.TRACKING) {
     if (!isString(body.eventName)) {
-      throw new Error('eventName is required for tracking items');
+      throw new Error('eventName is required for tracking items')
     }
-    item.eventName = body.eventName;
+    item.eventName = body.eventName
   }
 
   if (body.type === MonitorBatchItemType.PERFORMANCE) {
     if (!isString(body.metricType)) {
-      throw new Error('metricType is required for performance items');
+      throw new Error('metricType is required for performance items')
     }
     if (!isNumber(body.value)) {
-      throw new Error('value is required for performance items');
+      throw new Error('value is required for performance items')
     }
-    item.metricType = body.metricType;
-    item.value = body.value;
+    item.metricType = body.metricType
+    item.value = body.value
   }
 
   if (body.type === MonitorBatchItemType.ERROR) {
     if (!isString(body.message)) {
-      throw new Error('message is required for error items');
+      throw new Error('message is required for error items')
     }
-    item.message = body.message;
+    item.message = body.message
   }
 
-  return item;
+  return item
 }

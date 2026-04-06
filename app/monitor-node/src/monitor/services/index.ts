@@ -1,1 +1,2 @@
 export * from './monitor.service'
+export * from './sourcemap.service'

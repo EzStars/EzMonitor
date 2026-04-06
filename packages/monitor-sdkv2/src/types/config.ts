@@ -1,11 +1,25 @@
 export interface SDKPluginSettings {
   tracking?: Record<string, unknown>
+  error?: Record<string, unknown>
   [pluginName: string]: Record<string, unknown> | undefined
+}
+
+export interface ReporterSecurityConfig {
+  redactPatterns?: Array<string | RegExp>
+  redactReplacement?: string
+  maxErrorStackFrames?: number
+  maxErrorMessageLength?: number
+  beforeSend?: (
+    eventType: string,
+    payload: Record<string, unknown>,
+  ) => Record<string, unknown> | null | undefined
 }
 
 export interface SDKConfig {
   appId?: string
   appVersion?: string
+  release?: string
+  environment?: string
   userId?: string
   sessionId?: string
   reportUrl?: string
@@ -21,6 +35,7 @@ export interface SDKConfig {
   enableLocalStorage?: boolean
   localStorageKey?: string
   cacheExpireTime?: number
+  security?: ReporterSecurityConfig
   pluginSettings?: SDKPluginSettings
   [key: string]: unknown
 }

@@ -1,5 +1,6 @@
-import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios'
+import type { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { message } from 'antd'
+import axios from 'axios'
 
 export interface ApiResponse<T = unknown> {
   code?: number

@@ -10,9 +10,11 @@
 
 ## 环境变量
 
+本项目通过 Vite `envDir=../../` 读取仓库根目录环境变量，建议统一在根目录 `.env` 维护。
+
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `VITE_API_URL` | `http://localhost:3001` | 后端 API 基础地址 |
+| `VITE_API_URL` | `http://localhost:3000` | 后端 API 基础地址 |
 
 ## 启动
 

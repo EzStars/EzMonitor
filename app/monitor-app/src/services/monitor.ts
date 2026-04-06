@@ -1,5 +1,6 @@
 import type { AxiosResponse } from 'axios'
-import { monitorApi, type ApiResponse, type MonitorQueryParams, type MonitorStatsQueryParams } from './api'
+import type { ApiResponse, MonitorQueryParams, MonitorStatsQueryParams } from './api'
+import { monitorApi } from './api'
 
 export interface MonitorListResult<T> {
   items: T[]
@@ -61,6 +62,17 @@ export interface PerformanceRecord {
 }
 
 export interface ErrorRecord {
+  frames?: Array<{
+    file?: string
+    line?: number
+    column?: number
+    functionName?: string
+    raw?: string
+    originalFile?: string
+    originalLine?: number
+    originalColumn?: number
+    originalFunctionName?: string
+  }>
   _id?: string
   appId: string
   timestamp: string | number | Date
@@ -69,6 +81,10 @@ export interface ErrorRecord {
   stack?: string
   url?: string
   userAgent?: string
+  release?: string
+  appVersion?: string
+  symbolicationStatus?: 'symbolicated' | 'partial' | 'failed' | 'skipped'
+  symbolicationReason?: string
   createdAt?: string | number | Date
   updatedAt?: string | number | Date
 }
@@ -94,4 +110,3 @@ export const monitorService = {
   getErrorStats: (params?: MonitorStatsQueryParams) =>
     unwrap(monitorApi.getErrorStats<ErrorStatsItem[]>(params)),
 }
-

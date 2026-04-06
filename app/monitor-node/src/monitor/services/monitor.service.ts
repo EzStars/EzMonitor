@@ -17,6 +17,7 @@ import {
 import { ErrorLog } from '../schemas/error-log.schema'
 import { PerformanceMetric } from '../schemas/performance-metric.schema'
 import { TrackingEvent } from '../schemas/tracking-event.schema'
+import { SourceMapService } from './sourcemap.service'
 
 interface WriteSummary {
   tracking: number
@@ -68,6 +69,7 @@ export class MonitorService {
     private readonly performanceModel: Model<PerformanceMetric>,
     @InjectModel(ErrorLog.name)
     private readonly errorModel: Model<ErrorLog>,
+    private readonly sourceMapService: SourceMapService = new SourceMapService(),
   ) {}
 
   async createTracking(dto: CreateTrackingEventDto) {
@@ -85,9 +87,19 @@ export class MonitorService {
   }
 
   async createError(dto: CreateErrorLogDto) {
+    const symbolication = await this.sourceMapService.symbolicateError({
+      appId: dto.appId,
+      release: dto.release,
+      stack: dto.stack,
+      frames: dto.frames,
+    })
+
     return this.errorModel.create({
       ...dto,
       timestamp: new Date(dto.timestamp),
+      frames: symbolication.frames ?? dto.frames,
+      symbolicationStatus: symbolication.status,
+      symbolicationReason: symbolication.reason,
     })
   }
 
@@ -127,6 +139,13 @@ export class MonitorService {
       }
 
       if (item.type === MonitorBatchItemType.ERROR) {
+        const symbolication = await this.sourceMapService.symbolicateError({
+          appId: item.appId,
+          release: item.release,
+          stack: item.stack,
+          frames: item.frames,
+        })
+
         error.push(
           this.errorModel.create({
             appId: item.appId,
@@ -136,6 +155,17 @@ export class MonitorService {
             stack: item.stack,
             url: item.url,
             userAgent: item.userAgent,
+            sessionId: item.sessionId,
+            userId: item.userId,
+            appVersion: item.appVersion,
+            release: item.release,
+            environment: item.environment,
+            fingerprint: item.fingerprint,
+            traceId: item.traceId,
+            detail: item.detail,
+            frames: symbolication.frames ?? item.frames,
+            symbolicationStatus: symbolication.status,
+            symbolicationReason: symbolication.reason,
           }),
         )
         continue

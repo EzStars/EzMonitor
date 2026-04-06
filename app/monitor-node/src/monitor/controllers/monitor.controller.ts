@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Inject, Post, Query } from '@nestjs/common'
+import * as process from 'node:process'
+import { BadRequestException, Body, Controller, Get, Headers, Inject, Post, Query, UnauthorizedException } from '@nestjs/common'
 import {
   validateCreateErrorLogDto,
   validateCreateMonitorBatchDto,
@@ -8,12 +9,17 @@ import {
   validatePerformanceQueryDto,
   validateStatsQueryDto,
   validateTrackingQueryDto,
+  validateUploadSourceMapDto,
 } from '../dto/validation'
 import { MonitorService } from '../services/monitor.service'
+import { SourceMapService } from '../services/sourcemap.service'
 
 @Controller('api/monitor')
 export class MonitorController {
-  constructor(@Inject(MonitorService) private readonly monitorService: MonitorService) {}
+  constructor(
+    @Inject(MonitorService) private readonly monitorService: MonitorService,
+    @Inject(SourceMapService) private readonly sourceMapService: SourceMapService,
+  ) {}
 
   @Get('tracking')
   async queryTracking(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
@@ -175,6 +181,22 @@ export class MonitorController {
     }
   }
 
+  @Post('sourcemap')
+  async uploadSourceMap(
+    @Headers('x-monitor-upload-key') uploadKey: string | undefined,
+    @Body() body: unknown,
+  ): Promise<{ success: true, data: { key: string, mapPath: string } }> {
+    this.assertUploadAuthorized(uploadKey)
+
+    const dto = this.parseDto(validateUploadSourceMapDto, body, 'Invalid sourcemap payload')
+    if (dto.map.length > 5 * 1024 * 1024) {
+      throw new BadRequestException('SourceMap is too large')
+    }
+
+    const result = await this.sourceMapService.saveSourceMap(dto)
+    return this.buildSuccessResponse(result)
+  }
+
   private buildSuccessResponse<T>(data: T): { success: true, data: T } {
     return {
       success: true,
@@ -188,6 +210,17 @@ export class MonitorController {
     }
     catch {
       throw new BadRequestException(message)
+    }
+  }
+
+  private assertUploadAuthorized(uploadKey: string | undefined): void {
+    const expectedKey = process.env.MONITOR_SOURCEMAP_UPLOAD_KEY
+    if (!expectedKey) {
+      throw new UnauthorizedException('SourceMap upload key is not configured')
+    }
+
+    if (!uploadKey || uploadKey !== expectedKey) {
+      throw new UnauthorizedException('Invalid SourceMap upload key')
     }
   }
 }

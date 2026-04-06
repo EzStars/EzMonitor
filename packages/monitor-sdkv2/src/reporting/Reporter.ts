@@ -45,6 +45,73 @@ function getRecord(value: unknown): Record<string, unknown> | undefined {
   return isRecord(value) ? value : undefined
 }
 
+function truncate(value: string, maxLength: number): string {
+  if (maxLength <= 0 || value.length <= maxLength) {
+    return value
+  }
+
+  return `${value.slice(0, maxLength)}...`
+}
+
+function redacts(value: string, patterns: Array<string | RegExp>, replacement: string): string {
+  let result = value
+  for (const pattern of patterns) {
+    try {
+      if (typeof pattern === 'string' && pattern.trim() !== '') {
+        result = result.split(pattern).join(replacement)
+        continue
+      }
+
+      if (pattern instanceof RegExp) {
+        result = result.replace(pattern, replacement)
+      }
+    }
+    catch {
+      // Ignore broken pattern.
+    }
+  }
+
+  return result
+}
+
+function sanitizeRecord(
+  payload: Record<string, unknown>,
+  patterns: Array<string | RegExp>,
+  replacement: string,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(payload)) {
+    if (typeof value === 'string') {
+      result[key] = redacts(value, patterns, replacement)
+      continue
+    }
+
+    if (Array.isArray(value)) {
+      result[key] = value.map((entry) => {
+        if (typeof entry === 'string') {
+          return redacts(entry, patterns, replacement)
+        }
+
+        if (isRecord(entry)) {
+          return sanitizeRecord(entry, patterns, replacement)
+        }
+
+        return entry
+      })
+      continue
+    }
+
+    if (isRecord(value)) {
+      result[key] = sanitizeRecord(value, patterns, replacement)
+      continue
+    }
+
+    result[key] = value
+  }
+
+  return result
+}
+
 function omitKeys(
   value: Record<string, unknown>,
   keys: string[],
@@ -79,7 +146,7 @@ function getIdleScheduler():
     requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
     cancelIdleCallback?: (handle: number) => void
   }
-    | undefined {
+  | undefined {
   if (typeof window === 'undefined') {
     return undefined
   }
@@ -250,7 +317,7 @@ export class Reporter implements ReporterLike {
   }
 
   private serializeBatchItem(envelope: ReportEnvelope): Record<string, unknown> {
-    const payload = getRecord(envelope.payload) ?? {}
+    const payload = this.applySecurityHooks(envelope.type, getRecord(envelope.payload) ?? {})
     const appId = getString(payload.appId) ?? envelope.appId ?? ''
     const timestamp = getNumber(payload.timestamp) ?? envelope.timestamp
 
@@ -304,12 +371,12 @@ export class Reporter implements ReporterLike {
         ?? omitKeys(payload, ['appId', 'timestamp', 'sessionId', 'userId', 'eventName', 'metrics', 'extra', 'page'])
       const value
         = getNumber(payload.value)
-        ?? getNumber(payload.duration)
-        ?? getNumber(metrics?.duration)
-        ?? getNumber(metrics?.load)
-        ?? getNumber(metrics?.responseStart)
-        ?? getNumber(metrics?.simulatedCost)
-        ?? 0
+          ?? getNumber(payload.duration)
+          ?? getNumber(metrics?.duration)
+          ?? getNumber(metrics?.load)
+          ?? getNumber(metrics?.responseStart)
+          ?? getNumber(metrics?.simulatedCost)
+          ?? 0
 
       return {
         type: 'performance',
@@ -325,22 +392,36 @@ export class Reporter implements ReporterLike {
 
     if (envelope.type.startsWith('error_')) {
       const detail = getRecord(payload.detail)
+      const release = getString(payload.release) ?? getString(payload.appVersion)
+      const maxFrames = Math.max(1, this.getConfig().security?.maxErrorStackFrames ?? 20)
+      const rawFrames = Array.isArray(payload.frames) ? payload.frames.slice(0, maxFrames) : undefined
+      const maxMessageLength = Math.max(64, this.getConfig().security?.maxErrorMessageLength ?? 2000)
+      const message = truncate(getString(payload.message) ?? envelope.type, maxMessageLength)
 
       return {
         type: 'error',
         appId,
         timestamp,
         errorType: getString(payload.type) ?? envelope.type,
-        message: getString(payload.message) ?? envelope.type,
+        message,
         stack: getString(payload.stack),
         url: getString(payload.url) ?? getString(payload.page) ?? getString(detail?.href) ?? getString(detail?.src),
         userAgent: getString(payload.userAgent),
+        sessionId: getString(payload.sessionId) ?? envelope.sessionId,
+        userId: getString(payload.userId) ?? envelope.userId,
+        release,
+        environment: getString(payload.environment),
+        appVersion: getString(payload.appVersion),
+        fingerprint: getString(payload.fingerprint),
+        traceId: getString(payload.traceId),
+        frames: rawFrames,
+        detail,
       }
     }
 
     const eventName
       = getString(payload.eventName)
-      ?? (envelope.type === 'tracking:event' ? 'tracking_event' : envelope.type)
+        ?? (envelope.type === 'tracking:event' ? 'tracking_event' : envelope.type)
 
     return {
       type: 'tracking',
@@ -506,5 +587,35 @@ export class Reporter implements ReporterLike {
     catch {
       // Ignore storage cleanup failures.
     }
+  }
+
+  private applySecurityHooks(type: string, payload: Record<string, unknown>): Record<string, unknown> {
+    const security = this.getConfig().security
+    let nextPayload = payload
+
+    if (security?.beforeSend) {
+      try {
+        const transformed = security.beforeSend(type, payload)
+        if (transformed === null) {
+          return {}
+        }
+
+        if (transformed && isRecord(transformed)) {
+          nextPayload = transformed
+        }
+      }
+      catch (error) {
+        if (this.getConfig().debug) {
+          console.warn('[Reporter] beforeSend hook failed', error)
+        }
+      }
+    }
+
+    const patterns = security?.redactPatterns
+    if (!patterns || patterns.length === 0) {
+      return nextPayload
+    }
+
+    return sanitizeRecord(nextPayload, patterns, security.redactReplacement ?? '[REDACTED]')
   }
 }

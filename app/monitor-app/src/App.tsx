@@ -160,6 +160,14 @@ function buildTimeParams(appId: string, range: QueryRange) {
   }
 }
 
+function isThirdPartySourcePath(path?: string): boolean {
+  if (!path) {
+    return false
+  }
+
+  return path.includes('/node_modules/') || path.includes('\\node_modules\\') || path.includes('.pnpm/') || path.includes('.pnpm\\')
+}
+
 function useCommonFilters() {
   const [appId, setAppId] = useState('')
   const [range, setRange] = useState<QueryRange>(createDefaultRange())
@@ -1164,6 +1172,23 @@ function ErrorPage() {
       width: 160,
     },
     {
+      title: '定位',
+      dataIndex: 'symbolicationStatus',
+      render: (value: ErrorRecord['symbolicationStatus']) => {
+        const status = value ?? 'skipped'
+        const color = status === 'symbolicated'
+          ? 'green'
+          : status === 'partial'
+            ? 'gold'
+            : status === 'failed'
+              ? 'red'
+              : 'default'
+
+        return <Tag color={color}>{status}</Tag>
+      },
+      width: 140,
+    },
+    {
       title: '消息',
       dataIndex: 'message',
       ellipsis: true,
@@ -1193,11 +1218,41 @@ function ErrorPage() {
             errorType: selected.errorType ?? 'unknown',
             url: selected.url ?? '-',
             userAgent: selected.userAgent ?? '-',
+            release: selected.release ?? '-',
+            symbolicationStatus: selected.symbolicationStatus ?? 'skipped',
+            symbolicationReason: selected.symbolicationReason ?? '-',
             timestamp: formatDateTime(selected.timestamp),
           }
         : {},
     [selected],
   )
+
+  const selectedMappedFrames = useMemo(() => {
+    if (!selected?.frames) {
+      return []
+    }
+
+    return selected.frames
+      .filter(frame => frame.originalFile && typeof frame.originalLine === 'number')
+      .sort((a, b) => {
+        const aThirdParty = isThirdPartySourcePath(a.originalFile)
+        const bThirdParty = isThirdPartySourcePath(b.originalFile)
+
+        if (aThirdParty === bThirdParty) {
+          return 0
+        }
+
+        return aThirdParty ? 1 : -1
+      })
+  }, [selected])
+
+  const selectedPrimaryMappedFrame = useMemo(() => {
+    if (selectedMappedFrames.length === 0) {
+      return null
+    }
+
+    return selectedMappedFrames[0]
+  }, [selectedMappedFrames])
 
   return (
     <Space direction="vertical" size={16} className="page-stack">
@@ -1272,6 +1327,9 @@ function ErrorPage() {
         items={[
           { label: 'appId', value: selected?.appId ?? '-' },
           { label: '错误类型', value: selected?.errorType ?? '-' },
+          { label: 'release', value: selected?.release ?? '-' },
+          { label: '定位状态', value: selected?.symbolicationStatus ?? 'skipped' },
+          { label: '定位原因', value: selected?.symbolicationReason ?? '-' },
           { label: 'URL', value: selected?.url ?? '-' },
           { label: 'User-Agent', value: selected?.userAgent ?? '-' },
         ]}
@@ -1283,6 +1341,36 @@ function ErrorPage() {
           {
             title: 'context',
             content: <pre className="detail-pre">{safeStringify(selectedContext)}</pre>,
+          },
+          {
+            title: 'recommended frame (business-first)',
+            content: selectedPrimaryMappedFrame
+              ? (
+                  <pre className="detail-pre">
+                    {safeStringify({
+                      source: `${selectedPrimaryMappedFrame.originalFile}:${selectedPrimaryMappedFrame.originalLine}:${selectedPrimaryMappedFrame.originalColumn ?? 0}`,
+                      originalFunctionName: selectedPrimaryMappedFrame.originalFunctionName,
+                      bundled: `${selectedPrimaryMappedFrame.file ?? '-'}:${selectedPrimaryMappedFrame.line ?? 0}:${selectedPrimaryMappedFrame.column ?? 0}`,
+                    })}
+                  </pre>
+                )
+              : <pre className="detail-pre">-</pre>,
+          },
+          {
+            title: 'sourcemap (mapped frames, business-first)',
+            content: selectedMappedFrames.length > 0
+              ? (
+                  <pre className="detail-pre">
+                    {safeStringify(
+                      selectedMappedFrames.map(frame => ({
+                        source: `${frame.originalFile}:${frame.originalLine}:${frame.originalColumn ?? 0}`,
+                        originalFunctionName: frame.originalFunctionName,
+                        bundled: `${frame.file ?? '-'}:${frame.line ?? 0}:${frame.column ?? 0}`,
+                      })),
+                    )}
+                  </pre>
+                )
+              : <pre className="detail-pre">-</pre>,
           },
         ]}
       />

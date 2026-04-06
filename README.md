@@ -198,14 +198,19 @@ interface ConfigType {
 
 ### 环境变量说明
 
+推荐把联调变量统一维护在仓库根目录 `.env`（可复制 `.env.example`）。
+`monitor-app` 与 `monitor-test` 已配置 `envDir=../../`，会直接读取根目录变量，避免多处配置漂移。
+
 | 变量 | 默认值 | 用途 |
 | --- | --- | --- |
 | `MONGODB_URI` | `mongodb://localhost:27017/ezmonitor` | 后端 MongoDB 连接串 |
-| `PORT` | `3001` | 后端服务端口 |
+| `PORT` | `3000` | 后端服务端口 |
 | `NODE_ENV` | `development` | 后端运行环境 |
-| `CORS_ORIGINS` | `http://localhost:5173,http://localhost:5174` | 允许的前端来源（当前代码里固定允许 5173/5174，若改端口需同步调整后端 CORS） |
-| `VITE_API_URL` | `http://localhost:3001` | `monitor-app` 查询后端的基础地址 |
-| `VITE_MONITOR_REPORT_URL` | `http://localhost:3001/api/monitor/batch` | `monitor-test` 的上报地址 |
+| `CORS_ORIGINS` | `http://localhost:5173,http://localhost:5174` | 允许的前端来源（逗号分隔） |
+| `CORS_ALLOW_LOCALHOST` | `true` | 是否允许 `localhost/127.0.0.1` 任意端口（开发环境建议开启） |
+| `VITE_API_URL` | `http://localhost:3000` | `monitor-app` 查询后端的基础地址 |
+| `VITE_MONITOR_REPORT_URL` | `http://localhost:3000/api/monitor/batch` | `monitor-test` 的上报地址 |
+| `MONITOR_MAX_BODY_SIZE` | `8mb` | 后端 JSON 请求体大小上限（影响 sourcemap 上传） |
 
 ### 启动步骤
 
@@ -244,7 +249,7 @@ pnpm run docs:build
 
 - **端口占用**：先看终端启动日志，前端可能自动切换端口；后端 `PORT` 冲突则手动换端口，并同步修改 `VITE_API_URL` / `VITE_MONITOR_REPORT_URL`。
 - **MongoDB 未启动**：后端会连接失败或接口无数据；先确认 `MONGODB_URI` 指向的实例可访问。
-- **跨域问题**：确认前端来源在后端 `app.enableCors(...)` 白名单内；如果前端使用了非 `5173/5174` 端口，需要同步更新后端 CORS。
+- **跨域问题**：优先确认 `CORS_ALLOW_LOCALHOST` 是否为 `true`；若使用非本地环境域名，请把域名加入 `CORS_ORIGINS`。
 - **首次安装较慢**：`monitor-sdkv2` 的 `prepare` 会先构建一次 SDK，属于正常现象。
 
 ## 📚 文档
