@@ -1,5 +1,4 @@
-import type { MonitorService } from '../services/monitor.service'
-import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Get, Inject, Post, Query } from '@nestjs/common'
 import {
   validateCreateErrorLogDto,
   validateCreateMonitorBatchDto,
@@ -10,62 +9,73 @@ import {
   validateStatsQueryDto,
   validateTrackingQueryDto,
 } from '../dto/validation'
+import { MonitorService } from '../services/monitor.service'
 
 @Controller('api/monitor')
 export class MonitorController {
-  constructor(private readonly monitorService: MonitorService) {}
+  constructor(@Inject(MonitorService) private readonly monitorService: MonitorService) {}
 
   @Get('tracking')
-  async queryTracking(@Query() query: unknown) {
+  async queryTracking(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateTrackingQueryDto, query, 'Invalid tracking query')
     const data = await this.monitorService.queryTracking(dto)
     return this.buildSuccessResponse(data)
   }
 
   @Get('performance')
-  async queryPerformance(@Query() query: unknown) {
+  async queryPerformance(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validatePerformanceQueryDto, query, 'Invalid performance query')
     const data = await this.monitorService.queryPerformance(dto)
     return this.buildSuccessResponse(data)
   }
 
   @Get('error')
-  async queryError(@Query() query: unknown) {
+  async queryError(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateErrorQueryDto, query, 'Invalid error query')
     const data = await this.monitorService.queryErrors(dto)
     return this.buildSuccessResponse(data)
   }
 
   @Get('stats/overview')
-  async getStatsOverview(@Query() query: unknown) {
+  async getStatsOverview(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
     const data = await this.monitorService.getStatsOverview(dto)
     return this.buildSuccessResponse(data)
   }
 
   @Get('stats/tracking')
-  async getTrackingStats(@Query() query: unknown) {
+  async getTrackingStats(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
     const data = await this.monitorService.getTrackingStats(dto)
     return this.buildSuccessResponse(data)
   }
 
   @Get('stats/performance')
-  async getPerformanceStats(@Query() query: unknown) {
+  async getPerformanceStats(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
     const data = await this.monitorService.getPerformanceStats(dto)
     return this.buildSuccessResponse(data)
   }
 
   @Get('stats/error')
-  async getErrorStats(@Query() query: unknown) {
+  async getErrorStats(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
     const data = await this.monitorService.getErrorStats(dto)
     return this.buildSuccessResponse(data)
   }
 
   @Post('tracking')
-  async createTracking(@Body() body: unknown) {
+  async createTracking(@Body() body: unknown): Promise<{
+    success: true
+    writtenCount: number
+    summary: {
+      tracking: number
+      performance: number
+      error: number
+      total: number
+    }
+    data: unknown
+  }> {
     const dto = this.parseDto(validateCreateTrackingEventDto, body, 'Invalid tracking payload')
     const result = await this.monitorService.createTracking(dto)
     return {
@@ -82,7 +92,17 @@ export class MonitorController {
   }
 
   @Post('performance')
-  async createPerformance(@Body() body: unknown) {
+  async createPerformance(@Body() body: unknown): Promise<{
+    success: true
+    writtenCount: number
+    summary: {
+      tracking: number
+      performance: number
+      error: number
+      total: number
+    }
+    data: unknown
+  }> {
     const dto = this.parseDto(validateCreatePerformanceMetricDto, body, 'Invalid performance payload')
     const result = await this.monitorService.createPerformance(dto)
     return {
@@ -99,7 +119,17 @@ export class MonitorController {
   }
 
   @Post('error')
-  async createError(@Body() body: unknown) {
+  async createError(@Body() body: unknown): Promise<{
+    success: true
+    writtenCount: number
+    summary: {
+      tracking: number
+      performance: number
+      error: number
+      total: number
+    }
+    data: unknown
+  }> {
     const dto = this.parseDto(validateCreateErrorLogDto, body, 'Invalid error payload')
     const result = await this.monitorService.createError(dto)
     return {
@@ -116,7 +146,21 @@ export class MonitorController {
   }
 
   @Post('batch')
-  async createBatch(@Body() body: unknown) {
+  async createBatch(@Body() body: unknown): Promise<{
+    success: true
+    writtenCount: number
+    summary: {
+      tracking: number
+      performance: number
+      error: number
+      total: number
+    }
+    data: {
+      tracking: number
+      performance: number
+      error: number
+    }
+  }> {
     const dto = this.parseDto(validateCreateMonitorBatchDto, body, 'Invalid batch payload')
     const result = await this.monitorService.createBatch(dto.items)
     return {
@@ -131,7 +175,7 @@ export class MonitorController {
     }
   }
 
-  private buildSuccessResponse<T>(data: T) {
+  private buildSuccessResponse<T>(data: T): { success: true, data: T } {
     return {
       success: true,
       data,

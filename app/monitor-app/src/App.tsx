@@ -1,5 +1,7 @@
-import { Component, useEffect, useMemo, useState, type ReactNode } from 'react'
-import ReactECharts from 'echarts-for-react'
+import type { MenuProps, TableColumnsType } from 'antd'
+
+import type { ReactNode } from 'react'
+import type { ErrorRecord, ErrorStatsItem, PerformanceRecord, PerformanceStatsItem, TrackingRecord, TrackingStatsItem } from './services/monitor'
 import {
   Alert,
   Button,
@@ -17,23 +19,18 @@ import {
   Spin,
   Statistic,
   Table,
-  Tag,
   Tabs,
+  Tag,
   Typography,
 } from 'antd'
-import type { TableColumnsType } from 'antd'
-import type { MenuProps } from 'antd'
+import ReactECharts from 'echarts-for-react'
+import { Component, useEffect, useMemo, useState } from 'react'
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import './App.css'
 import { useMonitorQuery } from './hooks/useMonitorQuery'
 import {
+
   monitorService,
-  type ErrorRecord,
-  type ErrorStatsItem,
-  type PerformanceRecord,
-  type PerformanceStatsItem,
-  type TrackingRecord,
-  type TrackingStatsItem,
+
 } from './services/monitor'
 import {
   average,
@@ -46,13 +43,14 @@ import {
   percentile,
   safeStringify,
 } from './utils/monitor'
+import './App.css'
 
 const { Header, Sider, Content } = Layout
 const { Title, Text, Paragraph } = Typography
 
 type RouteKey = '/dashboard' | '/tracking' | '/performance' | '/error' | '/stats'
 
-const routeMeta: Record<RouteKey, { title: string; description: string }> = {
+const routeMeta: Record<RouteKey, { title: string, description: string }> = {
   '/dashboard': {
     title: '总览仪表板',
     description: '关键指标、近 7 天趋势和最新数据预览。',
@@ -85,7 +83,7 @@ function getTableLocale(description: string) {
 
 class AppErrorBoundary extends Component<
   { children: ReactNode },
-  { hasError: boolean; message: string }
+  { hasError: boolean, message: string }
 > {
   constructor(props: { children: ReactNode }) {
     super(props)
@@ -104,11 +102,11 @@ class AppErrorBoundary extends Component<
           showIcon
           message="页面渲染异常"
           description={this.state.message || '请刷新页面后重试'}
-          action={
+          action={(
             <Button type="primary" onClick={() => window.location.reload()}>
               刷新页面
             </Button>
-          }
+          )}
         />
       )
     }
@@ -117,7 +115,7 @@ class AppErrorBoundary extends Component<
   }
 }
 
-const navItems: MenuProps['items'] = (Object.keys(routeMeta) as RouteKey[]).map((path) => ({
+const navItems: MenuProps['items'] = (Object.keys(routeMeta) as RouteKey[]).map(path => ({
   key: path,
   label: <NavLink to={path}>{routeMeta[path].title}</NavLink>,
 }))
@@ -181,8 +179,8 @@ function useCommonFilters() {
 function ShellLayout() {
   const location = useLocation()
   const navigate = useNavigate()
-  const selectedKey =
-    (Object.keys(routeMeta) as RouteKey[]).find((path) => location.pathname.startsWith(path)) ?? '/dashboard'
+  const selectedKey
+    = (Object.keys(routeMeta) as RouteKey[]).find(path => location.pathname.startsWith(path)) ?? '/dashboard'
   const current = routeMeta[selectedKey]
 
   return (
@@ -202,7 +200,7 @@ function ShellLayout() {
             <Title level={3}>{current.title}</Title>
           </Space>
           <Space wrap>
-            {(Object.keys(routeMeta) as RouteKey[]).map((path) => (
+            {(Object.keys(routeMeta) as RouteKey[]).map(path => (
               <Button key={path} type={selectedKey === path ? 'primary' : 'default'} onClick={() => navigate(path)}>
                 {routeMeta[path].title}
               </Button>
@@ -295,20 +293,20 @@ function FilterBar({
           allowClear
           placeholder="按 appId 过滤"
           value={appId}
-          onChange={(event) => onAppIdChange(event.target.value)}
+          onChange={event => onAppIdChange(event.target.value)}
           className="filter-input"
         />
         <Input
           type="date"
           value={range[0]}
-          onChange={(event) => onRangeChange([event.target.value, range[1]])}
+          onChange={event => onRangeChange([event.target.value, range[1]])}
           className="filter-date"
         />
         <Text type="secondary">至</Text>
         <Input
           type="date"
           value={range[1]}
-          onChange={(event) => onRangeChange([range[0], event.target.value])}
+          onChange={event => onRangeChange([range[0], event.target.value])}
           className="filter-date"
         />
         {extra}
@@ -324,14 +322,14 @@ function FilterBar({
 function MetricGrid({
   items,
 }: {
-  items: Array<{ title: string; value: ReactNode; suffix?: ReactNode; tooltip?: string }>
+  items: Array<{ title: string, value: string | number | null | undefined, suffix?: ReactNode, tooltip?: string }>
 }) {
   return (
     <Row gutter={[16, 16]}>
-      {items.map((item) => (
+      {items.map(item => (
         <Col xs={24} sm={12} lg={6} key={item.title}>
           <Card className="metric-card">
-            <Statistic title={item.title} value={item.value} suffix={item.suffix} />
+            <Statistic title={item.title} value={item.value ?? undefined} suffix={item.suffix} />
             {item.tooltip ? <Text type="secondary">{item.tooltip}</Text> : null}
           </Card>
         </Col>
@@ -351,21 +349,21 @@ function DetailDrawer({
   open: boolean
   title: string
   subtitle?: string
-  items: Array<{ label: string; value: ReactNode }>
-  sections?: Array<{ title: string; content: ReactNode }>
+  items: Array<{ label: string, value: ReactNode }>
+  sections?: Array<{ title: string, content: ReactNode }>
   onClose: () => void
 }) {
   return (
     <Drawer open={open} title={title} width={720} onClose={onClose} destroyOnClose>
       {subtitle ? <Paragraph type="secondary">{subtitle}</Paragraph> : null}
       <Descriptions bordered column={1} size="small" className="detail-descriptions">
-        {items.map((item) => (
+        {items.map(item => (
           <Descriptions.Item label={item.label} key={item.label}>
             {item.value}
           </Descriptions.Item>
         ))}
       </Descriptions>
-      {sections?.map((section) => (
+      {sections?.map(section => (
         <Card key={section.title} className="detail-section" title={section.title}>
           {section.content}
         </Card>
@@ -378,16 +376,83 @@ function queryKey(value: unknown) {
   return JSON.stringify(value)
 }
 
+type CoreMetricType = 'fp' | 'fcp' | 'lcp' | 'cls' | 'inp' | 'ttfb'
+
+const coreMetricOrder: CoreMetricType[] = ['fp', 'fcp', 'lcp', 'cls', 'inp', 'ttfb']
+
+const coreMetricMeta: Record<CoreMetricType, { label: string, good: number, poor: number, unit: string }> = {
+  fp: { label: 'FP', good: 1800, poor: 3000, unit: 'ms' },
+  fcp: { label: 'FCP', good: 1800, poor: 3000, unit: 'ms' },
+  lcp: { label: 'LCP', good: 2500, poor: 4000, unit: 'ms' },
+  cls: { label: 'CLS', good: 0.1, poor: 0.25, unit: '' },
+  inp: { label: 'INP', good: 200, poor: 500, unit: 'ms' },
+  ttfb: { label: 'TTFB', good: 800, poor: 1800, unit: 'ms' },
+}
+
+function normalizePerformanceMetricType(metricType: string): CoreMetricType | null {
+  const lower = metricType.trim().toLowerCase()
+  const normalized = lower.startsWith('performance_') ? lower.slice('performance_'.length) : lower
+
+  switch (normalized) {
+    case 'fp':
+    case 'first-paint':
+      return 'fp'
+    case 'fcp':
+    case 'first-contentful-paint':
+      return 'fcp'
+    case 'lcp':
+    case 'largest-contentful-paint':
+      return 'lcp'
+    case 'cls':
+    case 'cumulative-layout-shift':
+      return 'cls'
+    case 'inp':
+    case 'interaction-to-next-paint':
+      return 'inp'
+    case 'ttfb':
+    case 'time-to-first-byte':
+      return 'ttfb'
+    default:
+      return null
+  }
+}
+
+function getCoreMetricHealth(metric: CoreMetricType, value: number) {
+  const { good, poor } = coreMetricMeta[metric]
+  if (value <= good) {
+    return { label: '良好', color: 'success' as const }
+  }
+
+  if (value <= poor) {
+    return { label: '需改进', color: 'warning' as const }
+  }
+
+  return { label: '较差', color: 'error' as const }
+}
+
+function formatCoreMetricValue(metric: CoreMetricType, value: number) {
+  if (!Number.isFinite(value)) {
+    return '-'
+  }
+
+  if (metric === 'cls') {
+    return value.toFixed(3)
+  }
+
+  const unit = coreMetricMeta[metric].unit
+  return unit ? `${formatNumber(value)} ${unit}` : formatNumber(value)
+}
+
 function buildCategoryTrend<T extends { timestamp: string | number | Date }>(
   records: T[],
   getCount: (record: T) => number,
 ) {
   const days = getRecentDays(7)
-  const counts = groupCountsByDay(records, (record) => record.timestamp, getCount)
+  const counts = groupCountsByDay(records, record => record.timestamp, getCount)
 
   return {
-    labels: days.map((item) => item.label),
-    values: days.map((item) => counts.get(item.key) ?? 0),
+    labels: days.map(item => item.label),
+    values: days.map(item => counts.get(item.key) ?? 0),
   }
 }
 
@@ -471,14 +536,16 @@ function DashboardPage() {
 
   return (
     <Space direction="vertical" size={16} className="page-stack">
-      {overview.error || tracking.error || performance.error || errors.error ? (
-        <Alert
-          type="warning"
-          showIcon
-          message="部分请求失败"
-          description={overview.error ?? tracking.error ?? performance.error ?? errors.error}
-        />
-      ) : null}
+      {overview.error || tracking.error || performance.error || errors.error
+        ? (
+            <Alert
+              type="warning"
+              showIcon
+              message="部分请求失败"
+              description={overview.error ?? tracking.error ?? performance.error ?? errors.error}
+            />
+          )
+        : null}
 
       <FilterBar
         appId={filters.appId}
@@ -499,9 +566,9 @@ function DashboardPage() {
           loading={tracking.loading || performance.loading || errors.loading}
           error={tracking.error ?? performance.error ?? errors.error}
           hasData={
-            (tracking.data?.items.length ?? 0) > 0 ||
-            (performance.data?.items.length ?? 0) > 0 ||
-            (errors.data?.items.length ?? 0) > 0
+            (tracking.data?.items.length ?? 0) > 0
+            || (performance.data?.items.length ?? 0) > 0
+            || (errors.data?.items.length ?? 0) > 0
           }
           emptyDescription="当前筛选条件下暂无趋势数据"
         >
@@ -510,39 +577,41 @@ function DashboardPage() {
       </SectionCard>
 
       <SectionCard title="最新数据预览" description="按时间倒序展示最新的三类数据。">
-        {latestPreview.length === 0 ? (
-          <Empty />
-        ) : (
-          <List
-            dataSource={latestPreview}
-            renderItem={(item) => {
-              const typeLabel =
-                item.type === 'tracking' ? '埋点' : item.type === 'performance' ? '性能' : '错误'
-              const title =
-                item.type === 'tracking'
-                  ? item.eventName
-                  : item.type === 'performance'
-                    ? `${item.metricType}：${formatNumber(item.value)}`
-                    : item.message
-              const extra =
-                item.type === 'tracking'
-                  ? item.userId ?? item.appId
-                  : item.type === 'performance'
-                    ? item.url ?? item.appId
-                    : item.errorType ?? item.appId
+        {latestPreview.length === 0
+          ? (
+              <Empty />
+            )
+          : (
+              <List
+                dataSource={latestPreview}
+                renderItem={(item) => {
+                  const typeLabel
+                    = item.type === 'tracking' ? '埋点' : item.type === 'performance' ? '性能' : '错误'
+                  const title
+                    = item.type === 'tracking'
+                      ? item.eventName
+                      : item.type === 'performance'
+                        ? `${item.metricType}：${formatNumber(item.value)}`
+                        : item.message
+                  const extra
+                    = item.type === 'tracking'
+                      ? item.userId ?? item.appId
+                      : item.type === 'performance'
+                        ? item.url ?? item.appId
+                        : item.errorType ?? item.appId
 
-              return (
-                <List.Item>
-                  <List.Item.Meta
-                    avatar={<Tag color={item.type === 'error' ? 'red' : item.type === 'performance' ? 'blue' : 'green'}>{typeLabel}</Tag>}
-                    title={title}
-                    description={`${formatDateTime(item.timestamp)} · ${extra}`}
-                  />
-                </List.Item>
-              )
-            }}
-          />
-        )}
+                  return (
+                    <List.Item>
+                      <List.Item.Meta
+                        avatar={<Tag color={item.type === 'error' ? 'red' : item.type === 'performance' ? 'blue' : 'green'}>{typeLabel}</Tag>}
+                        title={title}
+                        description={`${formatDateTime(item.timestamp)} · ${extra}`}
+                      />
+                    </List.Item>
+                  )
+                }}
+              />
+            )}
       </SectionCard>
     </Space>
   )
@@ -590,11 +659,11 @@ function TrackingPage() {
       tooltip: { trigger: 'axis' },
       grid: { left: 12, right: 12, top: 28, bottom: 12, containLabel: true },
       xAxis: { type: 'value' },
-      yAxis: { type: 'category', data: stats.map((item) => item.eventName).reverse() },
+      yAxis: { type: 'category', data: stats.map(item => item.eventName).reverse() },
       series: [
         {
           type: 'bar',
-          data: stats.map((item) => item.count).reverse(),
+          data: stats.map(item => item.count).reverse(),
           itemStyle: { color: '#1677ff' },
         },
       ],
@@ -645,9 +714,11 @@ function TrackingPage() {
 
   return (
     <Space direction="vertical" size={16} className="page-stack">
-      {listQuery.error || statsQuery.error ? (
-        <Alert type="warning" showIcon message="部分请求失败" description={listQuery.error ?? statsQuery.error} />
-      ) : null}
+      {listQuery.error || statsQuery.error
+        ? (
+            <Alert type="warning" showIcon message="部分请求失败" description={listQuery.error ?? statsQuery.error} />
+          )
+        : null}
 
       <FilterBar
         appId={filters.appId}
@@ -664,7 +735,7 @@ function TrackingPage() {
           void Promise.allSettled([listQuery.refresh(), statsQuery.refresh()])
         }}
         loading={listQuery.loading || statsQuery.loading}
-        extra={<Input allowClear placeholder="过滤当前页事件/属性" value={keyword} onChange={(e) => setKeyword(e.target.value)} className="filter-input" />}
+        extra={<Input allowClear placeholder="过滤当前页事件/属性" value={keyword} onChange={e => setKeyword(e.target.value)} className="filter-input" />}
       />
 
       <Row gutter={[16, 16]}>
@@ -683,7 +754,7 @@ function TrackingPage() {
         <Col xs={24} lg={14}>
           <SectionCard title="埋点列表" description="支持分页、时间/appId 过滤和当前页关键字筛选。">
             <Table<TrackingRecord>
-              rowKey={(record) => record._id ?? `${record.appId}-${record.timestamp}-${record.eventName}`}
+              rowKey={record => record._id ?? `${record.appId}-${record.timestamp}-${record.eventName}`}
               loading={listQuery.loading}
               dataSource={visibleItems}
               columns={columns}
@@ -740,7 +811,8 @@ function PerformancePage() {
   const [selected, setSelected] = useState<PerformanceRecord | null>(null)
   const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
   const chartParams = useMemo(
-    () => ({ ...timeParams, page: 1, pageSize: 200, sortBy: 'timestamp', sortOrder: 'desc' as const }),
+    // 后端当前限制 pageSize <= 100，这里固定取 100 条用于趋势图，避免 400 校验失败。
+    () => ({ ...timeParams, page: 1, pageSize: 100, sortBy: 'timestamp', sortOrder: 'desc' as const }),
     [timeParams],
   )
   const listParams = useMemo(
@@ -761,26 +833,53 @@ function PerformancePage() {
   const items = listQuery.data?.items ?? []
   const chartItems = chartQuery.data?.items ?? []
 
-  const values = chartItems.map((item) => item.value)
-  const metricCards = [
-    { title: '平均值', value: formatNumber(average(values)) },
-    { title: 'P95', value: formatNumber(percentile(values, 95)) },
-    { title: '最小值', value: formatNumber(values.length ? Math.min(...values) : 0) },
-    { title: '最大值', value: formatNumber(values.length ? Math.max(...values) : 0) },
-  ]
-
   const trend = useMemo(() => {
     const days = getRecentDays(7)
-    const valuesByDay = groupValuesByDay(chartItems, (item) => item.timestamp, (item) => item.value)
-    const avgSeries = days.map((day) => average(valuesByDay.get(day.key) ?? []))
-    const p95Series = days.map((day) => percentile(valuesByDay.get(day.key) ?? [], 95))
+    const valuesByDay = groupValuesByDay(chartItems, item => item.timestamp, item => item.value)
+    const avgSeries = days.map(day => average(valuesByDay.get(day.key) ?? []))
+    const p95Series = days.map(day => percentile(valuesByDay.get(day.key) ?? [], 95))
 
     return {
-      labels: days.map((day) => day.label),
+      labels: days.map(day => day.label),
       avgSeries,
       p95Series,
     }
   }, [chartItems])
+
+  const coreStatsMap = useMemo(() => {
+    const map = new Map<CoreMetricType, PerformanceStatsItem>()
+    for (const item of statsQuery.data ?? []) {
+      const coreMetric = normalizePerformanceMetricType(item.metricType)
+      if (coreMetric) {
+        map.set(coreMetric, item)
+      }
+    }
+    return map
+  }, [statsQuery.data])
+
+  const coreMetricRows = useMemo(() => {
+    return coreMetricOrder.map((metric) => {
+      const metricRecords = chartItems.filter(item => normalizePerformanceMetricType(item.metricType) === metric)
+      const metricValues = metricRecords.map(item => item.value)
+      const stats = coreStatsMap.get(metric)
+      const latest = metricRecords.length ? metricRecords[0].value : Number.NaN
+      const p75 = metricValues.length ? percentile(metricValues, 75) : Number.NaN
+      const p95 = stats?.p95Value ?? (metricValues.length ? percentile(metricValues, 95) : Number.NaN)
+      const sampleCount = stats?.count ?? metricValues.length
+      const health = sampleCount > 0 && Number.isFinite(p75) ? getCoreMetricHealth(metric, p75) : null
+
+      return {
+        key: metric,
+        metric,
+        label: coreMetricMeta[metric].label,
+        latest,
+        p75,
+        p95,
+        sampleCount,
+        health,
+      }
+    })
+  }, [chartItems, coreStatsMap])
 
   const chartOption = useMemo(
     () => ({
@@ -834,9 +933,11 @@ function PerformancePage() {
 
   return (
     <Space direction="vertical" size={16} className="page-stack">
-      {listQuery.error || statsQuery.error ? (
-        <Alert type="warning" showIcon message="部分请求失败" description={listQuery.error ?? statsQuery.error} />
-      ) : null}
+      {listQuery.error || statsQuery.error
+        ? (
+            <Alert type="warning" showIcon message="部分请求失败" description={listQuery.error ?? statsQuery.error} />
+          )
+        : null}
 
       <FilterBar
         appId={filters.appId}
@@ -854,7 +955,55 @@ function PerformancePage() {
         loading={listQuery.loading || chartQuery.loading || statsQuery.loading}
       />
 
-      <MetricGrid items={metricCards} />
+      <SectionCard
+        title="Core Web Vitals 概览"
+        description="按 FP/FCP/LCP/CLS/INP/TTFB 展示最新值、P75、P95 与健康状态（状态基于 P75）。"
+      >
+        <SectionStatus
+          loading={chartQuery.loading || statsQuery.loading}
+          error={chartQuery.error ?? statsQuery.error}
+          hasData={coreMetricRows.some(item => item.sampleCount > 0)}
+          emptyDescription="当前筛选条件下暂无 Core Web Vitals 数据"
+        >
+          <Table<(typeof coreMetricRows)[number]>
+            rowKey="key"
+            pagination={false}
+            size="small"
+            dataSource={coreMetricRows}
+            locale={getTableLocale('暂无 Core Web Vitals 指标')}
+            columns={[
+              { title: '指标', dataIndex: 'label', width: 120 },
+              {
+                title: '最新值',
+                dataIndex: 'latest',
+                render: (value: number, record) => formatCoreMetricValue(record.metric, value),
+                width: 160,
+              },
+              {
+                title: 'P75',
+                dataIndex: 'p75',
+                render: (value: number, record) => formatCoreMetricValue(record.metric, value),
+                width: 160,
+              },
+              {
+                title: 'P95',
+                dataIndex: 'p95',
+                render: (value: number, record) => formatCoreMetricValue(record.metric, value),
+                width: 160,
+              },
+              { title: '样本数', dataIndex: 'sampleCount', width: 120 },
+              {
+                title: '健康状态',
+                dataIndex: 'health',
+                render: (value: (typeof coreMetricRows)[number]['health']) =>
+                  value ? <Tag color={value.color}>{value.label}</Tag> : <Tag>无数据</Tag>,
+                width: 120,
+              },
+            ]}
+            scroll={{ x: 840 }}
+          />
+        </SectionStatus>
+      </SectionCard>
 
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={10}>
@@ -872,7 +1021,7 @@ function PerformancePage() {
         <Col xs={24} lg={14}>
           <SectionCard title="性能列表" description="支持分页过滤和详情查看。">
             <Table<PerformanceRecord>
-              rowKey={(record) => record._id ?? `${record.appId}-${record.timestamp}-${record.metricType}`}
+              rowKey={record => record._id ?? `${record.appId}-${record.timestamp}-${record.metricType}`}
               loading={listQuery.loading}
               dataSource={items}
               columns={columns}
@@ -907,7 +1056,7 @@ function PerformancePage() {
                 label: '统计表',
                 children: (
                   <Table<PerformanceStatsItem>
-                    rowKey={(record) => record.metricType}
+                    rowKey={record => record.metricType}
                     pagination={false}
                     dataSource={statsQuery.data ?? []}
                     locale={getTableLocale('暂无性能统计')}
@@ -981,7 +1130,7 @@ function ErrorPage() {
       return items
     }
 
-    return items.filter((item) =>
+    return items.filter(item =>
       [item.errorType, item.message, item.appId, item.url].filter(Boolean).join(' ').toLowerCase().includes(normalized),
     )
   }, [items, keyword])
@@ -995,7 +1144,7 @@ function ErrorPage() {
         {
           type: 'pie',
           radius: ['40%', '70%'],
-          data: stats.map((item) => ({ name: item.errorType ?? 'unknown', value: item.count })),
+          data: stats.map(item => ({ name: item.errorType ?? 'unknown', value: item.count })),
         },
       ],
     }
@@ -1052,9 +1201,11 @@ function ErrorPage() {
 
   return (
     <Space direction="vertical" size={16} className="page-stack">
-      {listQuery.error || statsQuery.error ? (
-        <Alert type="warning" showIcon message="部分请求失败" description={listQuery.error ?? statsQuery.error} />
-      ) : null}
+      {listQuery.error || statsQuery.error
+        ? (
+            <Alert type="warning" showIcon message="部分请求失败" description={listQuery.error ?? statsQuery.error} />
+          )
+        : null}
 
       <FilterBar
         appId={filters.appId}
@@ -1071,7 +1222,7 @@ function ErrorPage() {
           void Promise.allSettled([listQuery.refresh(), statsQuery.refresh()])
         }}
         loading={listQuery.loading || statsQuery.loading}
-        extra={<Input allowClear placeholder="过滤当前页错误消息/类型" value={keyword} onChange={(e) => setKeyword(e.target.value)} className="filter-input" />}
+        extra={<Input allowClear placeholder="过滤当前页错误消息/类型" value={keyword} onChange={e => setKeyword(e.target.value)} className="filter-input" />}
       />
 
       <Row gutter={[16, 16]}>
@@ -1090,7 +1241,7 @@ function ErrorPage() {
         <Col xs={24} lg={14}>
           <SectionCard title="错误列表" description="支持分页、过滤和 stack/context 详情查看。">
             <Table<ErrorRecord>
-              rowKey={(record) => record._id ?? `${record.appId}-${record.timestamp}-${record.message}`}
+              rowKey={record => record._id ?? `${record.appId}-${record.timestamp}-${record.message}`}
               loading={listQuery.loading}
               dataSource={visibleItems}
               columns={columns}
@@ -1155,8 +1306,8 @@ function StatsPage() {
       tooltip: { trigger: 'axis' },
       grid: { left: 12, right: 12, top: 28, bottom: 8, containLabel: true },
       xAxis: { type: 'value' },
-      yAxis: { type: 'category', data: stats.map((item) => item.eventName).reverse() },
-      series: [{ type: 'bar', data: stats.map((item) => item.count).reverse() }],
+      yAxis: { type: 'category', data: stats.map(item => item.eventName).reverse() },
+      series: [{ type: 'bar', data: stats.map(item => item.count).reverse() }],
     }
   }, [trackingStats.data])
 
@@ -1166,12 +1317,12 @@ function StatsPage() {
       tooltip: { trigger: 'axis' },
       legend: { data: ['平均值', 'P95', '最大值'] },
       grid: { left: 12, right: 12, top: 30, bottom: 8, containLabel: true },
-      xAxis: { type: 'category', data: stats.map((item) => item.metricType) },
+      xAxis: { type: 'category', data: stats.map(item => item.metricType) },
       yAxis: { type: 'value' },
       series: [
-        { name: '平均值', type: 'bar', data: stats.map((item) => item.avgValue) },
-        { name: 'P95', type: 'bar', data: stats.map((item) => item.p95Value) },
-        { name: '最大值', type: 'bar', data: stats.map((item) => item.maxValue) },
+        { name: '平均值', type: 'bar', data: stats.map(item => item.avgValue) },
+        { name: 'P95', type: 'bar', data: stats.map(item => item.p95Value) },
+        { name: '最大值', type: 'bar', data: stats.map(item => item.maxValue) },
       ],
     }
   }, [performanceStats.data])
@@ -1185,7 +1336,7 @@ function StatsPage() {
         {
           type: 'pie',
           radius: ['35%', '70%'],
-          data: stats.map((item) => ({ name: item.errorType, value: item.count })),
+          data: stats.map(item => ({ name: item.errorType, value: item.count })),
         },
       ],
     }
@@ -1193,14 +1344,16 @@ function StatsPage() {
 
   return (
     <Space direction="vertical" size={16} className="page-stack">
-      {overview.error || trackingStats.error || performanceStats.error || errorStats.error ? (
-        <Alert
-          type="warning"
-          showIcon
-          message="部分请求失败"
-          description={overview.error ?? trackingStats.error ?? performanceStats.error ?? errorStats.error}
-        />
-      ) : null}
+      {overview.error || trackingStats.error || performanceStats.error || errorStats.error
+        ? (
+            <Alert
+              type="warning"
+              showIcon
+              message="部分请求失败"
+              description={overview.error ?? trackingStats.error ?? performanceStats.error ?? errorStats.error}
+            />
+          )
+        : null}
 
       <FilterBar
         appId={filters.appId}
@@ -1270,7 +1423,7 @@ function StatsPage() {
               label: '埋点',
               children: (
                 <Table<TrackingStatsItem>
-                  rowKey={(record) => record.eventName}
+                  rowKey={record => record.eventName}
                   pagination={false}
                   dataSource={trackingStats.data ?? []}
                   locale={getTableLocale('暂无埋点统计')}
@@ -1286,7 +1439,7 @@ function StatsPage() {
               label: '性能',
               children: (
                 <Table<PerformanceStatsItem>
-                  rowKey={(record) => record.metricType}
+                  rowKey={record => record.metricType}
                   pagination={false}
                   dataSource={performanceStats.data ?? []}
                   locale={getTableLocale('暂无性能统计')}
@@ -1305,7 +1458,7 @@ function StatsPage() {
               label: '错误',
               children: (
                 <Table<ErrorStatsItem>
-                  rowKey={(record) => record.errorType ?? 'unknown'}
+                  rowKey={record => record.errorType ?? 'unknown'}
                   pagination={false}
                   dataSource={errorStats.data ?? []}
                   locale={getTableLocale('暂无错误统计')}
@@ -1340,4 +1493,3 @@ function App() {
 }
 
 export default App
-

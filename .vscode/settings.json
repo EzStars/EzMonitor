@@ -38,6 +38,8 @@
   "chat.tools.terminal.autoApprove": {
     "pnpm": true,
     "git add": true,
-    "git commit": true
+    "git commit": true,
+    "git rev-parse": true,
+    ".vscode/settings.json": true
   }
 }

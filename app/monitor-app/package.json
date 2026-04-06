@@ -1,8 +1,8 @@
 {
   "name": "monitor-app",
-  "private": true,
-  "version": "0.0.0",
   "type": "module",
+  "version": "0.0.0",
+  "private": true,
   "scripts": {
     "setup-api": "node setup-api.js",
     "dev": "vite",

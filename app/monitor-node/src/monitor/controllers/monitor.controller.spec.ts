@@ -1,9 +1,10 @@
+/// <reference types="jest" />
 import { BadRequestException } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
-import { MonitorController } from './monitor.controller'
 import { MonitorService } from '../services/monitor.service'
+import { MonitorController } from './monitor.controller'
 
-describe('MonitorController', () => {
+describe('monitorController', () => {
   let controller: MonitorController
   const monitorService = {
     queryTracking: jest.fn(),

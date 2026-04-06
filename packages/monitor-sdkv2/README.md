@@ -24,7 +24,7 @@ pnpm -C packages/monitor-sdkv2 build
 初始化 SDK：
 
 ```ts
-import { createSDK, TrackingPlugin } from '@ezstars/monitor-sdkv2'
+import { createSDK, PerformancePlugin, TrackingPlugin } from '@ezstars/monitor-sdkv2'
 
 const sdk = createSDK({
   appId: 'demo-app',
@@ -36,10 +36,24 @@ const sdk = createSDK({
 
 // 使用插件（支持链式）
 sdk
+  .use(new PerformancePlugin())
   .use(new TrackingPlugin({ autoTrackPage: true }))
   .init()
   .then(() => sdk.start())
 ```
+
+## 性能插件
+
+`PerformancePlugin` 会自动采集 Core Web Vitals 和基础性能指标，默认包含：
+
+- `fp`：First Paint
+- `fcp`：First Contentful Paint
+- `ttfb`：Time To First Byte
+- `lcp`：Largest Contentful Paint
+- `cls`：Cumulative Layout Shift
+- `inp`：Interaction to Next Paint
+
+推荐使用方式：在 `sdk.start()` 前注册插件，并保留页面隐藏时的自动 flush，这样可以减少离开页前的数据丢失。
 
 ## 插件开发（推荐）
 

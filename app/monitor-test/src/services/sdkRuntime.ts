@@ -1,10 +1,12 @@
 import {
   createSDK,
+  PerformancePlugin,
   TrackingPlugin,
 } from '@ezstars/monitor-sdkv2'
 
-const DEFAULT_REPORT_URL = 'http://localhost:3000/api/monitor/batch'
-const reportUrl = import.meta.env.VITE_MONITOR_REPORT_URL?.trim() || DEFAULT_REPORT_URL
+const DEFAULT_API_URL = 'http://localhost:3000'
+const apiUrl = import.meta.env.VITE_API_URL?.trim() || DEFAULT_API_URL
+const reportUrl = import.meta.env.VITE_MONITOR_REPORT_URL?.trim() || `${apiUrl}/api/monitor/batch`
 
 const sdk = createSDK({
   appId: 'monitor-test-app',
@@ -15,6 +17,9 @@ const sdk = createSDK({
 
 const trackingPlugin = new TrackingPlugin({ autoTrackPage: true })
 sdk.use(trackingPlugin)
+
+const performancePlugin = new PerformancePlugin()
+sdk.use(performancePlugin)
 
 type TrackEventResult = Awaited<ReturnType<typeof trackingPlugin.track>>
 type TrackPageResult = Awaited<ReturnType<typeof trackingPlugin.trackPage>>

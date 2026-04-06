@@ -1,6 +1,7 @@
+/// <reference types="jest" />
 import { BadRequestException } from '@nestjs/common'
-import { MonitorService } from './monitor.service'
 import { MonitorBatchItemType } from '../dto'
+import { MonitorService } from './monitor.service'
 
 function createExecQuery<T>(result: T) {
   return {
@@ -12,7 +13,7 @@ function createExecQuery<T>(result: T) {
   }
 }
 
-describe('MonitorService', () => {
+describe('monitorService', () => {
   it('should create tracking records with normalized timestamp', async () => {
     const trackingModel = { create: jest.fn().mockResolvedValue({ id: 'tracking-1' }) }
     const service = new MonitorService(trackingModel as never, {} as never, {} as never)
@@ -149,6 +150,44 @@ describe('MonitorService', () => {
     ])
     await expect(service.getErrorStats({ appId: 'app-1' })).resolves.toEqual([
       { errorType: 'fatal', count: 1 },
+    ])
+  })
+
+  it('should calculate p95 from sorted samples independent of input order', async () => {
+    const trackingModel = {
+      countDocuments: jest.fn().mockResolvedValue(0),
+    }
+    const performanceModel = {
+      countDocuments: jest.fn().mockResolvedValue(0),
+      aggregate: jest.fn().mockResolvedValue([
+        {
+          _id: 'lcp',
+          count: 20,
+          avgValue: 10,
+          minValue: 1,
+          maxValue: 20,
+          values: [8, 1, 20, 3, 17, 5, 2, 19, 4, 16, 6, 15, 7, 14, 9, 13, 10, 12, 11, 18],
+        },
+      ]),
+    }
+    const errorModel = {
+      countDocuments: jest.fn().mockResolvedValue(0),
+    }
+    const service = new MonitorService(
+      trackingModel as never,
+      performanceModel as never,
+      errorModel as never,
+    )
+
+    await expect(service.getPerformanceStats({ appId: 'app-1' })).resolves.toEqual([
+      {
+        metricType: 'lcp',
+        count: 20,
+        avgValue: 10,
+        minValue: 1,
+        maxValue: 20,
+        p95Value: 19,
+      },
     ])
   })
 

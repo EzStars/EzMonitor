@@ -3,7 +3,7 @@ import { useMonitorSDK } from '../hooks/useMonitorSDK'
 
 interface PerfLog {
   id: number
-  kind: 'long-task' | 'metrics' | 'observer'
+  kind: 'long-task' | 'metrics' | 'observer' | 'cls'
   title: string
   detail: string
   payload: unknown
@@ -12,6 +12,7 @@ interface PerfLog {
 export default function PerformancePage() {
   const { status, trackEvent } = useMonitorSDK()
   const [duration, setDuration] = useState<number | null>(null)
+  const [showClsBanner, setShowClsBanner] = useState(false)
   const [logs, setLogs] = useState<PerfLog[]>([])
 
   const pushLog = (kind: PerfLog['kind'], title: string, detail: string, payload: unknown) => {
@@ -136,7 +137,7 @@ export default function PerformancePage() {
     }
 
     const entries: PerformanceEntry[] = []
-    const observer = new PerformanceObserver(list => {
+    const observer = new PerformanceObserver((list) => {
       entries.push(...list.getEntries())
     })
 
@@ -170,10 +171,66 @@ export default function PerformancePage() {
     }
   }
 
+  const triggerClsShift = async () => {
+    if (typeof PerformanceObserver === 'undefined') {
+      pushLog('cls', 'CLS 观察', '当前浏览器不支持 PerformanceObserver', { supported: false })
+      return
+    }
+
+    const entries: PerformanceEntry[] = []
+    const observer = new PerformanceObserver((list) => {
+      entries.push(...list.getEntries())
+    })
+
+    try {
+      observer.observe({ type: 'layout-shift', buffered: true })
+      pushLog('cls', 'CLS 触发准备', '将在 1200ms 后展开顶部横幅，制造无 recent input 的布局位移', {
+        supported: true,
+        scheduled: true,
+      })
+
+      await new Promise(resolve => window.setTimeout(resolve, 1200))
+      setShowClsBanner(true)
+      await new Promise(resolve => window.setTimeout(resolve, 200))
+
+      observer.disconnect()
+
+      const layoutShifts = entries.filter((item) => {
+        const shiftEntry = item as PerformanceEntry & { hadRecentInput?: boolean }
+        return shiftEntry.entryType === 'layout-shift' && shiftEntry.hadRecentInput === false
+      })
+      const totalValue = layoutShifts.reduce((sum, item) => {
+        const shiftEntry = item as PerformanceEntry & { value?: number }
+        return sum + (shiftEntry.value ?? 0)
+      }, 0)
+
+      const metrics = {
+        supported: true,
+        observedCount: layoutShifts.length,
+        totalValue: Number(totalValue.toFixed(3)),
+        observedEntries: layoutShifts.map((item) => {
+          const shiftEntry = item as PerformanceEntry & { value?: number, startTime: number, hadRecentInput?: boolean }
+          return {
+            entryType: shiftEntry.entryType,
+            value: Number((shiftEntry.value ?? 0).toFixed(3)),
+            startTime: Number(shiftEntry.startTime.toFixed(2)),
+            hadRecentInput: shiftEntry.hadRecentInput ?? false,
+          }
+        }),
+      }
+      pushLog('cls', 'CLS 观察', '已展开顶部横幅并采集 layout-shift 数据，刷新或切换页面后会由 PerformancePlugin 上报 performance_cls', metrics)
+    }
+    catch (error) {
+      observer.disconnect()
+      pushLog('cls', 'CLS 观察失败', String(error), { supported: true, error: String(error) })
+    }
+  }
+
   const metricCases = [
     { title: '轻量 Long Task (80ms)', run: () => emitLongTask('轻量 Long Task', 80, 'light-blocking-work') },
     { title: '标准 Long Task (180ms)', run: () => emitLongTask('标准 Long Task', 180, 'standard-blocking-work') },
     { title: '观测 Long Task', run: observeLongTask },
+    { title: '触发 CLS 变化', run: triggerClsShift },
     { title: '导航指标采集', run: collectNavigationMetrics },
     { title: '资源概览采集', run: collectResourceSummary },
     { title: '用户计时采集', run: collectUserTiming },
@@ -187,6 +244,29 @@ export default function PerformancePage() {
         {status}
       </p>
       <p>提供 long task、Navigation Timing、Resource Timing 与 User Timing 的多场景触发。</p>
+
+      <div
+        aria-hidden="true"
+        style={{
+          height: showClsBanner ? 72 : 0,
+          overflow: 'hidden',
+          margin: showClsBanner ? '0 0 16px' : '0',
+          transition: 'none',
+        }}
+      >
+        <div
+          style={{
+            padding: '12px 16px',
+            borderRadius: 12,
+            background: 'linear-gradient(90deg, #fff7e6 0%, #ffe58f 100%)',
+            border: '1px solid #ffd666',
+            color: '#7a4a00',
+            fontWeight: 600,
+          }}
+        >
+          这是一条延迟展开的顶部横幅，会推动下面内容整体下移，用于验证 CLS 采集。
+        </div>
+      </div>
 
       <div className="button-grid">
         {metricCases.map(item => (
@@ -205,7 +285,7 @@ export default function PerformancePage() {
         </article>
         <article className="detail-card">
           <h3>采样说明</h3>
-          <p className="muted">当前页面用 trackEvent 回传性能数据；如后续接入专门的 PerformancePlugin，可直接替换实现。</p>
+          <p className="muted">当前页面保留手动采样示例，同时 SDK 已自动接入 PerformancePlugin。CLS case 只负责制造布局位移，真正的 performance_cls 会在页面隐藏或刷新后由插件上报。</p>
         </article>
       </div>
 
