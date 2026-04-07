@@ -4,9 +4,11 @@ import {
   validateCreateErrorLogDto,
   validateCreateMonitorBatchDto,
   validateCreatePerformanceMetricDto,
+  validateCreateReplaySegmentDto,
   validateCreateTrackingEventDto,
   validateErrorQueryDto,
   validatePerformanceQueryDto,
+  validateReplayQueryDto,
   validateStatsQueryDto,
   validateTrackingQueryDto,
   validateUploadSourceMapDto,
@@ -42,6 +44,13 @@ export class MonitorController {
     return this.buildSuccessResponse(data)
   }
 
+  @Get('replay')
+  async queryReplay(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
+    const dto = this.parseDto(validateReplayQueryDto, query, 'Invalid replay query')
+    const data = await this.monitorService.queryReplay(dto)
+    return this.buildSuccessResponse(data)
+  }
+
   @Get('stats/overview')
   async getStatsOverview(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
@@ -67,6 +76,13 @@ export class MonitorController {
   async getErrorStats(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
     const data = await this.monitorService.getErrorStats(dto)
+    return this.buildSuccessResponse(data)
+  }
+
+  @Get('stats/replay')
+  async getReplayStats(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
+    const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
+    const data = await this.monitorService.getReplayStats(dto)
     return this.buildSuccessResponse(data)
   }
 
@@ -151,6 +167,35 @@ export class MonitorController {
     }
   }
 
+  @Post('replay')
+  async createReplay(@Body() body: unknown): Promise<{
+    success: true
+    writtenCount: number
+    summary: {
+      tracking: number
+      performance: number
+      error: number
+      replay: number
+      total: number
+    }
+    data: unknown
+  }> {
+    const dto = this.parseDto(validateCreateReplaySegmentDto, body, 'Invalid replay payload')
+    const result = await this.monitorService.createReplay(dto)
+    return {
+      success: true,
+      writtenCount: 1,
+      summary: {
+        tracking: 0,
+        performance: 0,
+        error: 0,
+        replay: 1,
+        total: 1,
+      },
+      data: result,
+    }
+  }
+
   @Post('batch')
   async createBatch(@Body() body: unknown): Promise<{
     success: true
@@ -159,12 +204,14 @@ export class MonitorController {
       tracking: number
       performance: number
       error: number
+      replay: number
       total: number
     }
     data: {
       tracking: number
       performance: number
       error: number
+      replay: number
     }
   }> {
     const dto = this.parseDto(validateCreateMonitorBatchDto, body, 'Invalid batch payload')
@@ -177,6 +224,7 @@ export class MonitorController {
         tracking: result.tracking.length,
         performance: result.performance.length,
         error: result.error.length,
+        replay: result.replay.length,
       },
     }
   }

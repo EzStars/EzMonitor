@@ -76,7 +76,17 @@ describe('reporter', () => {
     await reporter.start()
     reporter.report('tracking:event', { eventName: 'button_click', properties: { id: 1 } })
     reporter.report('tracking:page', { page: '/tracking/manual-page', properties: { from: 'test' } })
+    reporter.report('tracking:uv', { visitorId: 'visitor-01', properties: { day: '2026-04-07' } })
     reporter.report('tracking:user', { userId: 'user_1001', properties: { role: 'tester' } })
+    reporter.report('replay', {
+      segmentId: 'segment-1',
+      startedAt: Date.now(),
+      endedAt: Date.now(),
+      eventCount: 1,
+      route: '/home',
+      reason: 'error',
+      sample: [{ type: 'click', at: Date.now(), data: { target: 'button#pay' } }],
+    })
     reporter.report('performance_long_task', { duration: 80, page: '/performance' })
     reporter.report('error_js', { type: 'sync', message: 'boom', page: '/error' })
     await reporter.flush()
@@ -94,7 +104,7 @@ describe('reporter', () => {
         properties?: Record<string, unknown>
       }>
     }
-    expect(parsed.items).toHaveLength(5)
+    expect(parsed.items).toHaveLength(7)
     expect(parsed.items[0]).toMatchObject({
       type: 'tracking',
       eventName: 'button_click',
@@ -107,15 +117,26 @@ describe('reporter', () => {
     })
     expect(parsed.items[2]).toMatchObject({
       type: 'tracking',
+      eventName: 'uv_visit',
+      properties: { day: '2026-04-07', visitorId: 'visitor-01' },
+    })
+    expect(parsed.items[3]).toMatchObject({
+      type: 'tracking',
       eventName: 'user_identify',
       userId: 'user_1001',
     })
-    expect(parsed.items[3]).toMatchObject({
+    expect(parsed.items[4]).toMatchObject({
+      type: 'replay',
+      segmentId: 'segment-1',
+      eventCount: 1,
+      route: '/home',
+    })
+    expect(parsed.items[5]).toMatchObject({
       type: 'performance',
       metricType: 'performance_long_task',
       value: 80,
     })
-    expect(parsed.items[4]).toMatchObject({
+    expect(parsed.items[6]).toMatchObject({
       type: 'error',
       errorType: 'sync',
       message: 'boom',
@@ -143,7 +164,7 @@ describe('reporter', () => {
 
     expect(secondTransport.calls).toHaveLength(1)
     const [, body] = secondTransport.calls[0].split('::')
-    const parsed = JSON.parse(body) as { items: Array<{ type: string; properties?: { persisted?: boolean } }> }
+    const parsed = JSON.parse(body) as { items: Array<{ type: string, properties?: { persisted?: boolean } }> }
     expect(parsed.items[0]).toMatchObject({
       type: 'tracking',
       properties: { persisted: true },

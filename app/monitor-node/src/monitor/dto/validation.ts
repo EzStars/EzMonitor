@@ -7,10 +7,12 @@ import type { CreatePerformanceMetricDto } from './performance-metric.dto'
 import type {
   ErrorQueryDto,
   PerformanceQueryDto,
+  ReplayQueryDto,
   SortOrder,
   StatsQueryDto,
   TrackingQueryDto,
 } from './query.dto'
+import type { CreateReplaySegmentDto } from './replay.dto'
 import type { UploadSourceMapDto } from './sourcemap.dto'
 import type { CreateTrackingEventDto } from './tracking-event.dto'
 import {
@@ -239,6 +241,15 @@ const ERROR_SORT_FIELDS = new Set([
   'createdAt',
   'updatedAt',
 ])
+const REPLAY_SORT_FIELDS = new Set([
+  'timestamp',
+  'segmentId',
+  'route',
+  'eventCount',
+  'appId',
+  'createdAt',
+  'updatedAt',
+])
 
 function validateListQuery<
   T extends {
@@ -287,6 +298,16 @@ export function validateErrorQueryDto(body: unknown): ErrorQueryDto {
   return validateListQuery<ErrorQueryDto>(body, ERROR_SORT_FIELDS)
 }
 
+export function validateReplayQueryDto(body: unknown): ReplayQueryDto {
+  const query = validateListQuery<ReplayQueryDto>(body, REPLAY_SORT_FIELDS)
+
+  if (isRecord(body) && body.segmentId !== undefined) {
+    query.segmentId = parseOptionalString(body.segmentId, 'segmentId')
+  }
+
+  return query
+}
+
 export function validateStatsQueryDto(body: unknown): StatsQueryDto {
   return validateBaseQuery<StatsQueryDto>(body)
 }
@@ -315,6 +336,37 @@ export function validateCreateTrackingEventDto(
     properties: validateObjectFields(body.properties, 'properties'),
     context: validateObjectFields(body.context, 'context'),
     userId: body.userId,
+  }
+}
+
+export function validateCreateReplaySegmentDto(body: unknown): CreateReplaySegmentDto {
+  if (!isRecord(body)) {
+    throw new Error('body must be an object')
+  }
+
+  if (!isString(body.appId)) {
+    throw new Error('appId is required')
+  }
+  if (!isString(body.segmentId)) {
+    throw new Error('segmentId is required')
+  }
+  if (!isNumber(body.eventCount)) {
+    throw new Error('eventCount is required')
+  }
+
+  return {
+    appId: body.appId,
+    timestamp: parseTimestamp(body.timestamp, 'timestamp'),
+    segmentId: body.segmentId,
+    startedAt: parseTimestamp(body.startedAt, 'startedAt'),
+    endedAt: parseTimestamp(body.endedAt, 'endedAt'),
+    eventCount: body.eventCount,
+    route: parseOptionalString(body.route, 'route'),
+    reason: parseOptionalString(body.reason, 'reason'),
+    sample: Array.isArray(body.sample) ? (body.sample as Array<Record<string, unknown>>) : undefined,
+    context: validateObjectFields(body.context, 'context'),
+    userId: parseOptionalString(body.userId, 'userId'),
+    sessionId: parseOptionalString(body.sessionId, 'sessionId'),
   }
 }
 
@@ -463,8 +515,9 @@ function validateBatchItem(body: unknown): MonitorBatchItemDto {
     body.type !== MonitorBatchItemType.TRACKING
     && body.type !== MonitorBatchItemType.PERFORMANCE
     && body.type !== MonitorBatchItemType.ERROR
+    && body.type !== MonitorBatchItemType.REPLAY
   ) {
-    throw new Error('type must be tracking, performance, or error')
+    throw new Error('type must be tracking, performance, error, or replay')
   }
   if (!isString(body.appId)) {
     throw new Error('appId is required')
@@ -581,6 +634,34 @@ function validateBatchItem(body: unknown): MonitorBatchItemDto {
       throw new Error('message is required for error items')
     }
     item.message = body.message
+  }
+
+  if (body.type === MonitorBatchItemType.REPLAY) {
+    if (!isString(body.segmentId)) {
+      throw new Error('segmentId is required for replay items')
+    }
+    if (!isNumber(body.eventCount)) {
+      throw new Error('eventCount is required for replay items')
+    }
+    if (!body.startedAt) {
+      throw new Error('startedAt is required for replay items')
+    }
+    if (!body.endedAt) {
+      throw new Error('endedAt is required for replay items')
+    }
+
+    item.segmentId = body.segmentId
+    item.eventCount = body.eventCount
+    item.startedAt = parseTimestamp(body.startedAt, 'startedAt')
+    item.endedAt = parseTimestamp(body.endedAt, 'endedAt')
+    item.route = parseOptionalString(body.route, 'route')
+    item.reason = parseOptionalString(body.reason, 'reason')
+    if (body.sample !== undefined) {
+      if (!Array.isArray(body.sample)) {
+        throw new TypeError('sample must be an array for replay items')
+      }
+      item.sample = body.sample as Array<Record<string, unknown>>
+    }
   }
 
   return item

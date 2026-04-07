@@ -2,6 +2,7 @@ import type { ReporterLike } from '../../reporting/types'
 import type { SDKConfig } from '../../types/config'
 import type { IPlugin, PluginStatus } from '../../types/plugin'
 import type { ErrorFrame, ErrorPluginConfig, ErrorPluginPayload } from './types'
+import { flushReplayOnError, getReplayErrorContext } from '../replay/bridge'
 
 const DEFAULT_CONFIG: Required<Omit<ErrorPluginConfig, 'eventFilter'>> & {
   eventFilter: NonNullable<ErrorPluginConfig['eventFilter']>
@@ -10,6 +11,7 @@ const DEFAULT_CONFIG: Required<Omit<ErrorPluginConfig, 'eventFilter'>> & {
   captureUnhandledRejection: true,
   captureResourceError: true,
   captureConsoleError: false,
+  attachReplayContext: true,
   sampleRate: 1,
   dedupeWindowMs: 5000,
   flushOnError: true,
@@ -344,6 +346,16 @@ export class ErrorPlugin implements IPlugin {
       detail: data.detail,
     }
 
+    if (this.pluginConfig.attachReplayContext) {
+      const replayContext = getReplayErrorContext()
+      if (replayContext) {
+        payload.detail = {
+          ...(payload.detail ?? {}),
+          replay: replayContext,
+        }
+      }
+    }
+
     return payload
   }
 
@@ -372,6 +384,8 @@ export class ErrorPlugin implements IPlugin {
     if (!this.pluginConfig.eventFilter(payload)) {
       return
     }
+
+    flushReplayOnError(type)
 
     try {
       this.isInternalReporting = true

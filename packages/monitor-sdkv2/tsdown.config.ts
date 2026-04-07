@@ -6,6 +6,7 @@ export default defineConfig({
     'src/core/index.ts',
     'src/plugins/error/index.ts',
     'src/plugins/performance/index.ts',
+    'src/plugins/replay/index.ts',
     'src/plugins/tracking/index.ts',
   ],
   dts: true,

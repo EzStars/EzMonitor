@@ -19,4 +19,8 @@ export class PerformanceQueryDto extends ListQueryDto {}
 
 export class ErrorQueryDto extends ListQueryDto {}
 
+export class ReplayQueryDto extends ListQueryDto {
+  segmentId?: string
+}
+
 export class StatsQueryDto extends BaseQueryDto {}

@@ -4,4 +4,5 @@ export type {
   TrackingPageData,
   TrackingPluginConfig,
   TrackingUserData,
+  TrackingUVData,
 } from './types'

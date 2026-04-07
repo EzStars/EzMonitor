@@ -30,6 +30,7 @@ export interface ErrorPluginConfig {
   captureUnhandledRejection?: boolean
   captureResourceError?: boolean
   captureConsoleError?: boolean
+  attachReplayContext?: boolean
   sampleRate?: number
   dedupeWindowMs?: number
   flushOnError?: boolean

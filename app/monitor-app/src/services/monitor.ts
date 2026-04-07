@@ -14,6 +14,7 @@ export interface OverviewStats {
   tracking: number
   performance: number
   error: number
+  replay: number
   total: number
 }
 
@@ -33,6 +34,11 @@ export interface PerformanceStatsItem {
 
 export interface ErrorStatsItem {
   errorType: string
+  count: number
+}
+
+export interface ReplayStatsItem {
+  route: string
   count: number
 }
 
@@ -87,6 +93,42 @@ export interface ErrorRecord {
   symbolicationReason?: string
   createdAt?: string | number | Date
   updatedAt?: string | number | Date
+  detail?: Record<string, unknown>
+}
+
+export interface ReplayRecord {
+  _id?: string
+  appId: string
+  timestamp: string | number | Date
+  segmentId: string
+  startedAt: string | number | Date
+  endedAt: string | number | Date
+  eventCount: number
+  route?: string
+  reason?: string
+  sample?: Array<Record<string, unknown>>
+  context?: Record<string, unknown>
+  userId?: string
+  sessionId?: string
+  createdAt?: string | number | Date
+  updatedAt?: string | number | Date
+}
+
+export interface BatchWriteResponse {
+  writtenCount: number
+  summary: {
+    tracking: number
+    performance: number
+    error: number
+    replay: number
+    total: number
+  }
+  data: {
+    tracking: number
+    performance: number
+    error: number
+    replay: number
+  }
 }
 
 async function unwrap<T>(promise: Promise<AxiosResponse<ApiResponse<T>>>): Promise<T> {
@@ -101,6 +143,8 @@ export const monitorService = {
     unwrap(monitorApi.getPerformance<MonitorListResult<PerformanceRecord>>(params)),
   getErrors: (params?: MonitorQueryParams) =>
     unwrap(monitorApi.getErrors<MonitorListResult<ErrorRecord>>(params)),
+  getReplays: (params?: MonitorQueryParams) =>
+    unwrap(monitorApi.getReplays<MonitorListResult<ReplayRecord>>(params)),
   getOverviewStats: (params?: MonitorStatsQueryParams) =>
     unwrap(monitorApi.getOverviewStats<OverviewStats>(params)),
   getTrackingStats: (params?: MonitorStatsQueryParams) =>
@@ -109,4 +153,8 @@ export const monitorService = {
     unwrap(monitorApi.getPerformanceStats<PerformanceStatsItem[]>(params)),
   getErrorStats: (params?: MonitorStatsQueryParams) =>
     unwrap(monitorApi.getErrorStats<ErrorStatsItem[]>(params)),
+  getReplayStats: (params?: MonitorStatsQueryParams) =>
+    unwrap(monitorApi.getReplayStats<ReplayStatsItem[]>(params)),
+  sendBatch: (items: unknown[]) =>
+    unwrap(monitorApi.postBatch<BatchWriteResponse>(items)),
 }

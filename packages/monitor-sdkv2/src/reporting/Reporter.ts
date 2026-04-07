@@ -365,6 +365,48 @@ export class Reporter implements ReporterLike {
       }
     }
 
+    if (envelope.type === 'replay') {
+      const sample = Array.isArray(payload.sample) ? payload.sample : []
+
+      return {
+        type: 'replay',
+        appId,
+        timestamp,
+        segmentId: getString(payload.segmentId),
+        startedAt: getNumber(payload.startedAt) ?? timestamp,
+        endedAt: getNumber(payload.endedAt) ?? timestamp,
+        eventCount: getNumber(payload.eventCount) ?? sample.length,
+        route: getString(payload.route) ?? getString(getRecord(payload.context)?.route),
+        reason: getString(payload.reason),
+        sample,
+        context: getRecord(payload.context),
+        userId: getString(payload.userId) ?? envelope.userId,
+        sessionId: getString(payload.sessionId) ?? envelope.sessionId,
+      }
+    }
+
+    if (envelope.type === 'tracking:uv') {
+      const visitorId = getString(payload.visitorId)
+      const properties = {
+        ...(getRecord(payload.properties) ?? {}),
+        ...(visitorId ? { visitorId } : {}),
+      }
+      const context = {
+        ...(getRecord(payload.context) ?? {}),
+        ...(visitorId ? { visitorId } : {}),
+      }
+
+      return {
+        type: 'tracking',
+        appId,
+        timestamp,
+        eventName: 'uv_visit',
+        properties,
+        context,
+        userId: getString(payload.userId) ?? envelope.userId,
+      }
+    }
+
     if (envelope.type.startsWith('performance_')) {
       const metrics = getRecord(payload.metrics)
       const extra = getRecord(payload.extra)

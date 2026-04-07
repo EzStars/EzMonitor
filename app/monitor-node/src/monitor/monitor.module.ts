@@ -6,6 +6,8 @@ import {
   ErrorLogSchema,
   PerformanceMetric,
   PerformanceMetricSchema,
+  ReplaySegment,
+  ReplaySegmentSchema,
   TrackingEvent,
   TrackingEventSchema,
 } from './schemas'
@@ -18,6 +20,7 @@ import { MonitorService, SourceMapService } from './services'
       { name: TrackingEvent.name, schema: TrackingEventSchema },
       { name: PerformanceMetric.name, schema: PerformanceMetricSchema },
       { name: ErrorLog.name, schema: ErrorLogSchema },
+      { name: ReplaySegment.name, schema: ReplaySegmentSchema },
     ]),
   ],
   providers: [MonitorService, SourceMapService],

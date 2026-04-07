@@ -32,13 +32,16 @@ pnpm --filter monitor-node run start:dev
 - `GET /api/monitor/tracking`
 - `GET /api/monitor/performance`
 - `GET /api/monitor/error`
+- `GET /api/monitor/replay`
 - `GET /api/monitor/stats/overview`
 - `GET /api/monitor/stats/tracking`
 - `GET /api/monitor/stats/performance`
 - `GET /api/monitor/stats/error`
+- `GET /api/monitor/stats/replay`
 - `POST /api/monitor/tracking`
 - `POST /api/monitor/performance`
 - `POST /api/monitor/error`
+- `POST /api/monitor/replay`
 - `POST /api/monitor/batch`
 
 ## 验证

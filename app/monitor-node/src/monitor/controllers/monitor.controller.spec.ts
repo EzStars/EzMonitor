@@ -9,7 +9,9 @@ describe('monitorController', () => {
   let controller: MonitorController
   const monitorService = {
     queryTracking: jest.fn(),
+    queryReplay: jest.fn(),
     createTracking: jest.fn(),
+    createReplay: jest.fn(),
     createBatch: jest.fn(),
   }
   const sourceMapService = {
@@ -88,10 +90,12 @@ describe('monitorController', () => {
       tracking: [{ id: 'tracking-1' }],
       performance: [{ id: 'performance-1' }],
       error: [],
+      replay: [],
       summary: {
         tracking: 1,
         performance: 1,
         error: 0,
+        replay: 0,
         total: 2,
       },
     })
@@ -108,13 +112,32 @@ describe('monitorController', () => {
         tracking: 1,
         performance: 1,
         error: 0,
+        replay: 0,
         total: 2,
       },
       data: {
         tracking: 1,
         performance: 1,
         error: 0,
+        replay: 0,
       },
+    })
+  })
+
+  it('should return replay query data', async () => {
+    monitorService.queryReplay.mockResolvedValue({ items: [], page: 1 })
+
+    await expect(
+      controller.queryReplay({
+        appId: 'app-1',
+        page: '1',
+        pageSize: '10',
+        sortBy: 'timestamp',
+        sortOrder: 'desc',
+      }),
+    ).resolves.toEqual({
+      success: true,
+      data: { items: [], page: 1 },
     })
   })
 

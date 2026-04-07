@@ -16,7 +16,7 @@ function createExecQuery<T>(result: T) {
 describe('monitorService', () => {
   it('should create tracking records with normalized timestamp', async () => {
     const trackingModel = { create: jest.fn().mockResolvedValue({ id: 'tracking-1' }) }
-    const service = new MonitorService(trackingModel as never, {} as never, {} as never)
+    const service = new MonitorService(trackingModel as never, {} as never, {} as never, {} as never)
     const timestamp = '2024-01-01T00:00:00.000Z'
 
     await expect(
@@ -34,6 +34,32 @@ describe('monitorService', () => {
     })
   })
 
+  it('should create replay segments with normalized timestamps', async () => {
+    const replayModel = { create: jest.fn().mockResolvedValue({ id: 'replay-1' }) }
+    const service = new MonitorService({} as never, {} as never, {} as never, replayModel as never)
+    const timestamp = '2024-01-01T00:00:00.000Z'
+
+    await expect(
+      service.createReplay({
+        appId: 'app-1',
+        segmentId: 'segment-1',
+        timestamp: new Date(timestamp),
+        startedAt: new Date(timestamp),
+        endedAt: new Date('2024-01-01T00:00:05.000Z'),
+        eventCount: 3,
+      }),
+    ).resolves.toEqual({ id: 'replay-1' })
+
+    expect(replayModel.create).toHaveBeenCalledWith({
+      appId: 'app-1',
+      segmentId: 'segment-1',
+      timestamp: new Date(timestamp),
+      startedAt: new Date(timestamp),
+      endedAt: new Date('2024-01-01T00:00:05.000Z'),
+      eventCount: 3,
+    })
+  })
+
   it('should create batches and summarize counts', async () => {
     const trackingModel = { create: jest.fn().mockResolvedValue({ id: 'tracking-1' }) }
     const performanceModel = { create: jest.fn().mockResolvedValue({ id: 'performance-1' }) }
@@ -42,6 +68,7 @@ describe('monitorService', () => {
       trackingModel as never,
       performanceModel as never,
       errorModel as never,
+      {} as never,
     )
 
     await expect(
@@ -71,6 +98,7 @@ describe('monitorService', () => {
         tracking: 1,
         performance: 1,
         error: 1,
+        replay: 0,
         total: 3,
       },
     })
@@ -82,10 +110,35 @@ describe('monitorService', () => {
       countDocuments: jest.fn().mockReturnValue(createExecQuery(1)),
       find: jest.fn().mockReturnValue(createExecQuery(items)),
     }
-    const service = new MonitorService(trackingModel as never, {} as never, {} as never)
+    const service = new MonitorService(trackingModel as never, {} as never, {} as never, {} as never)
 
     await expect(
       service.queryTracking({
+        appId: 'app-1',
+        page: 1,
+        pageSize: 20,
+        sortBy: 'timestamp',
+        sortOrder: 'desc',
+      }),
+    ).resolves.toMatchObject({
+      items,
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    })
+  })
+
+  it('should query replay records with paging and sorting', async () => {
+    const items = [{ appId: 'app-1' }]
+    const replayModel = {
+      countDocuments: jest.fn().mockReturnValue(createExecQuery(1)),
+      find: jest.fn().mockReturnValue(createExecQuery(items)),
+    }
+    const service = new MonitorService({} as never, {} as never, {} as never, replayModel as never)
+
+    await expect(
+      service.queryReplay({
         appId: 'app-1',
         page: 1,
         pageSize: 20,
@@ -123,16 +176,22 @@ describe('monitorService', () => {
       countDocuments: jest.fn().mockResolvedValue(0),
       aggregate: jest.fn().mockResolvedValue([{ _id: 'fatal', count: 1 }]),
     }
+    const replayModel = {
+      countDocuments: jest.fn().mockResolvedValue(0),
+      aggregate: jest.fn().mockResolvedValue([{ _id: '/checkout', count: 1 }]),
+    }
     const service = new MonitorService(
       trackingModel as never,
       performanceModel as never,
       errorModel as never,
+      replayModel as never,
     )
 
     await expect(service.getStatsOverview({ appId: 'app-1' })).resolves.toEqual({
       tracking: 2,
       performance: 1,
       error: 0,
+      replay: 0,
       total: 3,
     })
     await expect(service.getTrackingStats({ appId: 'app-1' })).resolves.toEqual([
@@ -150,6 +209,9 @@ describe('monitorService', () => {
     ])
     await expect(service.getErrorStats({ appId: 'app-1' })).resolves.toEqual([
       { errorType: 'fatal', count: 1 },
+    ])
+    await expect(service.getReplayStats({ appId: 'app-1' })).resolves.toEqual([
+      { route: '/checkout', count: 1 },
     ])
   })
 
@@ -177,6 +239,7 @@ describe('monitorService', () => {
       trackingModel as never,
       performanceModel as never,
       errorModel as never,
+      {} as never,
     )
 
     await expect(service.getPerformanceStats({ appId: 'app-1' })).resolves.toEqual([
@@ -193,7 +256,7 @@ describe('monitorService', () => {
 
   it('should reject unsupported batch types', async () => {
     const trackingModel = { create: jest.fn() }
-    const service = new MonitorService(trackingModel as never, {} as never, {} as never)
+    const service = new MonitorService(trackingModel as never, {} as never, {} as never, {} as never)
 
     await expect(
       service.createBatch([

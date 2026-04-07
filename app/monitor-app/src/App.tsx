@@ -1,7 +1,16 @@
 import type { MenuProps, TableColumnsType } from 'antd'
 
 import type { ReactNode } from 'react'
-import type { ErrorRecord, ErrorStatsItem, PerformanceRecord, PerformanceStatsItem, TrackingRecord, TrackingStatsItem } from './services/monitor'
+import type {
+  ErrorRecord,
+  ErrorStatsItem,
+  PerformanceRecord,
+  PerformanceStatsItem,
+  ReplayRecord,
+  ReplayStatsItem,
+  TrackingRecord,
+  TrackingStatsItem,
+} from './services/monitor'
 import {
   Alert,
   Button,
@@ -18,6 +27,7 @@ import {
   Space,
   Spin,
   Statistic,
+  Switch,
   Table,
   Tabs,
   Tag,
@@ -25,7 +35,7 @@ import {
 } from 'antd'
 import ReactECharts from 'echarts-for-react'
 import { Component, useEffect, useMemo, useState } from 'react'
-import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMonitorQuery } from './hooks/useMonitorQuery'
 import {
 
@@ -48,7 +58,7 @@ import './App.css'
 const { Header, Sider, Content } = Layout
 const { Title, Text, Paragraph } = Typography
 
-type RouteKey = '/dashboard' | '/tracking' | '/performance' | '/error' | '/stats'
+type RouteKey = '/dashboard' | '/tracking' | '/performance' | '/error' | '/replay' | '/demo' | '/stats'
 
 const routeMeta: Record<RouteKey, { title: string, description: string }> = {
   '/dashboard': {
@@ -66,6 +76,14 @@ const routeMeta: Record<RouteKey, { title: string, description: string }> = {
   '/error': {
     title: '错误日志展示',
     description: '查看错误列表、过滤条件、stack 和上下文信息。',
+  },
+  '/replay': {
+    title: '录屏回放',
+    description: '查看回放分段、样本事件和错误联动信息。',
+  },
+  '/demo': {
+    title: '采集演示',
+    description: '可开关触发 PV/UV/回放/错误联动上报，验证端到端链路。',
   },
   '/stats': {
     title: '统计分析页面',
@@ -478,6 +496,7 @@ function DashboardPage() {
   const tracking = useMonitorQuery(() => monitorService.getTracking(listParams), listKey)
   const performance = useMonitorQuery(() => monitorService.getPerformance(listParams), listKey)
   const errors = useMonitorQuery(() => monitorService.getErrors(listParams), listKey)
+  const replay = useMonitorQuery(() => monitorService.getReplays(listParams), listKey)
 
   const latestPreview = useMemo(
     () =>
@@ -485,27 +504,30 @@ function DashboardPage() {
         tracking.data?.items ?? [],
         performance.data?.items ?? [],
         errors.data?.items ?? [],
+        replay.data?.items ?? [],
       ).slice(0, 8),
-    [errors.data?.items, performance.data?.items, tracking.data?.items],
+    [errors.data?.items, performance.data?.items, replay.data?.items, tracking.data?.items],
   )
   const trend = useMemo(() => {
     const trackingTrend = buildCategoryTrend(tracking.data?.items ?? [], () => 1)
     const performanceTrend = buildCategoryTrend(performance.data?.items ?? [], () => 1)
     const errorTrend = buildCategoryTrend(errors.data?.items ?? [], () => 1)
+    const replayTrend = buildCategoryTrend(replay.data?.items ?? [], () => 1)
 
     return {
       labels: trackingTrend.labels,
       tracking: trackingTrend.values,
       performance: performanceTrend.values,
       error: errorTrend.values,
-      total: trackingTrend.values.map((value, index) => value + performanceTrend.values[index] + errorTrend.values[index]),
+      replay: replayTrend.values,
+      total: trackingTrend.values.map((value, index) => value + performanceTrend.values[index] + errorTrend.values[index] + replayTrend.values[index]),
     }
-  }, [errors.data?.items, performance.data?.items, tracking.data?.items])
+  }, [errors.data?.items, performance.data?.items, replay.data?.items, tracking.data?.items])
 
   const trendOption = useMemo(
     () => ({
       tooltip: { trigger: 'axis' },
-      legend: { data: ['埋点', '性能', '错误', '总计'] },
+      legend: { data: ['埋点', '性能', '错误', '回放', '总计'] },
       grid: { left: 10, right: 12, top: 28, bottom: 8, containLabel: true },
       xAxis: { type: 'category', data: trend.labels },
       yAxis: { type: 'value' },
@@ -513,6 +535,7 @@ function DashboardPage() {
         { name: '埋点', type: 'line', smooth: true, data: trend.tracking },
         { name: '性能', type: 'line', smooth: true, data: trend.performance },
         { name: '错误', type: 'line', smooth: true, data: trend.error },
+        { name: '回放', type: 'line', smooth: true, data: trend.replay },
         { name: '总计', type: 'line', smooth: true, data: trend.total },
       ],
     }),
@@ -536,21 +559,26 @@ function DashboardPage() {
       tooltip: '当前筛选范围内的错误日志数量',
     },
     {
+      title: '录屏回放',
+      value: overview.data?.replay ?? 0,
+      tooltip: '当前筛选范围内的回放分段数量',
+    },
+    {
       title: '合计',
       value: overview.data?.total ?? 0,
-      tooltip: '三类数据总数',
+      tooltip: '四类数据总数',
     },
   ]
 
   return (
     <Space direction="vertical" size={16} className="page-stack">
-      {overview.error || tracking.error || performance.error || errors.error
+      {overview.error || tracking.error || performance.error || errors.error || replay.error
         ? (
             <Alert
               type="warning"
               showIcon
               message="部分请求失败"
-              description={overview.error ?? tracking.error ?? performance.error ?? errors.error}
+              description={overview.error ?? tracking.error ?? performance.error ?? errors.error ?? replay.error}
             />
           )
         : null}
@@ -562,21 +590,22 @@ function DashboardPage() {
         onRangeChange={filters.setRange}
         onReset={filters.reset}
         onRefresh={() => {
-          void Promise.allSettled([overview.refresh(), tracking.refresh(), performance.refresh(), errors.refresh()])
+          void Promise.allSettled([overview.refresh(), tracking.refresh(), performance.refresh(), errors.refresh(), replay.refresh()])
         }}
-        loading={overview.loading || tracking.loading || performance.loading || errors.loading}
+        loading={overview.loading || tracking.loading || performance.loading || errors.loading || replay.loading}
       />
 
       <MetricGrid items={metricItems} />
 
       <SectionCard title="近 7 天趋势图" description="展示埋点、性能、错误和总量变化。">
         <SectionStatus
-          loading={tracking.loading || performance.loading || errors.loading}
-          error={tracking.error ?? performance.error ?? errors.error}
+          loading={tracking.loading || performance.loading || errors.loading || replay.loading}
+          error={tracking.error ?? performance.error ?? errors.error ?? replay.error}
           hasData={
             (tracking.data?.items.length ?? 0) > 0
             || (performance.data?.items.length ?? 0) > 0
             || (errors.data?.items.length ?? 0) > 0
+            || (replay.data?.items.length ?? 0) > 0
           }
           emptyDescription="当前筛选条件下暂无趋势数据"
         >
@@ -584,7 +613,7 @@ function DashboardPage() {
         </SectionStatus>
       </SectionCard>
 
-      <SectionCard title="最新数据预览" description="按时间倒序展示最新的三类数据。">
+      <SectionCard title="最新数据预览" description="按时间倒序展示最新的四类数据。">
         {latestPreview.length === 0
           ? (
               <Empty />
@@ -594,24 +623,28 @@ function DashboardPage() {
                 dataSource={latestPreview}
                 renderItem={(item) => {
                   const typeLabel
-                    = item.type === 'tracking' ? '埋点' : item.type === 'performance' ? '性能' : '错误'
+                    = item.type === 'tracking' ? '埋点' : item.type === 'performance' ? '性能' : item.type === 'replay' ? '回放' : '错误'
                   const title
                     = item.type === 'tracking'
                       ? item.eventName
                       : item.type === 'performance'
                         ? `${item.metricType}：${formatNumber(item.value)}`
-                        : item.message
+                        : item.type === 'replay'
+                          ? `${item.segmentId} · ${item.eventCount} events`
+                          : item.message
                   const extra
                     = item.type === 'tracking'
                       ? item.userId ?? item.appId
                       : item.type === 'performance'
                         ? item.url ?? item.appId
-                        : item.errorType ?? item.appId
+                        : item.type === 'replay'
+                          ? item.route ?? item.appId
+                          : item.errorType ?? item.appId
 
                   return (
                     <List.Item>
                       <List.Item.Meta
-                        avatar={<Tag color={item.type === 'error' ? 'red' : item.type === 'performance' ? 'blue' : 'green'}>{typeLabel}</Tag>}
+                        avatar={<Tag color={item.type === 'error' ? 'red' : item.type === 'performance' ? 'blue' : item.type === 'replay' ? 'gold' : 'green'}>{typeLabel}</Tag>}
                         title={title}
                         description={`${formatDateTime(item.timestamp)} · ${extra}`}
                       />
@@ -1113,6 +1146,7 @@ function PerformancePage() {
 
 function ErrorPage() {
   const filters = useCommonFilters()
+  const navigate = useNavigate()
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -1254,6 +1288,22 @@ function ErrorPage() {
     return selectedMappedFrames[0]
   }, [selectedMappedFrames])
 
+  const selectedReplaySegmentId = useMemo(() => {
+    const replay = selected?.detail && typeof selected.detail === 'object'
+      ? (selected.detail as { replay?: { segmentId?: unknown } }).replay
+      : undefined
+
+    return typeof replay?.segmentId === 'string' ? replay.segmentId : undefined
+  }, [selected])
+
+  const selectedReplayContext = useMemo(() => {
+    const replay = selected?.detail && typeof selected.detail === 'object'
+      ? (selected.detail as { replay?: Record<string, unknown> }).replay
+      : undefined
+
+    return replay ?? null
+  }, [selected])
+
   return (
     <Space direction="vertical" size={16} className="page-stack">
       {listQuery.error || statsQuery.error
@@ -1332,6 +1382,16 @@ function ErrorPage() {
           { label: '定位原因', value: selected?.symbolicationReason ?? '-' },
           { label: 'URL', value: selected?.url ?? '-' },
           { label: 'User-Agent', value: selected?.userAgent ?? '-' },
+          {
+            label: '回放 segment',
+            value: selectedReplaySegmentId
+              ? (
+                  <Button type="link" onClick={() => navigate(`/replay?segmentId=${encodeURIComponent(selectedReplaySegmentId)}`)}>
+                    {selectedReplaySegmentId}
+                  </Button>
+                )
+              : '-',
+          },
         ]}
         sections={[
           {
@@ -1341,6 +1401,12 @@ function ErrorPage() {
           {
             title: 'context',
             content: <pre className="detail-pre">{safeStringify(selectedContext)}</pre>,
+          },
+          {
+            title: 'replay',
+            content: selectedReplayContext
+              ? <pre className="detail-pre">{safeStringify(selectedReplayContext)}</pre>
+              : <pre className="detail-pre">-</pre>,
           },
           {
             title: 'recommended frame (business-first)',
@@ -1378,6 +1444,400 @@ function ErrorPage() {
   )
 }
 
+function ReplayPage() {
+  const filters = useCommonFilters()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [keyword, setKeyword] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [selected, setSelected] = useState<ReplayRecord | null>(null)
+  const segmentId = searchParams.get('segmentId') ?? ''
+  const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
+  const listParams = useMemo(
+    () => ({ ...timeParams, page, pageSize, sortBy: 'timestamp', sortOrder: 'desc' as const, segmentId: segmentId.trim() || undefined }),
+    [page, pageSize, segmentId, timeParams],
+  )
+  const statsKey = useMemo(() => queryKey(timeParams), [timeParams])
+  const listKey = useMemo(() => queryKey(listParams), [listParams])
+
+  useEffect(() => {
+    setPage(1)
+  }, [timeParams, segmentId])
+
+  const listQuery = useMonitorQuery(() => monitorService.getReplays(listParams), listKey)
+  const statsQuery = useMonitorQuery(() => monitorService.getReplayStats(timeParams), statsKey)
+  const items = listQuery.data?.items ?? []
+  const visibleItems = useMemo(() => {
+    const normalized = keyword.trim().toLowerCase()
+    if (!normalized) {
+      return items
+    }
+
+    return items.filter((item) => {
+      const searchTarget = [item.segmentId, item.route, item.reason, item.userId, safeStringify(item.sample)]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return searchTarget.includes(normalized)
+    })
+  }, [items, keyword])
+
+  const chartOption = useMemo(() => {
+    const stats = [...(statsQuery.data ?? [])].sort((a, b) => b.count - a.count).slice(0, 10)
+    return {
+      tooltip: { trigger: 'axis' },
+      grid: { left: 12, right: 12, top: 28, bottom: 12, containLabel: true },
+      xAxis: { type: 'value' },
+      yAxis: { type: 'category', data: stats.map(item => item.route).reverse() },
+      series: [
+        {
+          type: 'bar',
+          data: stats.map(item => item.count).reverse(),
+          itemStyle: { color: '#f59e0b' },
+        },
+      ],
+    }
+  }, [statsQuery.data])
+
+  const columns: TableColumnsType<ReplayRecord> = [
+    {
+      title: '时间',
+      dataIndex: 'timestamp',
+      render: (value: ReplayRecord['timestamp']) => formatDateTime(value),
+      width: 180,
+    },
+    {
+      title: 'segmentId',
+      dataIndex: 'segmentId',
+      render: (value: string) => <Tag color="gold">{value}</Tag>,
+      width: 220,
+    },
+    {
+      title: '路由',
+      dataIndex: 'route',
+      render: (value: string | undefined) => value ?? '-',
+      width: 200,
+    },
+    {
+      title: '事件数',
+      dataIndex: 'eventCount',
+      width: 100,
+    },
+    {
+      title: '原因',
+      dataIndex: 'reason',
+      render: (value: string | undefined) => value ?? '-',
+      width: 160,
+    },
+    {
+      title: '操作',
+      render: (_, record) => (
+        <Button type="link" onClick={() => setSelected(record)}>
+          详情
+        </Button>
+      ),
+      width: 100,
+    },
+  ]
+
+  const selectedSample = selected?.sample ?? []
+  const selectedContext = selected?.context ?? {}
+
+  return (
+    <Space direction="vertical" size={16} className="page-stack">
+      {listQuery.error || statsQuery.error
+        ? (
+            <Alert type="warning" showIcon message="部分请求失败" description={listQuery.error ?? statsQuery.error} />
+          )
+        : null}
+
+      <FilterBar
+        appId={filters.appId}
+        onAppIdChange={filters.setAppId}
+        range={filters.range}
+        onRangeChange={filters.setRange}
+        onReset={() => {
+          filters.reset()
+          setKeyword('')
+          setPage(1)
+          setPageSize(10)
+          setSearchParams({})
+        }}
+        onRefresh={() => {
+          void Promise.allSettled([listQuery.refresh(), statsQuery.refresh()])
+        }}
+        loading={listQuery.loading || statsQuery.loading}
+        extra={(
+          <Input
+            allowClear
+            placeholder="按 segmentId / route / reason 过滤"
+            value={keyword}
+            onChange={e => setKeyword(e.target.value)}
+            className="filter-input"
+          />
+        )}
+      />
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={10}>
+          <SectionCard title="回放路由分布" description="按路由统计回放分段数量。">
+            <SectionStatus
+              loading={statsQuery.loading}
+              error={statsQuery.error}
+              hasData={(statsQuery.data?.length ?? 0) > 0}
+              emptyDescription="当前筛选条件下暂无回放统计"
+            >
+              <ReactECharts option={chartOption} style={{ height: 360 }} />
+            </SectionStatus>
+          </SectionCard>
+        </Col>
+        <Col xs={24} lg={14}>
+          <SectionCard title="回放分段列表" description="支持时间/appId/segmentId 过滤和 sample 详情查看。">
+            <Table<ReplayRecord>
+              rowKey={record => record._id ?? record.segmentId}
+              loading={listQuery.loading}
+              dataSource={visibleItems}
+              columns={columns}
+              locale={getTableLocale(
+                listQuery.error ?? (keyword.trim() ? '当前页没有匹配结果' : '暂无回放数据'),
+              )}
+              pagination={{
+                current: page,
+                pageSize,
+                total: listQuery.data?.total ?? 0,
+                showSizeChanger: true,
+              }}
+              onChange={(pagination) => {
+                setPage(pagination.current ?? 1)
+                setPageSize(pagination.pageSize ?? 10)
+              }}
+              scroll={{ x: 980 }}
+            />
+          </SectionCard>
+        </Col>
+      </Row>
+
+      <DetailDrawer
+        open={selected !== null}
+        title={selected?.segmentId ?? '回放详情'}
+        subtitle={selected ? formatDateTime(selected.timestamp) : undefined}
+        onClose={() => setSelected(null)}
+        items={[
+          { label: 'appId', value: selected?.appId ?? '-' },
+          { label: 'segmentId', value: selected?.segmentId ?? '-' },
+          { label: '路由', value: selected?.route ?? '-' },
+          { label: '事件数', value: selected?.eventCount ?? 0 },
+          { label: '原因', value: selected?.reason ?? '-' },
+          {
+            label: '错误联动',
+            value: typeof selectedContext?.replay === 'object' ? '已挂载' : '-',
+          },
+        ]}
+        sections={[
+          {
+            title: 'context',
+            content: <pre className="detail-pre">{safeStringify(selectedContext)}</pre>,
+          },
+          {
+            title: 'sample events',
+            content: selectedSample.length > 0
+              ? <pre className="detail-pre">{safeStringify(selectedSample)}</pre>
+              : <pre className="detail-pre">-</pre>,
+          },
+        ]}
+      />
+    </Space>
+  )
+}
+
+function DemoPage() {
+  const [enablePv, setEnablePv] = useState(true)
+  const [enableUv, setEnableUv] = useState(true)
+  const [enableReplay, setEnableReplay] = useState(true)
+  const [maskSensitive, setMaskSensitive] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState('')
+
+  const appId = 'monitor-app-demo'
+
+  const submitDemoBatch = async (includeError = false) => {
+    setLoading(true)
+    setResult('')
+    try {
+      const now = Date.now()
+      const route = `${window.location.pathname}${window.location.search}${window.location.hash}`
+      const visitorId = `demo-${Math.random().toString(16).slice(2, 10)}`
+      const segmentId = `demo-segment-${now}`
+
+      const items: Array<Record<string, unknown>> = []
+
+      if (enablePv) {
+        items.push({
+          type: 'tracking',
+          appId,
+          timestamp: now,
+          eventName: 'page_view',
+          properties: {
+            page: route,
+            source: 'demo_page',
+          },
+          context: {
+            page: route,
+          },
+        })
+      }
+
+      if (enableUv) {
+        items.push({
+          type: 'tracking',
+          appId,
+          timestamp: now,
+          eventName: 'uv_visit',
+          properties: {
+            visitorId,
+            day: new Date(now).toISOString().slice(0, 10),
+          },
+          context: {
+            page: route,
+            visitorId,
+          },
+        })
+      }
+
+      if (enableReplay) {
+        items.push({
+          type: 'replay',
+          appId,
+          timestamp: now,
+          segmentId,
+          startedAt: now - 5000,
+          endedAt: now,
+          eventCount: 3,
+          route,
+          reason: includeError ? 'error_js' : 'manual_demo',
+          sample: [
+            { type: 'click', at: now - 3000, data: { target: 'button#demo-send', x: 123, y: 45 } },
+            {
+              type: 'input',
+              at: now - 2000,
+              data: {
+                target: 'input#demo-sensitive',
+                value: maskSensitive ? '[MASKED]' : 'token-demo-123',
+                valueLength: 14,
+              },
+            },
+            { type: 'route', at: now - 1000, data: { route } },
+          ],
+          context: {
+            page: route,
+            privacy: {
+              maskSensitive,
+            },
+          },
+        })
+      }
+
+      items.push({
+        type: 'performance',
+        appId,
+        timestamp: now,
+        metricType: 'performance_ttfb',
+        value: 180,
+        url: window.location.href,
+        context: {
+          from: 'demo_page',
+        },
+      })
+
+      if (includeError) {
+        items.push({
+          type: 'error',
+          appId,
+          timestamp: now,
+          errorType: 'error_js',
+          message: 'Demo error from monitor-app',
+          stack: 'Error: Demo error from monitor-app\n    at DemoPage (App.tsx:1:1)',
+          url: window.location.href,
+          detail: {
+            source: 'demo_page',
+            replay: enableReplay
+              ? {
+                  segmentId,
+                  route,
+                  eventCount: 3,
+                }
+              : undefined,
+          },
+        })
+      }
+
+      const response = await monitorService.sendBatch(items)
+      setResult(`写入成功：total=${response.summary.total}，tracking=${response.summary.tracking}，performance=${response.summary.performance}，error=${response.summary.error}，replay=${response.summary.replay}`)
+    }
+    catch (error) {
+      setResult(`写入失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+    finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Space direction="vertical" size={16} className="page-stack">
+      <SectionCard title="SDK 采集演示开关" description="用于快速验证 PV/UV、录屏回放与错误联动链路。">
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Space>
+            <Text>启用 PV</Text>
+            <Switch checked={enablePv} onChange={setEnablePv} />
+          </Space>
+          <Space>
+            <Text>启用 UV</Text>
+            <Switch checked={enableUv} onChange={setEnableUv} />
+          </Space>
+          <Space>
+            <Text>启用 Replay 分段</Text>
+            <Switch checked={enableReplay} onChange={setEnableReplay} />
+          </Space>
+          <Space>
+            <Text>敏感字段脱敏</Text>
+            <Switch checked={maskSensitive} onChange={setMaskSensitive} />
+          </Space>
+          <Space>
+            <Button loading={loading} type="primary" id="demo-send" onClick={() => void submitDemoBatch(false)}>
+              发送基础样例
+            </Button>
+            <Button loading={loading} danger onClick={() => void submitDemoBatch(true)}>
+              发送错误 + 回放联动
+            </Button>
+          </Space>
+        </Space>
+      </SectionCard>
+
+      <SectionCard title="说明" description="错误样例会把 replay.segmentId 写入 error.detail.replay，随后可在错误页直接跳转到回放页定位。">
+        <pre className="detail-pre">
+          {safeStringify({
+            appId,
+            enablePv,
+            enableUv,
+            enableReplay,
+            maskSensitive,
+          })}
+        </pre>
+      </SectionCard>
+
+      {result
+        ? (
+            <Alert
+              type={result.startsWith('写入成功') ? 'success' : 'error'}
+              message={result.startsWith('写入成功') ? '上报结果' : '上报失败'}
+              description={result}
+            />
+          )
+        : null}
+    </Space>
+  )
+}
+
 function StatsPage() {
   const filters = useCommonFilters()
   const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
@@ -1387,6 +1847,7 @@ function StatsPage() {
   const trackingStats = useMonitorQuery(() => monitorService.getTrackingStats(timeParams), statsKey)
   const performanceStats = useMonitorQuery(() => monitorService.getPerformanceStats(timeParams), statsKey)
   const errorStats = useMonitorQuery(() => monitorService.getErrorStats(timeParams), statsKey)
+  const replayStats = useMonitorQuery(() => monitorService.getReplayStats(timeParams), statsKey)
 
   const trackingOption = useMemo(() => {
     const stats = [...(trackingStats.data ?? [])].sort((a, b) => b.count - a.count).slice(0, 8)
@@ -1432,13 +1893,13 @@ function StatsPage() {
 
   return (
     <Space direction="vertical" size={16} className="page-stack">
-      {overview.error || trackingStats.error || performanceStats.error || errorStats.error
+      {overview.error || trackingStats.error || performanceStats.error || errorStats.error || replayStats.error
         ? (
             <Alert
               type="warning"
               showIcon
               message="部分请求失败"
-              description={overview.error ?? trackingStats.error ?? performanceStats.error ?? errorStats.error}
+              description={overview.error ?? trackingStats.error ?? performanceStats.error ?? errorStats.error ?? replayStats.error}
             />
           )
         : null}
@@ -1450,9 +1911,9 @@ function StatsPage() {
         onRangeChange={filters.setRange}
         onReset={filters.reset}
         onRefresh={() => {
-          void Promise.allSettled([overview.refresh(), trackingStats.refresh(), performanceStats.refresh(), errorStats.refresh()])
+          void Promise.allSettled([overview.refresh(), trackingStats.refresh(), performanceStats.refresh(), errorStats.refresh(), replayStats.refresh()])
         }}
-        loading={overview.loading || trackingStats.loading || performanceStats.loading || errorStats.loading}
+        loading={overview.loading || trackingStats.loading || performanceStats.loading || errorStats.loading || replayStats.loading}
       />
 
       <MetricGrid
@@ -1461,6 +1922,7 @@ function StatsPage() {
           { title: '埋点', value: overview.data?.tracking ?? 0 },
           { title: '性能', value: overview.data?.performance ?? 0 },
           { title: '错误', value: overview.data?.error ?? 0 },
+          { title: '回放', value: overview.data?.replay ?? 0 },
         ]}
       />
 
@@ -1557,6 +2019,22 @@ function StatsPage() {
                 />
               ),
             },
+            {
+              key: 'replay',
+              label: '回放',
+              children: (
+                <Table<ReplayStatsItem>
+                  rowKey={record => record.route}
+                  pagination={false}
+                  dataSource={replayStats.data ?? []}
+                  locale={getTableLocale('暂无回放统计')}
+                  columns={[
+                    { title: '路由', dataIndex: 'route' },
+                    { title: '数量', dataIndex: 'count' },
+                  ]}
+                />
+              ),
+            },
           ]}
         />
       </SectionCard>
@@ -1573,6 +2051,8 @@ function App() {
         <Route path="tracking" element={<TrackingPage />} />
         <Route path="performance" element={<PerformancePage />} />
         <Route path="error" element={<ErrorPage />} />
+        <Route path="replay" element={<ReplayPage />} />
+        <Route path="demo" element={<DemoPage />} />
         <Route path="stats" element={<StatsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

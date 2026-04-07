@@ -1,6 +1,7 @@
 export interface SDKPluginSettings {
   tracking?: Record<string, unknown>
   error?: Record<string, unknown>
+  replay?: Record<string, unknown>
   [pluginName: string]: Record<string, unknown> | undefined
 }
 

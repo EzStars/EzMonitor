@@ -2,12 +2,13 @@ export enum MonitorBatchItemType {
   TRACKING = 'tracking',
   PERFORMANCE = 'performance',
   ERROR = 'error',
+  REPLAY = 'replay',
 }
 
 export class MonitorBatchItemDto {
-  type: MonitorBatchItemType
-  appId: string
-  timestamp: Date
+  type!: MonitorBatchItemType
+  appId!: string
+  timestamp!: Date
   eventName?: string
   metricType?: string
   value?: number
@@ -39,8 +40,15 @@ export class MonitorBatchItemDto {
   }>
 
   detail?: Record<string, unknown>
+  segmentId?: string
+  startedAt?: Date
+  endedAt?: Date
+  eventCount?: number
+  route?: string
+  reason?: string
+  sample?: Array<Record<string, unknown>>
 }
 
 export class CreateMonitorBatchDto {
-  items: MonitorBatchItemDto[]
+  items!: MonitorBatchItemDto[]
 }

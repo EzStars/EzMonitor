@@ -1,10 +1,10 @@
-import type { ErrorRecord, PerformanceRecord, TrackingRecord } from '../services/monitor'
+import type { ErrorRecord, PerformanceRecord, ReplayRecord, TrackingRecord } from '../services/monitor'
 
 export type DateLike = string | number | Date | undefined
 
 export function toDate(value: DateLike): Date {
   if (value === undefined) {
-    return new Date(NaN)
+    return new Date(Number.NaN)
   }
 
   if (value instanceof Date) {
@@ -56,7 +56,8 @@ export function formatNumber(value: number, maximumFractionDigits = 2): string {
 export function safeStringify(value: unknown) {
   try {
     return JSON.stringify(value, null, 2)
-  } catch {
+  }
+  catch {
     return String(value)
   }
 }
@@ -74,7 +75,7 @@ export function getDayKey(value: DateLike): string {
 }
 
 export function getRecentDays(days = 7) {
-  const result: { key: string; label: string }[] = []
+  const result: { key: string, label: string }[] = []
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
@@ -148,13 +149,16 @@ export function collectLatestRecords(
   tracking: TrackingRecord[],
   performance: PerformanceRecord[],
   error: ErrorRecord[],
+  replay: ReplayRecord[],
 ) {
-  return [...tracking.map((item) => ({ ...item, type: 'tracking' as const })), ...performance.map((item) => ({
+  return [...tracking.map(item => ({ ...item, type: 'tracking' as const })), ...performance.map(item => ({
     ...item,
     type: 'performance' as const,
-  })), ...error.map((item) => ({
+  })), ...error.map(item => ({
     ...item,
     type: 'error' as const,
+  })), ...replay.map(item => ({
+    ...item,
+    type: 'replay' as const,
   }))].sort((a, b) => toDate(b.timestamp).getTime() - toDate(a.timestamp).getTime())
 }
-

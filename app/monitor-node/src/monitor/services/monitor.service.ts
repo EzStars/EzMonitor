@@ -2,10 +2,12 @@ import type { Model } from 'mongoose'
 import type {
   CreateErrorLogDto,
   CreatePerformanceMetricDto,
+  CreateReplaySegmentDto,
   CreateTrackingEventDto,
   ErrorQueryDto,
   MonitorBatchItemDto,
   PerformanceQueryDto,
+  ReplayQueryDto,
   StatsQueryDto,
   TrackingQueryDto,
 } from '../dto'
@@ -16,6 +18,7 @@ import {
 } from '../dto'
 import { ErrorLog } from '../schemas/error-log.schema'
 import { PerformanceMetric } from '../schemas/performance-metric.schema'
+import { ReplaySegment } from '../schemas/replay-segment.schema'
 import { TrackingEvent } from '../schemas/tracking-event.schema'
 import { SourceMapService } from './sourcemap.service'
 
@@ -23,6 +26,7 @@ interface WriteSummary {
   tracking: number
   performance: number
   error: number
+  replay: number
   total: number
 }
 
@@ -38,6 +42,7 @@ interface OverviewStats {
   tracking: number
   performance: number
   error: number
+  replay: number
   total: number
 }
 
@@ -60,6 +65,11 @@ interface ErrorStatsItem {
   count: number
 }
 
+interface ReplayStatsItem {
+  route: string
+  count: number
+}
+
 @Injectable()
 export class MonitorService {
   constructor(
@@ -69,6 +79,8 @@ export class MonitorService {
     private readonly performanceModel: Model<PerformanceMetric>,
     @InjectModel(ErrorLog.name)
     private readonly errorModel: Model<ErrorLog>,
+    @InjectModel(ReplaySegment.name)
+    private readonly replayModel: Model<ReplaySegment>,
     private readonly sourceMapService: SourceMapService = new SourceMapService(),
   ) {}
 
@@ -103,10 +115,20 @@ export class MonitorService {
     })
   }
 
+  async createReplay(dto: CreateReplaySegmentDto) {
+    return this.replayModel.create({
+      ...dto,
+      timestamp: new Date(dto.timestamp),
+      startedAt: new Date(dto.startedAt),
+      endedAt: new Date(dto.endedAt),
+    })
+  }
+
   async createBatch(items: MonitorBatchItemDto[]) {
     const tracking: Promise<unknown>[] = []
     const performance: Promise<unknown>[] = []
     const error: Promise<unknown>[] = []
+    const replaySegments: Promise<unknown>[] = []
 
     for (const item of items) {
       if (item.type === MonitorBatchItemType.TRACKING) {
@@ -171,6 +193,26 @@ export class MonitorService {
         continue
       }
 
+      if (item.type === MonitorBatchItemType.REPLAY) {
+        replaySegments.push(
+          this.replayModel.create({
+            appId: item.appId,
+            timestamp: new Date(item.timestamp),
+            segmentId: item.segmentId,
+            startedAt: item.startedAt ? new Date(item.startedAt) : new Date(item.timestamp),
+            endedAt: item.endedAt ? new Date(item.endedAt) : new Date(item.timestamp),
+            eventCount: item.eventCount,
+            route: item.route,
+            reason: item.reason,
+            sample: item.sample,
+            context: item.context,
+            userId: item.userId,
+            sessionId: item.sessionId,
+          }),
+        )
+        continue
+      }
+
       throw new BadRequestException(`Unsupported batch type: ${item.type}`)
     }
 
@@ -179,12 +221,19 @@ export class MonitorService {
       Promise.all(performance),
       Promise.all(error),
     ])
+    const replayResult = await Promise.all(replaySegments)
 
     return {
       tracking: trackingResult,
       performance: performanceResult,
       error: errorResult,
-      summary: this.buildSummary(trackingResult.length, performanceResult.length, errorResult.length),
+      replay: replayResult,
+      summary: this.buildSummary(
+        trackingResult.length,
+        performanceResult.length,
+        errorResult.length,
+        replayResult.length,
+      ),
     }
   }
 
@@ -202,19 +251,51 @@ export class MonitorService {
     return this.queryCollection(this.errorModel, query)
   }
 
+  async queryReplay(query: ReplayQueryDto): Promise<PaginatedResult<ReplaySegment>> {
+    const filter = this.buildTimeAppFilter(query)
+    if (query.segmentId) {
+      filter.segmentId = query.segmentId
+    }
+
+    const page = query.page ?? 1
+    const pageSize = query.pageSize ?? 20
+    const sortDirection: 1 | -1 = query.sortOrder === 'asc' ? 1 : -1
+
+    const [total, items] = await Promise.all([
+      this.replayModel.countDocuments(filter).exec(),
+      this.replayModel
+        .find(filter)
+        .sort({ [query.sortBy ?? 'timestamp']: sortDirection })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .lean()
+        .exec(),
+    ])
+
+    return {
+      items: items as ReplaySegment[],
+      page,
+      pageSize,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+    }
+  }
+
   async getStatsOverview(query: StatsQueryDto): Promise<OverviewStats> {
     const filter = this.buildTimeAppFilter(query)
-    const [tracking, performance, error] = await Promise.all([
+    const [tracking, performance, error, replay] = await Promise.all([
       this.trackingModel.countDocuments(filter),
       this.performanceModel.countDocuments(filter),
       this.errorModel.countDocuments(filter),
+      this.replayModel.countDocuments(filter),
     ])
 
     return {
       tracking,
       performance,
       error,
-      total: tracking + performance + error,
+      replay,
+      total: tracking + performance + error + replay,
     }
   }
 
@@ -293,12 +374,34 @@ export class MonitorService {
     }))
   }
 
-  private buildSummary(tracking: number, performance: number, error: number): WriteSummary {
+  async getReplayStats(query: StatsQueryDto): Promise<ReplayStatsItem[]> {
+    const rows = await this.replayModel.aggregate<{
+      _id: string | null
+      count: number
+    }>([
+      { $match: this.buildTimeAppFilter(query) },
+      {
+        $group: {
+          _id: { $ifNull: ['$route', 'unknown'] },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { count: -1, _id: 1 } },
+    ])
+
+    return rows.map(row => ({
+      route: row._id ?? 'unknown',
+      count: row.count,
+    }))
+  }
+
+  private buildSummary(tracking: number, performance: number, error: number, replay: number): WriteSummary {
     return {
       tracking,
       performance,
       error,
-      total: tracking + performance + error,
+      replay,
+      total: tracking + performance + error + replay,
     }
   }
 
@@ -336,7 +439,7 @@ export class MonitorService {
     }
   }
 
-  private buildTimeAppFilter(query: StatsQueryDto | TrackingQueryDto | PerformanceQueryDto | ErrorQueryDto) {
+  private buildTimeAppFilter(query: StatsQueryDto | TrackingQueryDto | PerformanceQueryDto | ErrorQueryDto | ReplayQueryDto) {
     const filter: Record<string, unknown> = {}
 
     if (query.appId) {

@@ -92,6 +92,7 @@ export interface MonitorQueryParams extends PaginationParams {
   endTime?: number
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
+  segmentId?: string
 }
 
 export interface MonitorStatsQueryParams {
@@ -107,6 +108,8 @@ export const monitorApi = {
     request.get<T>('/api/monitor/performance', { params }),
   getErrors: <T = unknown>(params?: MonitorQueryParams) =>
     request.get<T>('/api/monitor/error', { params }),
+  getReplays: <T = unknown>(params?: MonitorQueryParams) =>
+    request.get<T>('/api/monitor/replay', { params }),
   getOverviewStats: <T = unknown>(params?: MonitorStatsQueryParams) =>
     request.get<T>('/api/monitor/stats/overview', { params }),
   getTrackingStats: <T = unknown>(params?: MonitorStatsQueryParams) =>
@@ -115,6 +118,10 @@ export const monitorApi = {
     request.get<T>('/api/monitor/stats/performance', { params }),
   getErrorStats: <T = unknown>(params?: MonitorStatsQueryParams) =>
     request.get<T>('/api/monitor/stats/error', { params }),
+  getReplayStats: <T = unknown>(params?: MonitorStatsQueryParams) =>
+    request.get<T>('/api/monitor/stats/replay', { params }),
+  postBatch: <T = unknown>(items: unknown[]) =>
+    request.post<T>('/api/monitor/batch', { items }),
 }
 
 export { request }
