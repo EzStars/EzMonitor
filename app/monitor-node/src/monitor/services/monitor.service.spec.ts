@@ -52,6 +52,7 @@ describe('monitorService', () => {
 
     expect(replayModel.create).toHaveBeenCalledWith({
       appId: 'app-1',
+      mode: 'native',
       segmentId: 'segment-1',
       timestamp: new Date(timestamp),
       startedAt: new Date(timestamp),

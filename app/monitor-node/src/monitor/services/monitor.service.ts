@@ -118,6 +118,7 @@ export class MonitorService {
   async createReplay(dto: CreateReplaySegmentDto) {
     return this.replayModel.create({
       ...dto,
+      mode: dto.mode ?? 'native',
       timestamp: new Date(dto.timestamp),
       startedAt: new Date(dto.startedAt),
       endedAt: new Date(dto.endedAt),
@@ -198,6 +199,7 @@ export class MonitorService {
           this.replayModel.create({
             appId: item.appId,
             timestamp: new Date(item.timestamp),
+            mode: item.mode ?? 'native',
             segmentId: item.segmentId,
             startedAt: item.startedAt ? new Date(item.startedAt) : new Date(item.timestamp),
             endedAt: item.endedAt ? new Date(item.endedAt) : new Date(item.timestamp),
@@ -205,6 +207,7 @@ export class MonitorService {
             route: item.route,
             reason: item.reason,
             sample: item.sample,
+            rrwebEvents: item.rrwebEvents,
             context: item.context,
             userId: item.userId,
             sessionId: item.sessionId,

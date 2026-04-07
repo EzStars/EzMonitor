@@ -41,12 +41,14 @@ export class MonitorBatchItemDto {
 
   detail?: Record<string, unknown>
   segmentId?: string
+  mode?: 'native' | 'rrweb'
   startedAt?: Date
   endedAt?: Date
   eventCount?: number
   route?: string
   reason?: string
   sample?: Array<Record<string, unknown>>
+  rrwebEvents?: Array<Record<string, unknown>>
 }
 
 export class CreateMonitorBatchDto {

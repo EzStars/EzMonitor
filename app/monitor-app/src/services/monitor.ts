@@ -100,6 +100,7 @@ export interface ReplayRecord {
   _id?: string
   appId: string
   timestamp: string | number | Date
+  mode?: 'native' | 'rrweb'
   segmentId: string
   startedAt: string | number | Date
   endedAt: string | number | Date
@@ -107,6 +108,7 @@ export interface ReplayRecord {
   route?: string
   reason?: string
   sample?: Array<Record<string, unknown>>
+  rrwebEvents?: Array<Record<string, unknown>>
   context?: Record<string, unknown>
   userId?: string
   sessionId?: string

@@ -37,6 +37,7 @@ import ReactECharts from 'echarts-for-react'
 import { Component, useEffect, useMemo, useState } from 'react'
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMonitorQuery } from './hooks/useMonitorQuery'
+import ReplayPlayer from './ReplayPlayer'
 import {
 
   monitorService,
@@ -1541,6 +1542,43 @@ function ReplayPage() {
   ]
 
   const selectedSample = selected?.sample ?? []
+  const selectedRrwebEvents = useMemo(() => {
+    if (Array.isArray(selected?.rrwebEvents) && selected.rrwebEvents.length > 0) {
+      return selected.rrwebEvents
+    }
+
+    if (Array.isArray(selected?.sample) && selected.sample.length > 0) {
+      const unpacked = selected.sample
+        .map((item) => {
+          if (!item || typeof item !== 'object') {
+            return null
+          }
+
+          const wrapper = item as { type?: unknown, at?: unknown, data?: unknown }
+          if (wrapper.type === 'rrweb' && wrapper.data && typeof wrapper.data === 'object') {
+            const event = wrapper.data as Record<string, unknown>
+            if (typeof event.timestamp !== 'number' && typeof wrapper.at === 'number') {
+              return { ...event, timestamp: wrapper.at }
+            }
+            return event
+          }
+
+          const direct = item as Record<string, unknown>
+          if (typeof direct.timestamp === 'number' && typeof direct.type === 'number') {
+            return item as Record<string, unknown>
+          }
+
+          return null
+        })
+        .filter((item): item is Record<string, unknown> => item !== null)
+
+      if (unpacked.length > 0) {
+        return unpacked
+      }
+    }
+
+    return []
+  }, [selected])
   const selectedContext = selected?.context ?? {}
 
   return (
@@ -1626,6 +1664,7 @@ function ReplayPage() {
           { label: 'appId', value: selected?.appId ?? '-' },
           { label: 'segmentId', value: selected?.segmentId ?? '-' },
           { label: '路由', value: selected?.route ?? '-' },
+          { label: '回放模式', value: selected?.mode ?? 'native' },
           { label: '事件数', value: selected?.eventCount ?? 0 },
           { label: '原因', value: selected?.reason ?? '-' },
           {
@@ -1637,6 +1676,10 @@ function ReplayPage() {
           {
             title: 'context',
             content: <pre className="detail-pre">{safeStringify(selectedContext)}</pre>,
+          },
+          {
+            title: 'rrweb player',
+            content: <ReplayPlayer events={selectedRrwebEvents} />,
           },
           {
             title: 'sample events',

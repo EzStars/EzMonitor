@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ensureSDKStarted,
+  flushReplay,
   getSDKStatus,
   reportError,
   trackEvent,
   trackPage,
   trackUser,
+  trackUv,
 } from '../services/sdkRuntime'
 
 export function useMonitorSDK() {
@@ -24,9 +26,11 @@ export function useMonitorSDK() {
 
   return useMemo(() => ({
     status,
+    flushReplay,
     reportError,
     trackEvent,
     trackPage,
+    trackUv,
     trackUser,
   }), [status])
 }

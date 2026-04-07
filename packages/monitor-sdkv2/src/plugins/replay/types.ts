@@ -5,6 +5,9 @@ export type ReplayEventType
     | 'scroll'
     | 'route'
     | 'visibility'
+    | 'rrweb'
+
+export type ReplayRecordMode = 'native' | 'rrweb'
 
 export interface ReplayEventRecord {
   type: ReplayEventType
@@ -13,15 +16,18 @@ export interface ReplayEventRecord {
 }
 
 export interface ReplaySegmentContext {
+  mode: ReplayRecordMode
   segmentId: string
   startedAt: number
   endedAt: number
   eventCount: number
   route?: string
   sample: ReplayEventRecord[]
+  rrwebEvents?: Array<Record<string, unknown>>
 }
 
 export interface ReplayErrorContext {
+  mode?: ReplayRecordMode
   segmentId: string
   lastEventAt: number
   eventCount: number
@@ -30,6 +36,7 @@ export interface ReplayErrorContext {
 }
 
 export interface ReplayPluginConfig {
+  recordMode?: ReplayRecordMode
   sampleRate?: number
   flushIntervalMs?: number
   maxEvents?: number

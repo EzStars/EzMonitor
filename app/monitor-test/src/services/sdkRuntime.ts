@@ -2,6 +2,7 @@ import {
   createSDK,
   ErrorPlugin,
   PerformancePlugin,
+  ReplayPlugin,
   TrackingPlugin,
 } from '@ezstars/monitor-sdkv2'
 
@@ -20,11 +21,32 @@ const sdk = createSDK({
   reportUrl,
 })
 
-const trackingPlugin = new TrackingPlugin({ autoTrackPage: true })
+const trackingPlugin = new TrackingPlugin({
+  autoTrackPage: true,
+  autoTrackUv: true,
+})
 sdk.use(trackingPlugin)
 
 const performancePlugin = new PerformancePlugin()
 sdk.use(performancePlugin)
+
+const replayPlugin = new ReplayPlugin({
+  recordMode: 'rrweb',
+  captureClick: true,
+  captureInput: true,
+  captureScroll: true,
+  captureRoute: true,
+  captureSnapshot: true,
+  snapshotOnStart: true,
+  snapshotOnRoute: true,
+  flushIntervalMs: 8000,
+  flushOnErrorHint: true,
+  maxEvents: 2000,
+  replayBufferMs: 10 * 60 * 1000,
+})
+sdk.use(replayPlugin, {
+  recordMode: 'rrweb',
+})
 
 const errorPlugin = new ErrorPlugin({
   captureJsError: true,
@@ -38,6 +60,7 @@ sdk.use(errorPlugin)
 type TrackEventResult = Awaited<ReturnType<typeof trackingPlugin.track>>
 type TrackPageResult = Awaited<ReturnType<typeof trackingPlugin.trackPage>>
 type TrackUserResult = Awaited<ReturnType<typeof trackingPlugin.trackUser>>
+type TrackUvResult = Awaited<ReturnType<typeof trackingPlugin.trackUv>>
 
 let startPromise: Promise<void> | null = null
 
@@ -99,6 +122,13 @@ export async function trackUser(
   return trackingPlugin.trackUser(userId, properties)
 }
 
+export async function trackUv(
+  properties?: Record<string, unknown>,
+): Promise<TrackUvResult> {
+  await ensureSDKStarted()
+  return trackingPlugin.trackUv(properties)
+}
+
 export async function reportError(
   errorType: string,
   payload: {
@@ -111,9 +141,26 @@ export async function reportError(
 ): Promise<void> {
   await ensureSDKStarted()
   const safeType = errorType.trim() || 'manual'
+  const replaySegment = replayPlugin.flushForError(`manual_${safeType}`)
+  await sdk.getReporter().flush()
+
+  const detail = payload.detail ?? {}
+  const replayDetail = replaySegment
+    ? {
+        segmentId: replaySegment.segmentId,
+        eventCount: replaySegment.eventCount,
+        route: replaySegment.route,
+        mode: replaySegment.mode,
+      }
+    : undefined
+
   sdk.report(`error_${safeType}`, {
     type: `error_${safeType}`,
     ...payload,
+    detail: {
+      ...detail,
+      ...(replayDetail ? { replay: replayDetail } : {}),
+    },
     timestamp: Date.now(),
     appId: sdk.getConfig().appId as string | undefined,
     appVersion: (sdk.getConfig().appVersion as string | undefined) ?? release,
@@ -123,4 +170,10 @@ export async function reportError(
     url: payload.url ?? (typeof window !== 'undefined' ? window.location.href : undefined),
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
   })
+}
+
+export async function flushReplay(reason = 'manual_debug') {
+  await ensureSDKStarted()
+  replayPlugin.flushForError(reason)
+  await sdk.getReporter().flush()
 }

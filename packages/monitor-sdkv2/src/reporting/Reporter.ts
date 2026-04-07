@@ -367,18 +367,21 @@ export class Reporter implements ReporterLike {
 
     if (envelope.type === 'replay') {
       const sample = Array.isArray(payload.sample) ? payload.sample : []
+      const rrwebEvents = Array.isArray(payload.rrwebEvents) ? payload.rrwebEvents : []
 
       return {
         type: 'replay',
         appId,
         timestamp,
+        mode: getString(payload.mode) ?? 'native',
         segmentId: getString(payload.segmentId),
         startedAt: getNumber(payload.startedAt) ?? timestamp,
         endedAt: getNumber(payload.endedAt) ?? timestamp,
-        eventCount: getNumber(payload.eventCount) ?? sample.length,
+        eventCount: getNumber(payload.eventCount) ?? (rrwebEvents.length || sample.length),
         route: getString(payload.route) ?? getString(getRecord(payload.context)?.route),
         reason: getString(payload.reason),
         sample,
+        rrwebEvents,
         context: getRecord(payload.context),
         userId: getString(payload.userId) ?? envelope.userId,
         sessionId: getString(payload.sessionId) ?? envelope.sessionId,

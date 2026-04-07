@@ -55,5 +55,8 @@
     "typescript": "catalog:",
     "vitest": "catalog:",
     "vitest-package-exports": "catalog:"
+  },
+  "dependencies": {
+    "rrweb": "2.0.0-alpha.4"
   }
 }

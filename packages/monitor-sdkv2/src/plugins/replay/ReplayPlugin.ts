@@ -10,6 +10,7 @@ import type {
 import { setReplayErrorContextProvider, setReplayErrorFlusher } from './bridge'
 
 const DEFAULT_CONFIG: Required<ReplayPluginConfig> = {
+  recordMode: 'native',
   sampleRate: 1,
   flushIntervalMs: 15000,
   maxEvents: 200,
@@ -65,6 +66,8 @@ export class ReplayPlugin implements IPlugin {
   private startedAt = 0
   private segmentId = createSegmentId()
   private events: ReplayEventRecord[] = []
+  private rrwebEvents: Array<Record<string, unknown>> = []
+  private rrwebStop?: () => void
   private removeListeners: Listener[] = []
   private flushTimer: ReturnType<typeof setInterval> | undefined
 
@@ -109,10 +112,17 @@ export class ReplayPlugin implements IPlugin {
     this.segmentId = createSegmentId()
 
     this.setupErrorBridge()
-    this.setupCollectionListeners()
+    if (this.pluginConfig.recordMode === 'rrweb') {
+      void this.startRrwebRecording()
+      this.setupLifecycleListeners(false)
+    }
+    else {
+      this.setupCollectionListeners()
+      this.setupLifecycleListeners(true)
+    }
     this.startFlushTimer()
 
-    if (this.pluginConfig.captureSnapshot && this.pluginConfig.snapshotOnStart) {
+    if (this.pluginConfig.recordMode !== 'rrweb' && this.pluginConfig.captureSnapshot && this.pluginConfig.snapshotOnStart) {
       this.captureSnapshot('start')
     }
   }
@@ -129,12 +139,12 @@ export class ReplayPlugin implements IPlugin {
     this.status = 'destroyed'
   }
 
-  flushForError(reason = 'error'): void {
+  flushForError(reason = 'error'): ReplaySegmentContext | undefined {
     if (!this.pluginConfig.flushOnErrorHint) {
-      return
+      return undefined
     }
 
-    this.flushSegment(reason)
+    return this.flushSegment(reason)
   }
 
   private setupErrorBridge(): void {
@@ -227,21 +237,24 @@ export class ReplayPlugin implements IPlugin {
       this.removeListeners.push(() => window.removeEventListener('hashchange', routeHandler, true))
       this.removeListeners.push(() => window.removeEventListener('ez-monitor:route-change', routeHandler, true))
     }
+  }
 
-    if (this.pluginConfig.captureVisibility) {
-      const visibilityHandler = () => {
+  private setupLifecycleListeners(collectVisibilityEvent: boolean): void {
+    if (typeof document === 'undefined' || typeof window === 'undefined') {
+      return
+    }
+
+    const visibilityHandler = () => {
+      if (collectVisibilityEvent && this.pluginConfig.captureVisibility) {
         this.record('visibility', {
           state: document.visibilityState,
         })
-
-        if (document.visibilityState === 'hidden') {
-          this.flushSegment('hidden')
-          void this.reporter?.flush()
-        }
       }
 
-      document.addEventListener('visibilitychange', visibilityHandler, true)
-      this.removeListeners.push(() => document.removeEventListener('visibilitychange', visibilityHandler, true))
+      if (document.visibilityState === 'hidden') {
+        this.flushSegment('hidden')
+        void this.reporter?.flush()
+      }
     }
 
     const pageHideHandler = () => {
@@ -249,8 +262,54 @@ export class ReplayPlugin implements IPlugin {
       void this.reporter?.flush()
     }
 
+    document.addEventListener('visibilitychange', visibilityHandler, true)
     window.addEventListener('pagehide', pageHideHandler, true)
+
+    this.removeListeners.push(() => document.removeEventListener('visibilitychange', visibilityHandler, true))
     this.removeListeners.push(() => window.removeEventListener('pagehide', pageHideHandler, true))
+  }
+
+  private async startRrwebRecording(): Promise<void> {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      const { record } = await import('rrweb')
+      this.rrwebStop = record({
+        emit: (event) => {
+          if (!isObject(event)) {
+            return
+          }
+
+          this.rrwebEvents.push(this.sanitizeData(event))
+          this.trimRrwebEvents()
+        },
+      })
+    }
+    catch {
+      // Ignore rrweb startup failures and keep SDK alive.
+    }
+  }
+
+  private trimRrwebEvents(): void {
+    while (this.rrwebEvents.length > this.pluginConfig.maxEvents) {
+      this.rrwebEvents.shift()
+    }
+
+    const cutoff = Date.now() - this.pluginConfig.replayBufferMs
+    while (this.rrwebEvents.length > 0) {
+      const ts = this.extractRrwebTimestamp(this.rrwebEvents[0])
+      if (ts >= cutoff) {
+        break
+      }
+      this.rrwebEvents.shift()
+    }
+  }
+
+  private extractRrwebTimestamp(event: Record<string, unknown>): number {
+    const timestamp = event.timestamp
+    return typeof timestamp === 'number' ? timestamp : Date.now()
   }
 
   private startFlushTimer(): void {
@@ -339,7 +398,9 @@ export class ReplayPlugin implements IPlugin {
   }
 
   private flushSegment(reason: string): ReplaySegmentContext | undefined {
-    if (!this.sampled || !this.reporter || this.events.length === 0) {
+    const hasNativeEvents = this.events.length > 0
+    const hasRrwebEvents = this.rrwebEvents.length > 0
+    if (!this.sampled || !this.reporter || (!hasNativeEvents && !hasRrwebEvents)) {
       return undefined
     }
 
@@ -358,6 +419,8 @@ export class ReplayPlugin implements IPlugin {
       reason,
       route: segment.route,
       sample: segment.sample,
+      mode: segment.mode,
+      rrwebEvents: segment.rrwebEvents,
       segmentId: segment.segmentId,
       startedAt: segment.startedAt,
       timestamp: Date.now(),
@@ -379,6 +442,7 @@ export class ReplayPlugin implements IPlugin {
     this.segmentId = createSegmentId()
     this.startedAt = Date.now()
     this.events = []
+    this.rrwebEvents = []
 
     return segment
   }
@@ -389,29 +453,93 @@ export class ReplayPlugin implements IPlugin {
     }
 
     const tail = this.events.slice(-20)
-    const last = tail[tail.length - 1]
+    const rrwebTail = this.rrwebEvents.slice(-20)
+    const sample = tail.length > 0
+      ? tail
+      : rrwebTail.map(event => ({
+          type: 'rrweb',
+          at: this.extractRrwebTimestamp(event),
+          data: event,
+        } as ReplayEventRecord))
+    const last = sample[sample.length - 1]
+    if (!last) {
+      return undefined
+    }
 
     return {
+      mode: this.pluginConfig.recordMode,
       segmentId: this.segmentId,
       lastEventAt: last.at,
-      eventCount: this.events.length,
+      eventCount: this.pluginConfig.recordMode === 'rrweb' ? this.rrwebEvents.length : this.events.length,
       route: this.currentRoute(),
-      sample: tail,
+      sample,
     }
   }
 
+  private buildRrwebSample(maxCount = 120): ReplayEventRecord[] {
+    if (this.rrwebEvents.length === 0) {
+      return []
+    }
+
+    const latestFullSnapshotIndex = this.findLatestRrwebEventIndex(2)
+    const latestMetaIndex = this.findLatestRrwebEventIndex(4)
+
+    let startIndex = 0
+    if (latestFullSnapshotIndex >= 0) {
+      startIndex = latestFullSnapshotIndex
+      if (latestMetaIndex >= 0 && latestMetaIndex < latestFullSnapshotIndex) {
+        startIndex = latestMetaIndex
+      }
+    }
+
+    const segmentEvents = this.rrwebEvents.slice(startIndex)
+    const essentialCount = Math.min(2, segmentEvents.length)
+    const compactEvents = segmentEvents.length > maxCount
+      ? [
+          ...segmentEvents.slice(0, essentialCount),
+          ...segmentEvents.slice(-(maxCount - essentialCount)),
+        ]
+      : segmentEvents
+
+    return compactEvents.map(event => ({
+      type: 'rrweb',
+      at: this.extractRrwebTimestamp(event),
+      data: event,
+    } as ReplayEventRecord))
+  }
+
+  private findLatestRrwebEventIndex(type: number): number {
+    for (let i = this.rrwebEvents.length - 1; i >= 0; i -= 1) {
+      const eventType = this.rrwebEvents[i]?.type
+      if (eventType === type) {
+        return i
+      }
+    }
+
+    return -1
+  }
+
   private buildSegmentContext(): ReplaySegmentContext {
-    const tail = this.events.slice(-40)
-    const startedAt = this.events[0]?.at ?? Date.now()
-    const endedAt = this.events[this.events.length - 1]?.at ?? startedAt
+    const rrwebMode = this.pluginConfig.recordMode === 'rrweb'
+    const tail = rrwebMode
+      ? this.buildRrwebSample(120)
+      : this.events.slice(-40)
+    const startedAt = rrwebMode
+      ? this.extractRrwebTimestamp(this.rrwebEvents[0] ?? { timestamp: Date.now() })
+      : (this.events[0]?.at ?? Date.now())
+    const endedAt = rrwebMode
+      ? this.extractRrwebTimestamp(this.rrwebEvents[this.rrwebEvents.length - 1] ?? { timestamp: startedAt })
+      : (this.events[this.events.length - 1]?.at ?? startedAt)
 
     return {
+      mode: rrwebMode ? 'rrweb' : 'native',
       segmentId: this.segmentId,
       startedAt,
       endedAt,
-      eventCount: this.events.length,
+      eventCount: rrwebMode ? this.rrwebEvents.length : this.events.length,
       route: this.currentRoute(),
       sample: tail,
+      rrwebEvents: rrwebMode ? this.rrwebEvents.slice() : undefined,
     }
   }
 
@@ -534,7 +662,13 @@ export class ReplayPlugin implements IPlugin {
       remove()
     }
 
+    if (this.rrwebStop) {
+      this.rrwebStop()
+      this.rrwebStop = undefined
+    }
+
     this.events = []
+    this.rrwebEvents = []
     this.startedAt = 0
     this.segmentId = createSegmentId()
     this.sampled = true

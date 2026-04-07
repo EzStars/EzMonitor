@@ -354,9 +354,24 @@ export function validateCreateReplaySegmentDto(body: unknown): CreateReplaySegme
     throw new Error('eventCount is required')
   }
 
+  const mode = body.mode === undefined ? undefined : parseOptionalString(body.mode, 'mode')
+  if (mode && mode !== 'native' && mode !== 'rrweb') {
+    throw new Error('mode must be native or rrweb')
+  }
+
+  const rrwebEvents = body.rrwebEvents === undefined
+    ? undefined
+    : Array.isArray(body.rrwebEvents)
+      ? (body.rrwebEvents as Array<Record<string, unknown>>)
+      : undefined
+  if (body.rrwebEvents !== undefined && !rrwebEvents) {
+    throw new Error('rrwebEvents must be an array')
+  }
+
   return {
     appId: body.appId,
     timestamp: parseTimestamp(body.timestamp, 'timestamp'),
+    mode: mode as CreateReplaySegmentDto['mode'],
     segmentId: body.segmentId,
     startedAt: parseTimestamp(body.startedAt, 'startedAt'),
     endedAt: parseTimestamp(body.endedAt, 'endedAt'),
@@ -364,6 +379,7 @@ export function validateCreateReplaySegmentDto(body: unknown): CreateReplaySegme
     route: parseOptionalString(body.route, 'route'),
     reason: parseOptionalString(body.reason, 'reason'),
     sample: Array.isArray(body.sample) ? (body.sample as Array<Record<string, unknown>>) : undefined,
+    rrwebEvents,
     context: validateObjectFields(body.context, 'context'),
     userId: parseOptionalString(body.userId, 'userId'),
     sessionId: parseOptionalString(body.sessionId, 'sessionId'),
@@ -651,6 +667,11 @@ function validateBatchItem(body: unknown): MonitorBatchItemDto {
     }
 
     item.segmentId = body.segmentId
+    const mode = body.mode === undefined ? undefined : parseOptionalString(body.mode, 'mode')
+    if (mode && mode !== 'native' && mode !== 'rrweb') {
+      throw new Error('mode must be native or rrweb for replay items')
+    }
+    item.mode = mode as MonitorBatchItemDto['mode']
     item.eventCount = body.eventCount
     item.startedAt = parseTimestamp(body.startedAt, 'startedAt')
     item.endedAt = parseTimestamp(body.endedAt, 'endedAt')
@@ -661,6 +682,12 @@ function validateBatchItem(body: unknown): MonitorBatchItemDto {
         throw new TypeError('sample must be an array for replay items')
       }
       item.sample = body.sample as Array<Record<string, unknown>>
+    }
+    if (body.rrwebEvents !== undefined) {
+      if (!Array.isArray(body.rrwebEvents)) {
+        throw new TypeError('rrwebEvents must be an array for replay items')
+      }
+      item.rrwebEvents = body.rrwebEvents as Array<Record<string, unknown>>
     }
   }
 

@@ -9,7 +9,14 @@ interface GenerationLog {
 }
 
 export default function DataGeneratorPage() {
-  const { status, reportError, trackEvent, trackPage, trackUser } = useMonitorSDK()
+  const {
+    status,
+    flushReplay,
+    trackEvent,
+    trackPage,
+    trackUv,
+    trackUser,
+  } = useMonitorSDK()
   const [trackingCount, setTrackingCount] = useState(100)
   const [performanceCount, setPerformanceCount] = useState(50)
   const [errorCount, setErrorCount] = useState(20)
@@ -79,6 +86,15 @@ export default function DataGeneratorPage() {
             referrer: randomPagePath(),
           })
         }
+        else if (eventType < 0.9) {
+          // 生成 trackUv
+          await trackUv({
+            timestamp: Date.now(),
+            index: i,
+            source: 'data-generator',
+            reason: 'manual_batch',
+          })
+        }
         else {
           // 生成 trackUser
           await trackUser(randomUserId(), {
@@ -146,7 +162,7 @@ export default function DataGeneratorPage() {
   // 批量生成 Error 日志
   const generateErrorData = async () => {
     setIsGenerating(true)
-    addLog('info', `开始生成 ${errorCount} 条 Error 日志...`)
+    addLog('info', `开始生成 ${errorCount} 条自动捕获 Error 日志...`)
 
     try {
       const errorTypes = [
@@ -160,24 +176,37 @@ export default function DataGeneratorPage() {
       for (let i = 0; i < errorCount; i++) {
         const errorMessage = errorTypes[Math.floor(Math.random() * errorTypes.length)]
 
-        await reportError('generated', {
-          message: errorMessage,
-          stack: `Error at line ${Math.floor(Math.random() * 1000)}`,
-          detail: {
-            index: i,
-            severity: Math.random() > 0.5 ? 'warning' : 'error',
-            source: 'data-generator',
-          },
-        })
+        const mode = i % 3
+        if (mode === 0) {
+          // 真正走 window error 自动捕获链路
+          window.dispatchEvent(new ErrorEvent('error', {
+            message: errorMessage,
+            error: new Error(errorMessage),
+            filename: window.location.href,
+            lineno: Math.floor(Math.random() * 1000),
+            colno: Math.floor(Math.random() * 100),
+          }))
+        }
+        else if (mode === 1) {
+          // 真正走 unhandledrejection 自动捕获链路
+          Promise.reject(new Error(errorMessage))
+        }
+        else {
+          // 真正走资源错误自动捕获链路
+          const brokenImg = new Image()
+          brokenImg.src = `${window.location.origin}/__not_found_${Date.now()}_${i}.png`
+          document.body.appendChild(brokenImg)
+          setTimeout(() => brokenImg.remove(), 500)
+        }
 
         setProgress(Math.round(((i + 1) / errorCount) * 100))
 
         if (i % 5 === 0) {
-          await new Promise(resolve => setTimeout(resolve, 10))
+          await new Promise(resolve => setTimeout(resolve, 30))
         }
       }
 
-      addLog('success', `成功生成 ${errorCount} 条 Error 日志`)
+      addLog('success', `成功触发 ${errorCount} 条自动捕获 Error 日志`)
     }
     catch (error) {
       addLog('error', `生成 Error 日志失败: ${error}`)
@@ -195,6 +224,37 @@ export default function DataGeneratorPage() {
     await generatePerformanceData()
     await generateErrorData()
     addLog('success', '所有测试数据生成完成！')
+  }
+
+  const generateSingleUv = async () => {
+    setIsGenerating(true)
+    try {
+      const result = await trackUv({
+        source: 'manual_click',
+        reason: 'manual_debug',
+      })
+      addLog('success', `已发送 UV 事件，visitorId=${result.visitorId}`)
+    }
+    catch (error) {
+      addLog('error', `发送 UV 事件失败: ${error}`)
+    }
+    finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const flushReplayNow = async () => {
+    setIsGenerating(true)
+    try {
+      await flushReplay('manual_button')
+      addLog('success', '已手动刷新回放分段，请到 monitor-app 的 /replay 页面查看')
+    }
+    catch (error) {
+      addLog('error', `刷新回放分段失败: ${error}`)
+    }
+    finally {
+      setIsGenerating(false)
+    }
   }
 
   return (
@@ -223,7 +283,16 @@ export default function DataGeneratorPage() {
           <button onClick={generateTrackingData} disabled={isGenerating}>
             生成 Tracking 事件
           </button>
+          <button onClick={() => void generateSingleUv()} disabled={isGenerating}>
+            发送 1 条 UV
+          </button>
+          <button onClick={() => void flushReplayNow()} disabled={isGenerating}>
+            刷新 1 条回放分段
+          </button>
         </div>
+        <p className="muted" style={{ marginTop: '8px' }}>
+          提示：当前已启用 rrweb 录制模式，刷新分段后可在 monitor-app 的回放详情中使用播放器查看。
+        </p>
 
         <h3>Performance 数据生成</h3>
         <div className="control-row">

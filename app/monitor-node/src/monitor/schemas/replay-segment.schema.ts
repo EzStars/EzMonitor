@@ -18,6 +18,9 @@ export class ReplaySegment {
   @Prop({ required: true, trim: true, index: true })
   segmentId: string
 
+  @Prop({ trim: true, default: 'native' })
+  mode?: 'native' | 'rrweb'
+
   @Prop({ required: true })
   startedAt: Date
 
@@ -35,6 +38,9 @@ export class ReplaySegment {
 
   @Prop({ type: Array, default: [] })
   sample?: Array<Record<string, unknown>>
+
+  @Prop({ type: Array, default: [] })
+  rrwebEvents?: Array<Record<string, unknown>>
 
   @Prop({ type: MongooseSchema.Types.Mixed, default: {} })
   context?: Record<string, unknown>

@@ -244,8 +244,18 @@ export class ErrorPlugin implements IPlugin {
         return
       }
 
+      // Only treat element-level load failures as resource errors.
+      if (!(target instanceof HTMLElement)) {
+        return
+      }
+
       const tagName = target.tagName?.toLowerCase() || 'resource'
       const src = target.src || target.href
+
+      if (!src) {
+        return
+      }
+
       this.reportError('error_resource', {
         message: `${tagName} load failed`,
         url: src || getWindowUrl(),
