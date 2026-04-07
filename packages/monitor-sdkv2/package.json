@@ -1,7 +1,7 @@
 {
   "name": "@ezstars/monitor-sdkv2",
   "type": "module",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "EzMonitor SDK v2 - modular, tree-shakable TypeScript SDK",
   "author": "EzStars",
   "license": "MIT",
