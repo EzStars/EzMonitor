@@ -10,7 +10,7 @@ interface PerfLog {
 }
 
 export default function PerformancePage() {
-  const { status, trackEvent } = useMonitorSDK()
+  const { status, reportPerformanceMetric } = useMonitorSDK()
   const [duration, setDuration] = useState<number | null>(null)
   const [showClsBanner, setShowClsBanner] = useState(false)
   const [logs, setLogs] = useState<PerfLog[]>([])
@@ -40,12 +40,15 @@ export default function PerformancePage() {
   const emitLongTask = async (title: string, ms: number, source: string) => {
     const cost = busyWait(ms)
     setDuration(cost)
-    const payload = await trackEvent('performance_long_task', {
-      duration: cost,
-      threshold: 50,
-      source,
-      page: '/performance',
-      observed: cost >= 50,
+    const payload = await reportPerformanceMetric('long_task', cost, {
+      extra: {
+        threshold: 50,
+        source,
+        observed: cost >= 50,
+      },
+      context: {
+        page: '/performance',
+      },
     })
     pushLog('long-task', title, `阻塞耗时 ${cost}ms`, payload ?? { duration: cost, source })
   }
@@ -70,9 +73,11 @@ export default function PerformancePage() {
           transferSize: 'n/a',
         }
 
-    const payload = await trackEvent('performance_navigation', {
-      page: '/performance',
-      metrics,
+    const payload = await reportPerformanceMetric('ttfb', metrics.responseStart, {
+      extra: metrics,
+      context: {
+        page: '/performance',
+      },
     })
     pushLog('metrics', '导航性能指标', '采集 Navigation Timing / legacy timing 数据', payload ?? metrics)
   }
@@ -94,9 +99,15 @@ export default function PerformancePage() {
       })),
     }
 
-    const payload = await trackEvent('performance_resource_summary', {
-      page: '/performance',
-      metrics: summary,
+    const averageDuration = summary.samples.length > 0
+      ? summary.samples.reduce((total, item) => total + item.duration, 0) / summary.samples.length
+      : 0
+
+    const payload = await reportPerformanceMetric('resource_summary', averageDuration, {
+      extra: summary,
+      context: {
+        page: '/performance',
+      },
     })
     pushLog('metrics', '资源概览', '采集 Resource Timing 概览', payload ?? summary)
   }
@@ -123,9 +134,11 @@ export default function PerformancePage() {
     performance.clearMarks(markEnd)
     performance.clearMeasures(measureName)
 
-    const payload = await trackEvent('performance_user_timing', {
-      page: '/performance',
-      metrics,
+    const payload = await reportPerformanceMetric('user_timing', metrics.duration, {
+      extra: metrics,
+      context: {
+        page: '/performance',
+      },
     })
     pushLog('metrics', '用户自定义计时', '通过 performance.mark / measure 采样', payload ?? metrics)
   }
@@ -158,9 +171,11 @@ export default function PerformancePage() {
         })),
         simulatedCost: cost,
       }
-      const payload = await trackEvent('performance_observed_longtask', {
-        page: '/performance',
-        metrics,
+      const payload = await reportPerformanceMetric('observed_longtask', cost, {
+        extra: metrics,
+        context: {
+          page: '/performance',
+        },
       })
       setDuration(cost)
       pushLog('observer', 'Long Task 观察', '已触发并采集到 longtask 观测数据', payload ?? metrics)
@@ -218,6 +233,12 @@ export default function PerformancePage() {
           }
         }),
       }
+      await reportPerformanceMetric('cls_manual_probe', metrics.totalValue, {
+        extra: metrics,
+        context: {
+          page: '/performance',
+        },
+      })
       pushLog('cls', 'CLS 观察', '已展开顶部横幅并采集 layout-shift 数据，刷新或切换页面后会由 PerformancePlugin 上报 performance_cls', metrics)
     }
     catch (error) {

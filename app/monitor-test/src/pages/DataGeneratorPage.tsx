@@ -12,6 +12,7 @@ export default function DataGeneratorPage() {
   const {
     status,
     flushReplay,
+    reportPerformanceMetric,
     trackEvent,
     trackPage,
     trackUv,
@@ -129,16 +130,24 @@ export default function DataGeneratorPage() {
     addLog('info', `开始生成 ${performanceCount} 条 Performance 数据...`)
 
     try {
-      for (let i = 0; i < performanceCount; i++) {
-        // 模拟长任务性能数据
-        const duration = Math.floor(Math.random() * 1000) + 50
+      const metricTypes = ['ttfb', 'fcp', 'lcp', 'inp', 'long_task'] as const
 
-        await trackEvent('performance_long_task', {
-          type: 'longtask',
-          duration,
-          startTime: Date.now(),
-          index: i,
-          taskName: `task_${Math.floor(Math.random() * 100)}`,
+      for (let i = 0; i < performanceCount; i++) {
+        const metricType = metricTypes[i % metricTypes.length]
+        const value = metricType === 'inp' || metricType === 'long_task'
+          ? Math.floor(Math.random() * 1200) + 60
+          : Math.floor(Math.random() * 4000) + 80
+
+        await reportPerformanceMetric(metricType, value, {
+          extra: {
+            index: i,
+            source: 'data-generator',
+            taskName: `task_${Math.floor(Math.random() * 100)}`,
+          },
+          context: {
+            page: '/data-generator',
+            scenario: 'batch_performance_seed',
+          },
         })
 
         setProgress(Math.round(((i + 1) / performanceCount) * 100))

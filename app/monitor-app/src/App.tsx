@@ -1205,6 +1205,7 @@ function PerformancePage() {
 function ErrorPage() {
   const filters = useCommonFilters()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -1220,6 +1221,19 @@ function ErrorPage() {
   useEffect(() => {
     setPage(1)
   }, [timeParams])
+
+  useEffect(() => {
+    const appIdFromQuery = searchParams.get('appId')?.trim()
+    if (appIdFromQuery) {
+      filters.setAppId(appIdFromQuery)
+    }
+
+    const start = searchParams.get('start')
+    const end = searchParams.get('end')
+    if (start && end) {
+      filters.setRange([start, end])
+    }
+  }, [searchParams])
 
   const listQuery = useMonitorQuery(() => monitorService.getErrors(listParams), listKey)
   const statsQuery = useMonitorQuery(() => monitorService.getErrorStats(timeParams), statsKey)
@@ -1444,7 +1458,19 @@ function ErrorPage() {
             label: '回放 segment',
             value: selectedReplaySegmentId
               ? (
-                  <Button type="link" onClick={() => navigate(`/replay?segmentId=${encodeURIComponent(selectedReplaySegmentId)}`)}>
+                  <Button
+                    type="link"
+                    onClick={() => {
+                      const params = new URLSearchParams()
+                      if (selected?.appId) {
+                        params.set('appId', selected.appId)
+                      }
+                      params.set('start', filters.range[0])
+                      params.set('end', filters.range[1])
+                      params.set('segmentId', selectedReplaySegmentId)
+                      navigate(`/replay?${params.toString()}`)
+                    }}
+                  >
                     {selectedReplaySegmentId}
                   </Button>
                 )
@@ -1521,6 +1547,19 @@ function ReplayPage() {
   useEffect(() => {
     setPage(1)
   }, [timeParams, segmentId])
+
+  useEffect(() => {
+    const appIdFromQuery = searchParams.get('appId')?.trim()
+    if (appIdFromQuery) {
+      filters.setAppId(appIdFromQuery)
+    }
+
+    const start = searchParams.get('start')
+    const end = searchParams.get('end')
+    if (start && end) {
+      filters.setRange([start, end])
+    }
+  }, [searchParams])
 
   const listQuery = useMonitorQuery(() => monitorService.getReplays(listParams), listKey)
   const statsQuery = useMonitorQuery(() => monitorService.getReplayStats(timeParams), statsKey)
@@ -1751,14 +1790,32 @@ function ReplayPage() {
 }
 
 function DemoPage() {
+  const navigate = useNavigate()
   const [enablePv, setEnablePv] = useState(true)
   const [enableUv, setEnableUv] = useState(true)
   const [enableReplay, setEnableReplay] = useState(true)
   const [maskSensitive, setMaskSensitive] = useState(true)
+  const [autoNavigate, setAutoNavigate] = useState(true)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState('')
+  const [lastRange, setLastRange] = useState<QueryRange | null>(null)
+  const [lastSegmentId, setLastSegmentId] = useState('')
+  const [lastIncludeError, setLastIncludeError] = useState(false)
 
   const appId = 'monitor-app-demo'
+
+  const buildDemoQuery = (extra: Record<string, string> = {}) => {
+    const today = formatDateInput(new Date())
+    const start = lastRange?.[0] ?? today
+    const end = lastRange?.[1] ?? today
+    const params = new URLSearchParams({
+      appId,
+      start,
+      end,
+      ...extra,
+    })
+    return params.toString()
+  }
 
   const submitDemoBatch = async (includeError = false) => {
     setLoading(true)
@@ -1872,7 +1929,34 @@ function DemoPage() {
       }
 
       const response = await monitorService.sendBatch(items)
+      const currentDay = formatDateInput(new Date(now))
+      setLastRange([currentDay, currentDay])
+      setLastSegmentId(enableReplay ? segmentId : '')
+      setLastIncludeError(includeError)
       setResult(`写入成功：total=${response.summary.total}，tracking=${response.summary.tracking}，performance=${response.summary.performance}，error=${response.summary.error}，replay=${response.summary.replay}`)
+
+      const buildCurrentQuery = (extra: Record<string, string> = {}) => {
+        return new URLSearchParams({
+          appId,
+          start: currentDay,
+          end: currentDay,
+          ...extra,
+        }).toString()
+      }
+
+      if (autoNavigate) {
+        if (includeError) {
+          navigate(`/error?${buildCurrentQuery()}`)
+          return
+        }
+
+        if (enableReplay) {
+          navigate(`/replay?${buildCurrentQuery({ segmentId })}`)
+          return
+        }
+
+        navigate(`/tracking?${buildCurrentQuery({ keyword: 'page_view' })}`)
+      }
     }
     catch (error) {
       setResult(`写入失败：${error instanceof Error ? error.message : String(error)}`)
@@ -1901,6 +1985,10 @@ function DemoPage() {
           <Space>
             <Text>敏感字段脱敏</Text>
             <Switch checked={maskSensitive} onChange={setMaskSensitive} />
+          </Space>
+          <Space>
+            <Text>发送后自动跳转</Text>
+            <Switch checked={autoNavigate} onChange={setAutoNavigate} />
           </Space>
           <Space>
             <Button loading={loading} type="primary" id="demo-send" onClick={() => void submitDemoBatch(false)}>
@@ -1932,6 +2020,29 @@ function DemoPage() {
               message={result.startsWith('写入成功') ? '上报结果' : '上报失败'}
               description={result}
             />
+          )
+        : null}
+
+      {result.startsWith('写入成功')
+        ? (
+            <SectionCard title="快速跳转" description="用于演示发送结果后的页面联动定位。">
+              <Space wrap>
+                <Button onClick={() => navigate('/dashboard')}>查看总览</Button>
+                <Button onClick={() => navigate(`/tracking?${buildDemoQuery({ keyword: 'page_view' })}`)}>
+                  查看埋点
+                </Button>
+                {lastIncludeError
+                  ? <Button danger onClick={() => navigate(`/error?${buildDemoQuery()}`)}>查看错误</Button>
+                  : null}
+                {lastSegmentId
+                  ? (
+                      <Button type="primary" onClick={() => navigate(`/replay?${buildDemoQuery({ segmentId: lastSegmentId })}`)}>
+                        查看回放
+                      </Button>
+                    )
+                  : null}
+              </Space>
+            </SectionCard>
           )
         : null}
     </Space>

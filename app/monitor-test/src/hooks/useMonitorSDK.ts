@@ -4,6 +4,7 @@ import {
   flushReplay,
   getSDKStatus,
   reportError,
+  reportPerformanceMetric,
   trackEvent,
   trackPage,
   trackUser,
@@ -27,6 +28,7 @@ export function useMonitorSDK() {
   return useMemo(() => ({
     status,
     flushReplay,
+    reportPerformanceMetric,
     reportError,
     trackEvent,
     trackPage,
