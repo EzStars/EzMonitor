@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "docx": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "computedHash": "150be87ff7b18f273ad07da303adb1cf2ca21cc3e76db7a2cf0373405178a278"
+    },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "computedHash": "9e1c8b3103f92fa8092568a44fe64858de7c5c9dc65ce4bea8f168080e889cfd"
+    },
+    "thesis-image-workflow": {
+      "source": "C:\\Users\\Ni0daunn\\Desktop\\work\\EzMonitor\\.github\\skills\\thesis-image-workflow",
+      "sourceType": "local",
+      "computedHash": "afb8de7f77d4a5fa7a29d3631f1a321de0fb48112eb00a00fb8c0eb4173217e3"
+    }
+  }
+}

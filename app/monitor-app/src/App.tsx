@@ -349,7 +349,7 @@ function FilterBar({
 function MetricGrid({
   items,
 }: {
-  items: Array<{ title: string, value: string | number | null | undefined, suffix?: ReactNode, tooltip?: string }>
+  items: Array<{ title: string, value: string | number | null | undefined, suffix?: ReactNode, tooltip?: string, action?: ReactNode }>
 }) {
   return (
     <Row gutter={[16, 16]}>
@@ -358,6 +358,7 @@ function MetricGrid({
           <Card className="metric-card">
             <Statistic title={item.title} value={item.value ?? undefined} suffix={item.suffix} />
             {item.tooltip ? <Text type="secondary">{item.tooltip}</Text> : null}
+            {item.action ? <div style={{ marginTop: 8 }}>{item.action}</div> : null}
           </Card>
         </Col>
       ))}
@@ -485,6 +486,7 @@ function buildCategoryTrend<T extends { timestamp: string | number | Date }>(
 
 function DashboardPage() {
   const filters = useCommonFilters()
+  const navigate = useNavigate()
   const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
   const listParams = useMemo(
     () => ({ ...timeParams, page: 1, pageSize: 100, sortBy: 'timestamp', sortOrder: 'desc' as const }),
@@ -494,10 +496,26 @@ function DashboardPage() {
   const listKey = useMemo(() => queryKey(listParams), [listParams])
 
   const overview = useMonitorQuery(() => monitorService.getOverviewStats(timeParams), statsKey)
+  const trackingStats = useMonitorQuery(() => monitorService.getTrackingStats(timeParams), statsKey)
   const tracking = useMonitorQuery(() => monitorService.getTracking(listParams), listKey)
   const performance = useMonitorQuery(() => monitorService.getPerformance(listParams), listKey)
   const errors = useMonitorQuery(() => monitorService.getErrors(listParams), listKey)
   const replay = useMonitorQuery(() => monitorService.getReplays(listParams), listKey)
+
+  const getTrackingEventCount = (eventName: string) => {
+    return trackingStats.data?.find(item => item.eventName === eventName)?.count ?? 0
+  }
+
+  const gotoTrackingWithFilter = (eventName: string) => {
+    const params = new URLSearchParams()
+    params.set('keyword', eventName)
+    if (filters.appId.trim()) {
+      params.set('appId', filters.appId.trim())
+    }
+    params.set('start', filters.range[0])
+    params.set('end', filters.range[1])
+    navigate(`/tracking?${params.toString()}`)
+  }
 
   const latestPreview = useMemo(
     () =>
@@ -565,6 +583,26 @@ function DashboardPage() {
       tooltip: '当前筛选范围内的回放分段数量',
     },
     {
+      title: 'PV (page_view)',
+      value: getTrackingEventCount('page_view'),
+      tooltip: '当前筛选范围内的页面访问次数',
+      action: (
+        <Button type="link" size="small" onClick={() => gotoTrackingWithFilter('page_view')}>
+          一键筛选
+        </Button>
+      ),
+    },
+    {
+      title: 'UV (uv_visit)',
+      value: getTrackingEventCount('uv_visit'),
+      tooltip: '当前筛选范围内的独立访客事件数',
+      action: (
+        <Button type="link" size="small" onClick={() => gotoTrackingWithFilter('uv_visit')}>
+          一键筛选
+        </Button>
+      ),
+    },
+    {
       title: '合计',
       value: overview.data?.total ?? 0,
       tooltip: '四类数据总数',
@@ -573,13 +611,13 @@ function DashboardPage() {
 
   return (
     <Space direction="vertical" size={16} className="page-stack">
-      {overview.error || tracking.error || performance.error || errors.error || replay.error
+      {overview.error || trackingStats.error || tracking.error || performance.error || errors.error || replay.error
         ? (
             <Alert
               type="warning"
               showIcon
               message="部分请求失败"
-              description={overview.error ?? tracking.error ?? performance.error ?? errors.error ?? replay.error}
+              description={overview.error ?? trackingStats.error ?? tracking.error ?? performance.error ?? errors.error ?? replay.error}
             />
           )
         : null}
@@ -591,9 +629,9 @@ function DashboardPage() {
         onRangeChange={filters.setRange}
         onReset={filters.reset}
         onRefresh={() => {
-          void Promise.allSettled([overview.refresh(), tracking.refresh(), performance.refresh(), errors.refresh(), replay.refresh()])
+          void Promise.allSettled([overview.refresh(), trackingStats.refresh(), tracking.refresh(), performance.refresh(), errors.refresh(), replay.refresh()])
         }}
-        loading={overview.loading || tracking.loading || performance.loading || errors.loading || replay.loading}
+        loading={overview.loading || trackingStats.loading || tracking.loading || performance.loading || errors.loading || replay.loading}
       />
 
       <MetricGrid items={metricItems} />
@@ -661,6 +699,7 @@ function DashboardPage() {
 
 function TrackingPage() {
   const filters = useCommonFilters()
+  const [searchParams] = useSearchParams()
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -676,6 +715,24 @@ function TrackingPage() {
   useEffect(() => {
     setPage(1)
   }, [timeParams])
+
+  useEffect(() => {
+    const keywordFromQuery = searchParams.get('keyword')?.trim()
+    if (keywordFromQuery) {
+      setKeyword(keywordFromQuery)
+    }
+
+    const appIdFromQuery = searchParams.get('appId')?.trim()
+    if (appIdFromQuery) {
+      filters.setAppId(appIdFromQuery)
+    }
+
+    const start = searchParams.get('start')
+    const end = searchParams.get('end')
+    if (start && end) {
+      filters.setRange([start, end])
+    }
+  }, [searchParams])
 
   const listQuery = useMonitorQuery(() => monitorService.getTracking(listParams), listKey)
   const statsQuery = useMonitorQuery(() => monitorService.getTrackingStats(timeParams), statsKey)
