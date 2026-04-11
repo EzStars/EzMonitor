@@ -101,6 +101,10 @@ export interface MonitorStatsQueryParams {
   endTime?: number
 }
 
+export interface RootCauseSummaryQueryParams extends MonitorStatsQueryParams {
+  limit?: number
+}
+
 export interface AlertRuleQueryParams extends PaginationParams {
   appId?: string
   enabled?: boolean
@@ -138,6 +142,10 @@ export const monitorApi = {
     request.get<T>('/api/monitor/stats/error', { params }),
   getReplayStats: <T = unknown>(params?: MonitorStatsQueryParams) =>
     request.get<T>('/api/monitor/stats/replay', { params }),
+  getRootCauseSummary: <T = unknown>(params?: RootCauseSummaryQueryParams) =>
+    request.get<T>('/api/monitor/stats/root-cause', { params }),
+  getErrorRootCause: <T = unknown>(id: string) =>
+    request.get<T>(`/api/monitor/error/${id}/root-cause`),
   getAlertRules: <T = unknown>(params?: AlertRuleQueryParams) =>
     request.get<T>('/api/monitor/alerts/rules', { params }),
   createAlertRule: <T = unknown>(payload: unknown) =>

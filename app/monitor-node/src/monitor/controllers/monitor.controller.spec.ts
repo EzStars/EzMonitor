@@ -13,6 +13,8 @@ describe('monitorController', () => {
     createTracking: jest.fn(),
     createReplay: jest.fn(),
     createBatch: jest.fn(),
+    getErrorRootCause: jest.fn(),
+    getRootCauseSummary: jest.fn(),
   }
   const sourceMapService = {
     saveSourceMap: jest.fn(),
@@ -139,6 +141,68 @@ describe('monitorController', () => {
       success: true,
       data: { items: [], page: 1 },
     })
+  })
+
+  it('should return root cause summary data', async () => {
+    monitorService.getRootCauseSummary.mockResolvedValue([
+      {
+        category: 'error_frequency',
+        title: '高频错误',
+        count: 2,
+      },
+    ])
+
+    await expect(
+      controller.getRootCauseSummary({
+        appId: 'app-1',
+        startTime: '1712700000000',
+        endTime: '1712786400000',
+        limit: '5',
+      }),
+    ).resolves.toEqual({
+      success: true,
+      data: [
+        {
+          category: 'error_frequency',
+          title: '高频错误',
+          count: 2,
+        },
+      ],
+    })
+    expect(monitorService.getRootCauseSummary).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'app-1',
+        limit: 5,
+      }),
+    )
+  })
+
+  it('should return root cause detail by error id', async () => {
+    monitorService.getErrorRootCause.mockResolvedValue({
+      rootCause: {
+        category: 'performance_regression',
+        title: '性能回归触发异常',
+      },
+      confidence: 86,
+    })
+
+    await expect(controller.getErrorRootCause('error-1')).resolves.toEqual({
+      success: true,
+      data: {
+        rootCause: {
+          category: 'performance_regression',
+          title: '性能回归触发异常',
+        },
+        confidence: 86,
+      },
+    })
+    expect(monitorService.getErrorRootCause).toHaveBeenCalledWith('error-1')
+  })
+
+  it('should reject invalid root cause summary limit', async () => {
+    await expect(controller.getRootCauseSummary({ limit: '0' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    )
   })
 
   it('should reject invalid query payloads', async () => {

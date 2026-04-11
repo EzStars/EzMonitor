@@ -6,6 +6,7 @@ import type {
   LatestAlertQueryParams,
   MonitorQueryParams,
   MonitorStatsQueryParams,
+  RootCauseSummaryQueryParams,
 } from './api'
 import { monitorApi } from './api'
 
@@ -123,6 +124,56 @@ export interface ReplayRecord {
   updatedAt?: string | number | Date
 }
 
+export interface RootCauseDetail {
+  analysisId?: string
+  sourceErrorId?: string
+  appId: string
+  analyzedAt: string
+  analysisVersion: string
+  score: number
+  severity: AlertSeverity
+  confidence: number
+  rootCause: {
+    category: string
+    title: string
+    summary: string
+    evidence: string[]
+  }
+  timeline: {
+    errorAt: string
+    windowStart: string
+    windowEnd: string
+  }
+  correlations: {
+    sameFingerprintCount: number
+    spreadSessionCount: number
+    performance: Array<{
+      metricType: string
+      value: number
+      timestamp: string
+      url?: string
+    }>
+    replays: Array<{
+      segmentId: string
+      timestamp: string
+      route?: string
+      reason?: string
+      eventCount: number
+      sessionId?: string
+    }>
+  }
+  findings: string[]
+}
+
+export interface RootCauseSummaryItem {
+  category: string
+  title: string
+  severity: AlertSeverity
+  count: number
+  avgConfidence: number
+  lastAnalyzedAt: string
+}
+
 export type AlertMetric = 'error_frequency' | 'error_spread'
 export type AlertSeverity = 'low' | 'medium' | 'high' | 'critical'
 export type AlertEventStatus = 'open' | 'acknowledged' | 'resolved'
@@ -215,6 +266,10 @@ export const monitorService = {
     unwrap(monitorApi.getErrorStats<ErrorStatsItem[]>(params)),
   getReplayStats: (params?: MonitorStatsQueryParams) =>
     unwrap(monitorApi.getReplayStats<ReplayStatsItem[]>(params)),
+  getRootCauseSummary: (params?: RootCauseSummaryQueryParams) =>
+    unwrap(monitorApi.getRootCauseSummary<RootCauseSummaryItem[]>(params)),
+  getErrorRootCause: (id: string) =>
+    unwrap(monitorApi.getErrorRootCause<RootCauseDetail | null>(id)),
   getAlertRules: (params?: AlertRuleQueryParams) =>
     unwrap(monitorApi.getAlertRules<MonitorListResult<AlertRuleRecord>>(params)),
   createAlertRule: (payload: CreateAlertRulePayload) =>

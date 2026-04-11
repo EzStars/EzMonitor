@@ -1,16 +1,22 @@
-import type { Model } from 'mongoose'
+import type { FilterQuery, Model } from 'mongoose'
 import type { AlertRule } from '../schemas/alert-rule.schema'
 import type { ErrorAnalysis } from '../schemas/error-analysis.schema'
 import type { ErrorLog } from '../schemas/error-log.schema'
 import type { PerformanceMetric } from '../schemas/performance-metric.schema'
+import type { ReplaySegment } from '../schemas/replay-segment.schema'
 import { Inject, Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { ErrorAnalysis as ErrorAnalysisEntity } from '../schemas/error-analysis.schema'
 import { ErrorLog as ErrorLogEntity } from '../schemas/error-log.schema'
 import { PerformanceMetric as PerformanceMetricEntity } from '../schemas/performance-metric.schema'
+import { ReplaySegment as ReplaySegmentEntity } from '../schemas/replay-segment.schema'
 import { AlertEventService } from './alert-event.service'
 import { AlertRuleService } from './alert-rule.service'
 import { SseBroadcastService } from './sse-broadcast.service'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
 interface ErrorLike {
   _id?: unknown
@@ -35,6 +41,77 @@ interface AnalysisFinding {
   windowSec: number
 }
 
+type AnalysisSeverity = AnalysisFinding['severity']
+
+interface CorrelatedPerformanceMetric {
+  metricType: string
+  value: number
+  timestamp: string
+  url?: string
+}
+
+interface CorrelatedReplaySegment {
+  segmentId: string
+  timestamp: string
+  route?: string
+  reason?: string
+  eventCount: number
+  sessionId?: string
+}
+
+interface RootCauseContextResult {
+  analysisVersion: string
+  confidence: number
+  rootCauseCategory: string
+  rootCauseTitle: string
+  context: Record<string, unknown>
+}
+
+interface RootCausePickResult {
+  category: string
+  title: string
+  summary: string
+  evidence: string[]
+}
+
+export interface RootCauseDetail {
+  analysisId?: string
+  sourceErrorId?: string
+  appId: string
+  analyzedAt: string
+  analysisVersion: string
+  score: number
+  severity: AnalysisSeverity
+  confidence: number
+  rootCause: {
+    category: string
+    title: string
+    summary: string
+    evidence: string[]
+  }
+  timeline: {
+    errorAt: string
+    windowStart: string
+    windowEnd: string
+  }
+  correlations: {
+    sameFingerprintCount: number
+    spreadSessionCount: number
+    performance: CorrelatedPerformanceMetric[]
+    replays: CorrelatedReplaySegment[]
+  }
+  findings: string[]
+}
+
+export interface RootCauseSummaryItem {
+  category: string
+  title: string
+  severity: AnalysisSeverity
+  count: number
+  avgConfidence: number
+  lastAnalyzedAt: string
+}
+
 @Injectable()
 export class ErrorAnalysisService {
   constructor(
@@ -44,6 +121,8 @@ export class ErrorAnalysisService {
     private readonly errorModel: Model<ErrorLog>,
     @InjectModel(PerformanceMetricEntity.name)
     private readonly performanceModel: Model<PerformanceMetric>,
+    @InjectModel(ReplaySegmentEntity.name)
+    private readonly replayModel: Model<ReplaySegment>,
     @Inject(AlertRuleService)
     private readonly alertRuleService: AlertRuleService,
     @Inject(AlertEventService)
@@ -53,6 +132,7 @@ export class ErrorAnalysisService {
   ) {}
 
   async handleErrorRecord(errorRecord: ErrorLike): Promise<void> {
+    const now = errorRecord.timestamp ?? new Date()
     const findings = await this.evaluateAll(errorRecord)
     const uniqueFindings = this.uniqueFindings(findings)
 
@@ -60,19 +140,30 @@ export class ErrorAnalysisService {
       ? Math.max(...uniqueFindings.map(item => item.score))
       : 0
 
-    await this.analysisModel.create({
+    const rootCauseContext = await this.buildRootCauseContext(
+      errorRecord,
+      uniqueFindings,
+      analysisScore,
+      now,
+    )
+
+    const analysis = await this.analysisModel.create({
       appId: errorRecord.appId,
       sourceErrorId: this.toStringId(errorRecord._id),
       errorType: errorRecord.errorType,
       fingerprint: errorRecord.fingerprint,
       score: analysisScore,
       severity: this.scoreToSeverity(analysisScore),
+      rootCauseCategory: rootCauseContext.rootCauseCategory,
+      rootCauseTitle: rootCauseContext.rootCauseTitle,
+      confidence: rootCauseContext.confidence,
+      analysisVersion: rootCauseContext.analysisVersion,
       findings: uniqueFindings.flatMap(item => item.findings),
-      context: {
-        message: errorRecord.message,
-      },
-      analyzedAt: new Date(),
+      context: rootCauseContext.context,
+      analyzedAt: now,
     })
+
+    const analysisId = this.toStringId((analysis as { _id?: unknown })._id)
 
     for (const finding of uniqueFindings) {
       const duplicated = await this.alertEventService.hasRecentDuplicate(
@@ -98,6 +189,12 @@ export class ErrorAnalysisService {
           errorType: errorRecord.errorType,
           fingerprint: errorRecord.fingerprint,
           sessionId: errorRecord.sessionId,
+          rootCauseId: analysisId,
+          rootCauseSummary: {
+            category: rootCauseContext.rootCauseCategory,
+            title: rootCauseContext.rootCauseTitle,
+            confidence: rootCauseContext.confidence,
+          },
         },
         sourceErrorId: this.toStringId(errorRecord._id),
         dedupeKey: finding.dedupeKey,
@@ -105,6 +202,104 @@ export class ErrorAnalysisService {
 
       this.sseBroadcastService.emitAlert(created)
     }
+  }
+
+  async getRootCauseByErrorId(errorId: string): Promise<RootCauseDetail | null> {
+    const normalizedId = errorId.trim()
+    if (!normalizedId) {
+      return null
+    }
+
+    const analysis = await this.analysisModel
+      .findOne({ sourceErrorId: normalizedId })
+      .sort({ analyzedAt: -1 })
+      .lean()
+      .exec()
+
+    if (!analysis) {
+      return null
+    }
+
+    return this.toRootCauseDetail(analysis as ErrorAnalysis & { _id?: unknown })
+  }
+
+  async getRootCauseSummary(query: {
+    appId?: string
+    startTime?: Date
+    endTime?: Date
+    limit?: number
+  }): Promise<RootCauseSummaryItem[]> {
+    const match: FilterQuery<ErrorAnalysis> = {}
+    if (query.appId) {
+      match.appId = query.appId
+    }
+
+    if (query.startTime || query.endTime) {
+      match.analyzedAt = {}
+      if (query.startTime) {
+        match.analyzedAt.$gte = query.startTime
+      }
+      if (query.endTime) {
+        match.analyzedAt.$lte = query.endTime
+      }
+    }
+
+    const limit = this.clamp(query.limit ?? 8, 1, 20)
+    const rows = await this.analysisModel.aggregate<{
+      _id: {
+        category: string
+        title: string
+        severity: AnalysisSeverity
+      }
+      count: number
+      avgConfidence: number
+      lastAnalyzedAt: Date
+    }>([
+      { $match: match },
+      {
+        $project: {
+          category: {
+            $ifNull: ['$rootCauseCategory', { $ifNull: ['$context.rootCause.category', 'unknown'] }],
+          },
+          title: {
+            $ifNull: ['$rootCauseTitle', { $ifNull: ['$context.rootCause.title', '未知根因'] }],
+          },
+          severity: { $ifNull: ['$severity', 'low'] },
+          confidence: {
+            $ifNull: ['$confidence', { $ifNull: ['$context.rootCause.confidence', 0] }],
+          },
+          analyzedAt: 1,
+        },
+      },
+      {
+        $group: {
+          _id: {
+            category: '$category',
+            title: '$title',
+            severity: '$severity',
+          },
+          count: { $sum: 1 },
+          avgConfidence: { $avg: '$confidence' },
+          lastAnalyzedAt: { $max: '$analyzedAt' },
+        },
+      },
+      {
+        $sort: {
+          count: -1,
+          avgConfidence: -1,
+        },
+      },
+      { $limit: limit },
+    ])
+
+    return rows.map(row => ({
+      category: row._id.category,
+      title: row._id.title,
+      severity: row._id.severity,
+      count: row.count,
+      avgConfidence: Number(row.avgConfidence.toFixed(2)),
+      lastAnalyzedAt: row.lastAnalyzedAt.toISOString(),
+    }))
   }
 
   private async evaluateAll(errorRecord: ErrorLike): Promise<AnalysisFinding[]> {
@@ -307,6 +502,358 @@ export class ErrorAnalysisService {
     return result
   }
 
+  private async buildRootCauseContext(
+    errorRecord: ErrorLike,
+    findings: AnalysisFinding[],
+    analysisScore: number,
+    now: Date,
+  ): Promise<RootCauseContextResult> {
+    const sameFingerprintCount = await this.getSameFingerprintCount(errorRecord, now)
+    const spreadSessionCount = await this.getSpreadSessionCount(errorRecord, now)
+    const performance = await this.getCorrelatedPerformance(errorRecord, now)
+    const replays = await this.getCorrelatedReplays(errorRecord, now)
+
+    const rootCause = this.pickRootCause(
+      findings,
+      sameFingerprintCount,
+      spreadSessionCount,
+      performance.length,
+    )
+    const confidence = this.calculateConfidence(
+      analysisScore,
+      findings.length,
+      performance.length,
+      replays.length,
+      sameFingerprintCount,
+      spreadSessionCount,
+    )
+    const analysisVersion = 'root-cause-v1'
+    const windowStart = new Date(now.getTime() - 10 * 60 * 1000)
+
+    return {
+      analysisVersion,
+      confidence,
+      rootCauseCategory: rootCause.category,
+      rootCauseTitle: rootCause.title,
+      context: {
+        message: errorRecord.message,
+        analysisVersion,
+        rootCause: {
+          category: rootCause.category,
+          title: rootCause.title,
+          summary: rootCause.summary,
+          confidence,
+          evidence: rootCause.evidence,
+          scoreBreakdown: {
+            analysisScore,
+            sameFingerprintCount,
+            spreadSessionCount,
+            performanceCorrelationCount: performance.length,
+            replayCorrelationCount: replays.length,
+          },
+        },
+        timeline: {
+          errorAt: now.toISOString(),
+          windowStart: windowStart.toISOString(),
+          windowEnd: now.toISOString(),
+        },
+        correlations: {
+          sameFingerprintCount,
+          spreadSessionCount,
+          performance,
+          replays,
+        },
+      },
+    }
+  }
+
+  private async getSameFingerprintCount(errorRecord: ErrorLike, now: Date): Promise<number> {
+    if (!errorRecord.fingerprint) {
+      return 0
+    }
+
+    return this.errorModel.countDocuments({
+      appId: errorRecord.appId,
+      fingerprint: errorRecord.fingerprint,
+      timestamp: {
+        $gte: new Date(now.getTime() - 5 * 60 * 1000),
+        $lte: now,
+      },
+    }).exec()
+  }
+
+  private async getSpreadSessionCount(errorRecord: ErrorLike, now: Date): Promise<number> {
+    if (!errorRecord.errorType) {
+      return 0
+    }
+
+    const sessions = await this.errorModel.distinct('sessionId', {
+      appId: errorRecord.appId,
+      errorType: errorRecord.errorType,
+      timestamp: {
+        $gte: new Date(now.getTime() - 10 * 60 * 1000),
+        $lte: now,
+      },
+    })
+
+    return sessions.filter(Boolean).length
+  }
+
+  private async getCorrelatedPerformance(errorRecord: ErrorLike, now: Date): Promise<CorrelatedPerformanceMetric[]> {
+    const metrics = await this.performanceModel
+      .find({
+        appId: errorRecord.appId,
+        timestamp: {
+          $gte: new Date(now.getTime() - 2 * 60 * 1000),
+          $lte: now,
+        },
+      })
+      .sort({ timestamp: -1 })
+      .limit(5)
+      .lean()
+      .exec()
+
+    return metrics.map((metric) => {
+      const timestamp = metric.timestamp instanceof Date
+        ? metric.timestamp.toISOString()
+        : new Date(metric.timestamp).toISOString()
+
+      return {
+        metricType: metric.metricType,
+        value: metric.value,
+        timestamp,
+        url: metric.url,
+      }
+    })
+  }
+
+  private async getCorrelatedReplays(errorRecord: ErrorLike, now: Date): Promise<CorrelatedReplaySegment[]> {
+    const baseFilter: Record<string, unknown> = {
+      appId: errorRecord.appId,
+      timestamp: {
+        $gte: new Date(now.getTime() - 5 * 60 * 1000),
+        $lte: new Date(now.getTime() + 30 * 1000),
+      },
+    }
+
+    let records = await this.replayModel
+      .find({
+        ...baseFilter,
+        ...(errorRecord.sessionId ? { sessionId: errorRecord.sessionId } : {}),
+      })
+      .sort({ timestamp: -1 })
+      .limit(3)
+      .lean()
+      .exec()
+
+    if (records.length === 0) {
+      records = await this.replayModel
+        .find(baseFilter)
+        .sort({ timestamp: -1 })
+        .limit(3)
+        .lean()
+        .exec()
+    }
+
+    return records.map((record) => {
+      const timestamp = record.timestamp instanceof Date
+        ? record.timestamp.toISOString()
+        : new Date(record.timestamp).toISOString()
+
+      return {
+        segmentId: record.segmentId,
+        timestamp,
+        route: record.route,
+        reason: record.reason,
+        eventCount: record.eventCount,
+        sessionId: record.sessionId,
+      }
+    })
+  }
+
+  private pickRootCause(
+    findings: AnalysisFinding[],
+    sameFingerprintCount: number,
+    spreadSessionCount: number,
+    performanceCorrelationCount: number,
+  ): RootCausePickResult {
+    if (findings.length > 0) {
+      const top = [...findings].sort((a, b) => b.score - a.score)[0]
+      const summary = top.summary
+      const evidence = top.findings.length > 0 ? top.findings : ['命中告警规则但未返回细分证据']
+
+      if (summary.includes('性能')) {
+        return {
+          category: 'performance_regression',
+          title: '性能回归触发异常',
+          summary,
+          evidence,
+        }
+      }
+
+      if (summary.includes('扩散') || top.metric === 'error_spread') {
+        return {
+          category: 'error_spread',
+          title: '错误扩散',
+          summary,
+          evidence,
+        }
+      }
+
+      if (summary.includes('高频') || top.metric === 'error_frequency') {
+        return {
+          category: 'error_frequency',
+          title: '高频错误',
+          summary,
+          evidence,
+        }
+      }
+
+      return {
+        category: 'custom_rule',
+        title: top.ruleName ? `规则触发：${top.ruleName}` : '自定义规则触发',
+        summary,
+        evidence,
+      }
+    }
+
+    if (performanceCorrelationCount > 0) {
+      return {
+        category: 'performance_regression',
+        title: '疑似性能回归',
+        summary: '错误发生前存在高密度性能样本，疑似性能回归触发。',
+        evidence: ['近期性能样本与错误时间窗口重叠'],
+      }
+    }
+
+    if (spreadSessionCount >= 2) {
+      return {
+        category: 'error_spread',
+        title: '疑似错误扩散',
+        summary: '同类型错误在多个会话中短时间内重复出现。',
+        evidence: [`会话扩散数 ${spreadSessionCount}`],
+      }
+    }
+
+    if (sameFingerprintCount >= 2) {
+      return {
+        category: 'error_frequency',
+        title: '疑似高频错误',
+        summary: '同错误指纹在短时间内多次出现。',
+        evidence: [`指纹重复次数 ${sameFingerprintCount}`],
+      }
+    }
+
+    return {
+      category: 'unknown',
+      title: '未知根因',
+      summary: '当前证据不足，建议结合回放与业务日志进一步定位。',
+      evidence: ['缺少可判定证据'],
+    }
+  }
+
+  private calculateConfidence(
+    analysisScore: number,
+    findingCount: number,
+    performanceCount: number,
+    replayCount: number,
+    sameFingerprintCount: number,
+    spreadSessionCount: number,
+  ): number {
+    const base = analysisScore > 0 ? analysisScore : 35
+    const extra
+      = (findingCount > 0 ? 8 : 0)
+        + (performanceCount > 0 ? 8 : 0)
+        + (replayCount > 0 ? 6 : 0)
+        + (sameFingerprintCount >= 3 ? 7 : 0)
+        + (spreadSessionCount >= 5 ? 7 : 0)
+
+    return this.clamp(Math.round(base * 0.72 + extra), 25, 99)
+  }
+
+  private toRootCauseDetail(analysis: ErrorAnalysis & { _id?: unknown }): RootCauseDetail {
+    const context = isRecord(analysis.context) ? analysis.context : {}
+    const rootCause = isRecord(context.rootCause) ? context.rootCause : {}
+    const correlations = isRecord(context.correlations) ? context.correlations : {}
+    const timeline = isRecord(context.timeline) ? context.timeline : {}
+
+    const category = this.asString(analysis.rootCauseCategory)
+      ?? this.asString(rootCause.category)
+      ?? 'unknown'
+    const title = this.asString(analysis.rootCauseTitle)
+      ?? this.asString(rootCause.title)
+      ?? '未知根因'
+    const summary = this.asString(rootCause.summary) ?? '暂无根因摘要'
+    const confidence = this.clamp(
+      this.asNumber(analysis.confidence)
+      ?? this.asNumber(rootCause.confidence)
+      ?? analysis.score,
+      0,
+      100,
+    )
+
+    const evidence = Array.isArray(rootCause.evidence)
+      ? rootCause.evidence.filter(item => typeof item === 'string')
+      : []
+
+    const performanceRaw = Array.isArray(correlations.performance) ? correlations.performance : []
+    const performance = performanceRaw
+      .filter(isRecord)
+      .map(item => ({
+        metricType: this.asString(item.metricType) ?? 'unknown',
+        value: this.asNumber(item.value) ?? 0,
+        timestamp: this.asString(item.timestamp) ?? this.toIsoString(analysis.analyzedAt),
+        url: this.asString(item.url),
+      }))
+
+    const replayRaw = Array.isArray(correlations.replays) ? correlations.replays : []
+    const replays = replayRaw
+      .filter(isRecord)
+      .map(item => ({
+        segmentId: this.asString(item.segmentId) ?? '-',
+        timestamp: this.asString(item.timestamp) ?? this.toIsoString(analysis.analyzedAt),
+        route: this.asString(item.route),
+        reason: this.asString(item.reason),
+        eventCount: this.asNumber(item.eventCount) ?? 0,
+        sessionId: this.asString(item.sessionId),
+      }))
+
+    const findings = Array.isArray(analysis.findings)
+      ? analysis.findings.filter(item => typeof item === 'string')
+      : []
+
+    return {
+      analysisId: this.toStringId(analysis._id),
+      sourceErrorId: this.toStringId(analysis.sourceErrorId),
+      appId: analysis.appId,
+      analyzedAt: this.toIsoString(analysis.analyzedAt),
+      analysisVersion: this.asString(analysis.analysisVersion)
+        ?? this.asString(context.analysisVersion)
+        ?? 'root-cause-v1',
+      score: analysis.score,
+      severity: analysis.severity,
+      confidence,
+      rootCause: {
+        category,
+        title,
+        summary,
+        evidence,
+      },
+      timeline: {
+        errorAt: this.asString(timeline.errorAt) ?? this.toIsoString(analysis.analyzedAt),
+        windowStart: this.asString(timeline.windowStart) ?? this.toIsoString(analysis.analyzedAt),
+        windowEnd: this.asString(timeline.windowEnd) ?? this.toIsoString(analysis.analyzedAt),
+      },
+      correlations: {
+        sameFingerprintCount: this.asNumber(correlations.sameFingerprintCount) ?? 0,
+        spreadSessionCount: this.asNumber(correlations.spreadSessionCount) ?? 0,
+        performance,
+        replays,
+      },
+      findings,
+    }
+  }
+
   private scoreToSeverity(score: number): 'low' | 'medium' | 'high' | 'critical' {
     if (score >= 90) {
       return 'critical'
@@ -331,6 +878,30 @@ export class ErrorAnalysisService {
       return 70
     }
     return 55
+  }
+
+  private asString(value: unknown): string | undefined {
+    return typeof value === 'string' && value.trim() ? value : undefined
+  }
+
+  private asNumber(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+  }
+
+  private toIsoString(value: unknown): string {
+    const date = value instanceof Date
+      ? value
+      : new Date(typeof value === 'string' || typeof value === 'number' ? value : Date.now())
+
+    if (Number.isNaN(date.getTime())) {
+      return new Date().toISOString()
+    }
+
+    return date.toISOString()
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, value))
   }
 
   private toStringId(value: unknown): string | undefined {

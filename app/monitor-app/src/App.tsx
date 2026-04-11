@@ -13,6 +13,7 @@ import type {
   PerformanceStatsItem,
   ReplayRecord,
   ReplayStatsItem,
+  RootCauseSummaryItem,
   TrackingRecord,
   TrackingStatsItem,
 } from './services/monitor'
@@ -1222,6 +1223,7 @@ function ErrorPage() {
   )
   const statsKey = useMemo(() => queryKey(timeParams), [timeParams])
   const listKey = useMemo(() => queryKey(listParams), [listParams])
+  const rootCauseSummaryKey = useMemo(() => `${statsKey}:root-cause-summary`, [statsKey])
 
   useEffect(() => {
     setPage(1)
@@ -1242,6 +1244,10 @@ function ErrorPage() {
 
   const listQuery = useMonitorQuery(() => monitorService.getErrors(listParams), listKey)
   const statsQuery = useMonitorQuery(() => monitorService.getErrorStats(timeParams), statsKey)
+  const rootCauseSummaryQuery = useMonitorQuery(
+    () => monitorService.getRootCauseSummary({ ...timeParams, limit: 6 }),
+    rootCauseSummaryKey,
+  )
   const items = listQuery.data?.items ?? []
   const visibleItems = useMemo(() => {
     const normalized = keyword.trim().toLowerCase()
@@ -1381,6 +1387,27 @@ function ErrorPage() {
     return replay ?? null
   }, [selected])
 
+  const selectedErrorId = selected?._id ?? ''
+  const rootCauseDetailKey = useMemo(
+    () => (selectedErrorId ? `root-cause:${selectedErrorId}` : 'root-cause:none'),
+    [selectedErrorId],
+  )
+  const rootCauseDetailQuery = useMonitorQuery(
+    () => (selectedErrorId ? monitorService.getErrorRootCause(selectedErrorId) : Promise.resolve(null)),
+    rootCauseDetailKey,
+  )
+  const rootCauseSummaryRows = rootCauseSummaryQuery.data ?? []
+  const selectedRootCause = rootCauseDetailQuery.data
+  const selectedRootCauseReplaySegmentId = selectedRootCause?.correlations.replays?.[0]?.segmentId
+
+  const rootCauseCategoryLabels: Record<string, string> = {
+    custom_rule: '自定义规则',
+    error_frequency: '高频错误',
+    error_spread: '错误扩散',
+    performance_regression: '性能回归',
+    unknown: '未知',
+  }
+
   return (
     <Space direction="vertical" size={16} className="page-stack">
       {listQuery.error || statsQuery.error
@@ -1401,9 +1428,9 @@ function ErrorPage() {
           setPageSize(10)
         }}
         onRefresh={() => {
-          void Promise.allSettled([listQuery.refresh(), statsQuery.refresh()])
+          void Promise.allSettled([listQuery.refresh(), statsQuery.refresh(), rootCauseSummaryQuery.refresh()])
         }}
-        loading={listQuery.loading || statsQuery.loading}
+        loading={listQuery.loading || statsQuery.loading || rootCauseSummaryQuery.loading}
         extra={<Input allowClear placeholder="过滤当前页错误消息/类型" value={keyword} onChange={e => setKeyword(e.target.value)} className="filter-input" />}
       />
 
@@ -1446,6 +1473,63 @@ function ErrorPage() {
         </Col>
       </Row>
 
+      <SectionCard title="根因聚类摘要（Top）" description="按当前筛选窗口聚合错误根因，快速定位主要问题来源。">
+        <SectionStatus
+          loading={rootCauseSummaryQuery.loading}
+          error={rootCauseSummaryQuery.error}
+          hasData={rootCauseSummaryRows.length > 0}
+          emptyDescription="当前筛选窗口暂无可用根因聚类数据"
+        >
+          <Table<RootCauseSummaryItem>
+            rowKey={record => `${record.category}-${record.count}-${record.lastAnalyzedAt}`}
+            size="small"
+            pagination={false}
+            dataSource={rootCauseSummaryRows}
+            columns={[
+              {
+                title: '根因类别',
+                dataIndex: 'category',
+                width: 180,
+                render: (category: RootCauseSummaryItem['category']) => (
+                  <Tag color="geekblue">{rootCauseCategoryLabels[category] ?? category}</Tag>
+                ),
+              },
+              {
+                title: '根因标题',
+                dataIndex: 'title',
+                width: 280,
+                render: (value: string) => value || '-',
+              },
+              {
+                title: '严重级别',
+                dataIndex: 'severity',
+                width: 120,
+                render: (value: AlertSeverity) => <Tag color={value === 'critical' ? 'red' : value === 'high' ? 'volcano' : value === 'medium' ? 'gold' : 'blue'}>{value}</Tag>,
+              },
+              {
+                title: '平均置信度',
+                dataIndex: 'avgConfidence',
+                width: 140,
+                render: (value: number) => `${formatNumber(value)}%`,
+              },
+              {
+                title: '样本数',
+                dataIndex: 'count',
+                width: 110,
+                render: (count: number) => formatNumber(count),
+              },
+              {
+                title: '最近分析',
+                dataIndex: 'lastAnalyzedAt',
+                width: 200,
+                render: (value: string) => formatDateTime(value),
+              },
+            ]}
+            scroll={{ x: 980 }}
+          />
+        </SectionStatus>
+      </SectionCard>
+
       <DetailDrawer
         open={selected !== null}
         title={selected?.message ?? '错误详情'}
@@ -1454,11 +1538,43 @@ function ErrorPage() {
         items={[
           { label: 'appId', value: selected?.appId ?? '-' },
           { label: '错误类型', value: selected?.errorType ?? '-' },
+          {
+            label: '根因类别',
+            value: selectedRootCause
+              ? <Tag color="geekblue">{rootCauseCategoryLabels[selectedRootCause.rootCause.category] ?? selectedRootCause.rootCause.category}</Tag>
+              : '-',
+          },
+          {
+            label: '根因置信度',
+            value: selectedRootCause ? `${formatNumber(selectedRootCause.confidence)}%` : '-',
+          },
           { label: 'release', value: selected?.release ?? '-' },
           { label: '定位状态', value: selected?.symbolicationStatus ?? 'skipped' },
           { label: '定位原因', value: selected?.symbolicationReason ?? '-' },
           { label: 'URL', value: selected?.url ?? '-' },
           { label: 'User-Agent', value: selected?.userAgent ?? '-' },
+          {
+            label: '根因回放 segment',
+            value: selectedRootCauseReplaySegmentId
+              ? (
+                  <Button
+                    type="link"
+                    onClick={() => {
+                      const params = new URLSearchParams()
+                      if (selected?.appId) {
+                        params.set('appId', selected.appId)
+                      }
+                      params.set('start', filters.range[0])
+                      params.set('end', filters.range[1])
+                      params.set('segmentId', selectedRootCauseReplaySegmentId)
+                      navigate(`/replay?${params.toString()}`)
+                    }}
+                  >
+                    {selectedRootCauseReplaySegmentId}
+                  </Button>
+                )
+              : '-',
+          },
           {
             label: '回放 segment',
             value: selectedReplaySegmentId
@@ -1483,6 +1599,16 @@ function ErrorPage() {
           },
         ]}
         sections={[
+          {
+            title: 'root cause analysis',
+            content: rootCauseDetailQuery.loading
+              ? <Spin size="small" />
+              : rootCauseDetailQuery.error
+                ? <Alert type="warning" showIcon message="根因分析加载失败" description={rootCauseDetailQuery.error} />
+                : selectedRootCause
+                  ? <pre className="detail-pre">{safeStringify(selectedRootCause)}</pre>
+                  : <pre className="detail-pre">-</pre>,
+          },
           {
             title: 'stack',
             content: <pre className="detail-pre">{selected?.stack ?? '-'}</pre>,

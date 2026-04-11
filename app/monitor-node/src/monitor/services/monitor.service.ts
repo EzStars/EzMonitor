@@ -11,6 +11,7 @@ import type {
   StatsQueryDto,
   TrackingQueryDto,
 } from '../dto'
+import type { RootCauseDetail, RootCauseSummaryItem } from './error-analysis.service'
 import { BadRequestException, Inject, Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import {
@@ -406,6 +407,27 @@ export class MonitorService {
       route: row._id ?? 'unknown',
       count: row.count,
     }))
+  }
+
+  async getErrorRootCause(errorId: string): Promise<RootCauseDetail | null> {
+    if (!this.errorAnalysisService) {
+      return null
+    }
+
+    return this.errorAnalysisService.getRootCauseByErrorId(errorId)
+  }
+
+  async getRootCauseSummary(query: StatsQueryDto & { limit?: number }): Promise<RootCauseSummaryItem[]> {
+    if (!this.errorAnalysisService) {
+      return []
+    }
+
+    return this.errorAnalysisService.getRootCauseSummary({
+      appId: query.appId,
+      startTime: query.startTime,
+      endTime: query.endTime,
+      limit: query.limit,
+    })
   }
 
   private buildSummary(tracking: number, performance: number, error: number, replay: number): WriteSummary {

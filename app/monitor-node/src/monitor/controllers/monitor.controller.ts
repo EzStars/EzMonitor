@@ -1,5 +1,5 @@
 import * as process from 'node:process'
-import { BadRequestException, Body, Controller, Get, Headers, Inject, Post, Query, UnauthorizedException } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Post, Query, UnauthorizedException } from '@nestjs/common'
 import {
   validateCreateErrorLogDto,
   validateCreateMonitorBatchDto,
@@ -83,6 +83,27 @@ export class MonitorController {
   async getReplayStats(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
     const data = await this.monitorService.getReplayStats(dto)
+    return this.buildSuccessResponse(data)
+  }
+
+  @Get('stats/root-cause')
+  async getRootCauseSummary(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
+    const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
+    const limit = this.parseOptionalLimit(query)
+    const data = await this.monitorService.getRootCauseSummary({
+      ...dto,
+      limit,
+    })
+    return this.buildSuccessResponse(data)
+  }
+
+  @Get('error/:id/root-cause')
+  async getErrorRootCause(@Param('id') id: string): Promise<{ success: true, data: unknown }> {
+    if (!id.trim()) {
+      throw new BadRequestException('Error id is required')
+    }
+
+    const data = await this.monitorService.getErrorRootCause(id)
     return this.buildSuccessResponse(data)
   }
 
@@ -259,6 +280,25 @@ export class MonitorController {
     catch {
       throw new BadRequestException(message)
     }
+  }
+
+  private parseOptionalLimit(value: unknown): number | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return undefined
+    }
+
+    const record = value as Record<string, unknown>
+    const raw = record.limit
+    if (raw === undefined) {
+      return undefined
+    }
+
+    const parsed = Number(raw)
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 20) {
+      throw new BadRequestException('limit must be an integer between 1 and 20')
+    }
+
+    return parsed
   }
 
   private assertUploadAuthorized(uploadKey: string | undefined): void {
