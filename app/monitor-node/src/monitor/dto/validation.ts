@@ -1,3 +1,4 @@
+import type { AiAnalyzeErrorDto, AiErrorFrameDto } from './ai.dto'
 import type {
   CreateMonitorBatchDto,
   MonitorBatchItemDto,
@@ -692,4 +693,56 @@ function validateBatchItem(body: unknown): MonitorBatchItemDto {
   }
 
   return item
+}
+
+export function validateAiAnalyzeErrorDto(body: unknown): AiAnalyzeErrorDto {
+  if (!isRecord(body)) {
+    throw new Error('body must be an object')
+  }
+
+  if (!isString(body.message)) {
+    throw new Error('message is required')
+  }
+
+  const frames: AiErrorFrameDto[] | undefined = body.frames === undefined
+    ? undefined
+    : (() => {
+        if (!Array.isArray(body.frames)) {
+          throw new TypeError('frames must be an array')
+        }
+        return (body.frames as unknown[]).map((entry, index) => {
+          if (!isRecord(entry)) {
+            throw new Error(`frames[${index}] must be an object`)
+          }
+          const frame: AiErrorFrameDto = {}
+          const stringFields: (keyof AiErrorFrameDto)[] = ['file', 'functionName', 'originalFile', 'originalFunctionName']
+          const numberFields: (keyof AiErrorFrameDto)[] = ['line', 'column', 'originalLine', 'originalColumn']
+          for (const field of stringFields) {
+            if (entry[field] !== undefined) {
+              if (!isString(entry[field])) {
+                throw new Error(`frames[${index}].${field} must be a string`)
+              }
+              (frame as Record<string, unknown>)[field] = entry[field]
+            }
+          }
+          for (const field of numberFields) {
+            if (entry[field] !== undefined) {
+              const val = entry[field]
+              if (!isNumber(val as unknown)) {
+                throw new Error(`frames[${index}].${field} must be a number`)
+              }
+              (frame as Record<string, unknown>)[field] = val
+            }
+          }
+          return frame
+        })
+      })()
+
+  return {
+    message: body.message,
+    errorType: parseOptionalString(body.errorType, 'errorType'),
+    stack: parseOptionalString(body.stack, 'stack'),
+    url: parseOptionalString(body.url, 'url'),
+    frames,
+  }
 }

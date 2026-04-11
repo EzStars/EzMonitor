@@ -11,7 +11,7 @@ import {
   TrackingEvent,
   TrackingEventSchema,
 } from './schemas'
-import { MonitorService, SourceMapService } from './services'
+import { AiService, MonitorService, SourceMapService } from './services'
 
 @Module({
   controllers: [MonitorController],
@@ -23,7 +23,7 @@ import { MonitorService, SourceMapService } from './services'
       { name: ReplaySegment.name, schema: ReplaySegmentSchema },
     ]),
   ],
-  providers: [MonitorService, SourceMapService],
+  providers: [MonitorService, SourceMapService, AiService],
   exports: [MongooseModule, MonitorService],
 })
 export class MonitorModule {}

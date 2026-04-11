@@ -1,5 +1,6 @@
+import type { HydratedDocument } from 'mongoose'
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
-import { HydratedDocument, Schema as MongooseSchema } from 'mongoose'
+import { Schema as MongooseSchema } from 'mongoose'
 
 export type PerformanceMetricDocument = HydratedDocument<PerformanceMetric>
 

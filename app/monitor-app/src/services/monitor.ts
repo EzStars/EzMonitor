@@ -133,6 +133,30 @@ export interface BatchWriteResponse {
   }
 }
 
+export interface AiAnalyzeErrorPayload {
+  message: string
+  errorType?: string
+  stack?: string
+  url?: string
+  frames?: Array<{
+    file?: string
+    line?: number
+    column?: number
+    functionName?: string
+    originalFile?: string
+    originalLine?: number
+    originalColumn?: number
+    originalFunctionName?: string
+  }>
+}
+
+export interface AiAnalysisResult {
+  available: boolean
+  model?: string
+  analysis?: string
+  error?: string
+}
+
 async function unwrap<T>(promise: Promise<AxiosResponse<ApiResponse<T>>>): Promise<T> {
   const response = await promise
   return response.data.data as T
@@ -159,4 +183,6 @@ export const monitorService = {
     unwrap(monitorApi.getReplayStats<ReplayStatsItem[]>(params)),
   sendBatch: (items: unknown[]) =>
     unwrap(monitorApi.postBatch<BatchWriteResponse>(items)),
+  analyzeError: (payload: AiAnalyzeErrorPayload) =>
+    unwrap(monitorApi.postAiAnalyze<AiAnalysisResult>(payload)),
 }
