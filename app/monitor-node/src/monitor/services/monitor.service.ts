@@ -11,7 +11,7 @@ import type {
   StatsQueryDto,
   TrackingQueryDto,
 } from '../dto'
-import { BadRequestException, Injectable } from '@nestjs/common'
+import { BadRequestException, Inject, Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import {
   MonitorBatchItemType,
@@ -20,6 +20,7 @@ import { ErrorLog } from '../schemas/error-log.schema'
 import { PerformanceMetric } from '../schemas/performance-metric.schema'
 import { ReplaySegment } from '../schemas/replay-segment.schema'
 import { TrackingEvent } from '../schemas/tracking-event.schema'
+import { ErrorAnalysisService } from './error-analysis.service'
 import { SourceMapService } from './sourcemap.service'
 
 interface WriteSummary {
@@ -82,6 +83,8 @@ export class MonitorService {
     @InjectModel(ReplaySegment.name)
     private readonly replayModel: Model<ReplaySegment>,
     private readonly sourceMapService: SourceMapService = new SourceMapService(),
+    @Inject(ErrorAnalysisService)
+    private readonly errorAnalysisService?: ErrorAnalysisService,
   ) {}
 
   async createTracking(dto: CreateTrackingEventDto) {
@@ -106,13 +109,16 @@ export class MonitorService {
       frames: dto.frames,
     })
 
-    return this.errorModel.create({
+    const created = await this.errorModel.create({
       ...dto,
       timestamp: new Date(dto.timestamp),
       frames: symbolication.frames ?? dto.frames,
       symbolicationStatus: symbolication.status,
       symbolicationReason: symbolication.reason,
     })
+
+    this.triggerErrorAnalysis(created)
+    return created
   }
 
   async createReplay(dto: CreateReplaySegmentDto) {
@@ -225,6 +231,10 @@ export class MonitorService {
       Promise.all(error),
     ])
     const replayResult = await Promise.all(replaySegments)
+
+    for (const item of errorResult) {
+      this.triggerErrorAnalysis(item)
+    }
 
     return {
       tracking: trackingResult,
@@ -471,5 +481,25 @@ export class MonitorService {
     const rank = Math.ceil((percentile / 100) * values.length) - 1
     const index = Math.min(Math.max(rank, 0), values.length - 1)
     return values[index]
+  }
+
+  private triggerErrorAnalysis(record: unknown): void {
+    if (!this.errorAnalysisService || !record || typeof record !== 'object') {
+      return
+    }
+
+    const errorRecord = record as {
+      _id?: unknown
+      appId: string
+      timestamp: Date
+      errorType?: string
+      fingerprint?: string
+      sessionId?: string
+      message?: string
+    }
+
+    void this.errorAnalysisService.handleErrorRecord(errorRecord).catch((error: unknown) => {
+      console.error('[monitor-node] error analysis failed', error)
+    })
   }
 }

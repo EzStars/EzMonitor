@@ -2,6 +2,11 @@ import type { MenuProps, TableColumnsType } from 'antd'
 
 import type { ReactNode } from 'react'
 import type {
+  AlertDedupeStrategy,
+  AlertEventRecord,
+  AlertRuleRecord,
+  AlertSeverity,
+  CreateAlertRulePayload,
   ErrorRecord,
   ErrorStatsItem,
   PerformanceRecord,
@@ -20,10 +25,13 @@ import {
   Drawer,
   Empty,
   Input,
+  InputNumber,
   Layout,
   List,
   Menu,
+  Modal,
   Row,
+  Select,
   Space,
   Spin,
   Statistic,
@@ -36,13 +44,10 @@ import {
 import ReactECharts from 'echarts-for-react'
 import { Component, useEffect, useMemo, useState } from 'react'
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useAlertStream } from './hooks/useAlertStream'
 import { useMonitorQuery } from './hooks/useMonitorQuery'
 import ReplayPlayer from './ReplayPlayer'
-import {
-
-  monitorService,
-
-} from './services/monitor'
+import { monitorService } from './services/monitor'
 import {
   average,
   collectLatestRecords,
@@ -59,7 +64,7 @@ import './App.css'
 const { Header, Sider, Content } = Layout
 const { Title, Text, Paragraph } = Typography
 
-type RouteKey = '/dashboard' | '/tracking' | '/performance' | '/error' | '/replay' | '/demo' | '/stats'
+type RouteKey = '/dashboard' | '/tracking' | '/performance' | '/error' | '/replay' | '/alerts' | '/stats'
 
 const routeMeta: Record<RouteKey, { title: string, description: string }> = {
   '/dashboard': {
@@ -82,9 +87,9 @@ const routeMeta: Record<RouteKey, { title: string, description: string }> = {
     title: '录屏回放',
     description: '查看回放分段、样本事件和错误联动信息。',
   },
-  '/demo': {
-    title: '采集演示',
-    description: '可开关触发 PV/UV/回放/错误联动上报，验证端到端链路。',
+  '/alerts': {
+    title: '告警中心',
+    description: '管理告警规则、实时查看告警事件并处理状态。',
   },
   '/stats': {
     title: '统计分析页面',
@@ -1789,262 +1794,709 @@ function ReplayPage() {
   )
 }
 
-function DemoPage() {
-  const navigate = useNavigate()
-  const [enablePv, setEnablePv] = useState(true)
-  const [enableUv, setEnableUv] = useState(true)
-  const [enableReplay, setEnableReplay] = useState(true)
-  const [maskSensitive, setMaskSensitive] = useState(true)
-  const [autoNavigate, setAutoNavigate] = useState(true)
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState('')
-  const [lastRange, setLastRange] = useState<QueryRange | null>(null)
-  const [lastSegmentId, setLastSegmentId] = useState('')
-  const [lastIncludeError, setLastIncludeError] = useState(false)
+function AlertsPage() {
+  const filters = useCommonFilters()
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'acknowledged' | 'resolved'>('all')
+  const [operationResult, setOperationResult] = useState('')
 
-  const appId = 'monitor-app-demo'
+  const [ruleName, setRuleName] = useState('')
+  const [ruleMetric, setRuleMetric] = useState<'error_frequency' | 'error_spread'>('error_frequency')
+  const [ruleWindowSec, setRuleWindowSec] = useState(300)
+  const [ruleSuppressSec, setRuleSuppressSec] = useState(300)
+  const [ruleDedupeStrategy, setRuleDedupeStrategy] = useState<AlertDedupeStrategy>('by_rule')
+  const [ruleThreshold, setRuleThreshold] = useState(3)
+  const [ruleSeverity, setRuleSeverity] = useState<AlertSeverity>('high')
+  const [ruleEnabled, setRuleEnabled] = useState(true)
+  const [creatingRule, setCreatingRule] = useState(false)
+  const [updatingRule, setUpdatingRule] = useState(false)
 
-  const buildDemoQuery = (extra: Record<string, string> = {}) => {
-    const today = formatDateInput(new Date())
-    const start = lastRange?.[0] ?? today
-    const end = lastRange?.[1] ?? today
-    const params = new URLSearchParams({
-      appId,
-      start,
-      end,
-      ...extra,
-    })
-    return params.toString()
+  const [editingRule, setEditingRule] = useState<AlertRuleRecord | null>(null)
+  const [editRuleName, setEditRuleName] = useState('')
+  const [editRuleMetric, setEditRuleMetric] = useState<'error_frequency' | 'error_spread'>('error_frequency')
+  const [editRuleWindowSec, setEditRuleWindowSec] = useState(300)
+  const [editRuleSuppressSec, setEditRuleSuppressSec] = useState(300)
+  const [editRuleDedupeStrategy, setEditRuleDedupeStrategy] = useState<AlertDedupeStrategy>('by_rule')
+  const [editRuleThreshold, setEditRuleThreshold] = useState(3)
+  const [editRuleSeverity, setEditRuleSeverity] = useState<AlertSeverity>('high')
+  const [editRuleEnabled, setEditRuleEnabled] = useState(true)
+
+  const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
+
+  const rulesParams = useMemo(() => ({
+    appId: filters.appId.trim() || undefined,
+    page: 1,
+    pageSize: 100,
+  }), [filters.appId])
+  const rulesKey = useMemo(() => queryKey(rulesParams), [rulesParams])
+
+  const eventsParams = useMemo(() => ({
+    appId: timeParams.appId,
+    startTime: timeParams.startTime,
+    endTime: timeParams.endTime,
+    status: statusFilter === 'all' ? undefined : statusFilter,
+    page,
+    pageSize,
+  }), [timeParams, statusFilter, page, pageSize])
+  const eventsKey = useMemo(() => queryKey(eventsParams), [eventsParams])
+
+  const trendParams = useMemo(() => ({
+    appId: timeParams.appId,
+    startTime: timeParams.startTime,
+    endTime: timeParams.endTime,
+    page: 1,
+    pageSize: 500,
+  }), [timeParams])
+  const trendKey = useMemo(() => queryKey({ ...trendParams, trend: true }), [trendParams])
+
+  const rulesQuery = useMonitorQuery(() => monitorService.getAlertRules(rulesParams), rulesKey)
+  const eventsQuery = useMonitorQuery(() => monitorService.getAlertEvents(eventsParams), eventsKey)
+  const trendQuery = useMonitorQuery(() => monitorService.getAlertEvents(trendParams), trendKey)
+  const stream = useAlertStream(timeParams.appId, 20)
+
+  const ruleRows = rulesQuery.data?.items ?? []
+  const eventRows = eventsQuery.data?.items ?? []
+  const trendRows = trendQuery.data?.items ?? []
+
+  const streamSuppressionHits = useMemo(
+    () => stream.alerts.reduce((sum, item) => sum + (item.suppressionHits ?? 0), 0),
+    [stream.alerts],
+  )
+
+  const eventSuppressionSummary = useMemo(() => {
+    const totalHits = eventRows.reduce((sum, item) => sum + (item.suppressionHits ?? 0), 0)
+    const affectedEvents = eventRows.filter(item => (item.suppressionHits ?? 0) > 0).length
+
+    return {
+      affectedEvents,
+      avgHitsPerEvent: eventRows.length > 0 ? Number((totalHits / eventRows.length).toFixed(2)) : 0,
+      totalHits,
+    }
+  }, [eventRows])
+
+  const metricOptions = [
+    { label: '错误频率', value: 'error_frequency' },
+    { label: '错误扩散', value: 'error_spread' },
+  ]
+  const dedupeOptions: Array<{ label: string, value: AlertDedupeStrategy }> = [
+    { label: '按规则', value: 'by_rule' },
+    { label: '按错误类型', value: 'by_error_type' },
+    { label: '按错误指纹', value: 'by_fingerprint' },
+    { label: '规则 + 指纹', value: 'by_rule_and_fingerprint' },
+  ]
+  const severityOptions = [
+    { label: 'low', value: 'low' },
+    { label: 'medium', value: 'medium' },
+    { label: 'high', value: 'high' },
+    { label: 'critical', value: 'critical' },
+  ]
+  const severityLabels: Record<AlertSeverity, string> = {
+    critical: '严重',
+    high: '高',
+    low: '低',
+    medium: '中',
+  }
+  const severityColors: Record<AlertSeverity, string> = {
+    critical: '#cf1322',
+    high: '#fa541c',
+    low: '#1677ff',
+    medium: '#faad14',
+  }
+  const dedupeLabels: Record<AlertDedupeStrategy, string> = {
+    by_error_type: '按错误类型',
+    by_fingerprint: '按错误指纹',
+    by_rule: '按规则',
+    by_rule_and_fingerprint: '规则 + 指纹',
   }
 
-  const submitDemoBatch = async (includeError = false) => {
-    setLoading(true)
-    setResult('')
-    try {
-      const now = Date.now()
-      const route = `${window.location.pathname}${window.location.search}${window.location.hash}`
-      const visitorId = `demo-${Math.random().toString(16).slice(2, 10)}`
-      const segmentId = `demo-segment-${now}`
+  const dayAxis = useMemo(() => {
+    if (typeof timeParams.startTime !== 'number' || typeof timeParams.endTime !== 'number') {
+      return getRecentDays(7)
+    }
 
-      const items: Array<Record<string, unknown>> = []
+    const start = new Date(timeParams.startTime)
+    const end = new Date(timeParams.endTime)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start.getTime() > end.getTime()) {
+      return getRecentDays(7)
+    }
 
-      if (enablePv) {
-        items.push({
-          type: 'tracking',
-          appId,
-          timestamp: now,
-          eventName: 'page_view',
-          properties: {
-            page: route,
-            source: 'demo_page',
-          },
-          context: {
-            page: route,
-          },
-        })
-      }
+    const cursor = new Date(start)
+    cursor.setHours(0, 0, 0, 0)
 
-      if (enableUv) {
-        items.push({
-          type: 'tracking',
-          appId,
-          timestamp: now,
-          eventName: 'uv_visit',
-          properties: {
-            visitorId,
-            day: new Date(now).toISOString().slice(0, 10),
-          },
-          context: {
-            page: route,
-            visitorId,
-          },
-        })
-      }
+    const boundary = new Date(end)
+    boundary.setHours(0, 0, 0, 0)
 
-      if (enableReplay) {
-        items.push({
-          type: 'replay',
-          appId,
-          timestamp: now,
-          segmentId,
-          startedAt: now - 5000,
-          endedAt: now,
-          eventCount: 3,
-          route,
-          reason: includeError ? 'error_js' : 'manual_demo',
-          sample: [
-            { type: 'click', at: now - 3000, data: { target: 'button#demo-send', x: 123, y: 45 } },
-            {
-              type: 'input',
-              at: now - 2000,
-              data: {
-                target: 'input#demo-sensitive',
-                value: maskSensitive ? '[MASKED]' : 'token-demo-123',
-                valueLength: 14,
-              },
-            },
-            { type: 'route', at: now - 1000, data: { route } },
-          ],
-          context: {
-            page: route,
-            privacy: {
-              maskSensitive,
-            },
-          },
-        })
-      }
-
-      items.push({
-        type: 'performance',
-        appId,
-        timestamp: now,
-        metricType: 'performance_ttfb',
-        value: 180,
-        url: window.location.href,
-        context: {
-          from: 'demo_page',
-        },
+    const result: Array<{ key: string, label: string }> = []
+    while (cursor.getTime() <= boundary.getTime()) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`
+      result.push({
+        key,
+        label: `${cursor.getMonth() + 1}/${cursor.getDate()}`,
       })
+      cursor.setDate(cursor.getDate() + 1)
+    }
 
-      if (includeError) {
-        items.push({
-          type: 'error',
-          appId,
-          timestamp: now,
-          errorType: 'error_js',
-          message: 'Demo error from monitor-app',
-          stack: 'Error: Demo error from monitor-app\n    at DemoPage (App.tsx:1:1)',
-          url: window.location.href,
-          detail: {
-            source: 'demo_page',
-            replay: enableReplay
-              ? {
-                  segmentId,
-                  route,
-                  eventCount: 3,
-                }
-              : undefined,
-          },
-        })
+    return result.length > 0 ? result : getRecentDays(7)
+  }, [timeParams.endTime, timeParams.startTime])
+
+  const trendOption = useMemo(() => {
+    const severityOrder: AlertSeverity[] = ['critical', 'high', 'medium', 'low']
+    const series = severityOrder.map((severity) => {
+      const counts = groupCountsByDay(
+        trendRows.filter(item => item.severity === severity),
+        item => item.triggeredAt,
+      )
+
+      return {
+        name: severityLabels[severity],
+        type: 'line',
+        smooth: true,
+        showSymbol: false,
+        lineStyle: { width: 2 },
+        itemStyle: { color: severityColors[severity] },
+        data: dayAxis.map(day => counts.get(day.key) ?? 0),
       }
+    })
 
-      const response = await monitorService.sendBatch(items)
-      const currentDay = formatDateInput(new Date(now))
-      setLastRange([currentDay, currentDay])
-      setLastSegmentId(enableReplay ? segmentId : '')
-      setLastIncludeError(includeError)
-      setResult(`写入成功：total=${response.summary.total}，tracking=${response.summary.tracking}，performance=${response.summary.performance}，error=${response.summary.error}，replay=${response.summary.replay}`)
+    return {
+      tooltip: { trigger: 'axis' },
+      legend: {
+        top: 0,
+        data: series.map(item => item.name),
+      },
+      grid: { left: 12, right: 12, top: 48, bottom: 8, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: dayAxis.map(day => day.label),
+      },
+      yAxis: {
+        type: 'value',
+        minInterval: 1,
+      },
+      series,
+    }
+  }, [dayAxis, severityColors, severityLabels, trendRows])
 
-      const buildCurrentQuery = (extra: Record<string, string> = {}) => {
-        return new URLSearchParams({
-          appId,
-          start: currentDay,
-          end: currentDay,
-          ...extra,
-        }).toString()
-      }
+  const createRule = async () => {
+    const trimmed = ruleName.trim()
+    if (!trimmed) {
+      setOperationResult('规则名称不能为空')
+      return
+    }
 
-      if (autoNavigate) {
-        if (includeError) {
-          navigate(`/error?${buildCurrentQuery()}`)
-          return
-        }
+    setCreatingRule(true)
+    setOperationResult('')
 
-        if (enableReplay) {
-          navigate(`/replay?${buildCurrentQuery({ segmentId })}`)
-          return
-        }
+    const payload: CreateAlertRulePayload = {
+      name: trimmed,
+      appId: filters.appId.trim() || undefined,
+      metric: ruleMetric,
+      windowSec: Math.max(30, Math.round(ruleWindowSec)),
+      suppressSec: Math.max(30, Math.round(ruleSuppressSec)),
+      dedupeStrategy: ruleDedupeStrategy,
+      threshold: Math.max(1, Math.round(ruleThreshold)),
+      severity: ruleSeverity,
+      enabled: ruleEnabled,
+    }
 
-        navigate(`/tracking?${buildCurrentQuery({ keyword: 'page_view' })}`)
-      }
+    try {
+      await monitorService.createAlertRule(payload)
+      setRuleName('')
+      setRuleWindowSec(300)
+      setRuleSuppressSec(300)
+      setRuleDedupeStrategy('by_rule')
+      setRuleThreshold(3)
+      setRuleSeverity('high')
+      setRuleEnabled(true)
+      setOperationResult('规则创建成功')
+      await rulesQuery.refresh()
     }
     catch (error) {
-      setResult(`写入失败：${error instanceof Error ? error.message : String(error)}`)
+      setOperationResult(`规则创建失败：${error instanceof Error ? error.message : String(error)}`)
     }
     finally {
-      setLoading(false)
+      setCreatingRule(false)
     }
   }
+
+  const openEditRule = (rule: AlertRuleRecord) => {
+    setEditingRule(rule)
+    setEditRuleName(rule.name)
+    setEditRuleMetric(rule.metric)
+    setEditRuleWindowSec(rule.windowSec)
+    setEditRuleSuppressSec(rule.suppressSec ?? 300)
+    setEditRuleDedupeStrategy(rule.dedupeStrategy ?? 'by_rule')
+    setEditRuleThreshold(rule.threshold)
+    setEditRuleSeverity(rule.severity)
+    setEditRuleEnabled(rule.enabled)
+  }
+
+  const closeEditRule = () => {
+    setEditingRule(null)
+    setUpdatingRule(false)
+  }
+
+  const saveRuleEdit = async () => {
+    if (!editingRule?._id) {
+      return
+    }
+
+    const trimmed = editRuleName.trim()
+    if (!trimmed) {
+      setOperationResult('规则名称不能为空')
+      return
+    }
+
+    setUpdatingRule(true)
+
+    try {
+      await monitorService.updateAlertRule(editingRule._id, {
+        dedupeStrategy: editRuleDedupeStrategy,
+        enabled: editRuleEnabled,
+        metric: editRuleMetric,
+        name: trimmed,
+        severity: editRuleSeverity,
+        suppressSec: Math.max(30, Math.round(editRuleSuppressSec)),
+        threshold: Math.max(1, Math.round(editRuleThreshold)),
+        windowSec: Math.max(30, Math.round(editRuleWindowSec)),
+      })
+      setOperationResult(`规则 ${trimmed} 更新成功`)
+      closeEditRule()
+      await rulesQuery.refresh()
+    }
+    catch (error) {
+      setOperationResult(`规则更新失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+    finally {
+      setUpdatingRule(false)
+    }
+  }
+
+  const toggleRuleEnabled = async (rule: AlertRuleRecord, enabled: boolean) => {
+    if (!rule._id) {
+      return
+    }
+
+    try {
+      await monitorService.updateAlertRule(rule._id, { enabled })
+      setOperationResult(`规则 ${rule.name} 已${enabled ? '启用' : '停用'}`)
+      await rulesQuery.refresh()
+    }
+    catch (error) {
+      setOperationResult(`规则更新失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const deleteRule = async (rule: AlertRuleRecord) => {
+    if (!rule._id) {
+      return
+    }
+
+    try {
+      await monitorService.deleteAlertRule(rule._id)
+      setOperationResult(`规则 ${rule.name} 已删除`)
+      await rulesQuery.refresh()
+    }
+    catch (error) {
+      setOperationResult(`规则删除失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const updateEventStatus = async (record: AlertEventRecord, status: 'acknowledged' | 'resolved') => {
+    if (!record._id) {
+      return
+    }
+
+    try {
+      await monitorService.updateAlertEventStatus(record._id, status)
+      setOperationResult(`事件状态已更新为 ${status}`)
+      await eventsQuery.refresh()
+    }
+    catch (error) {
+      setOperationResult(`事件状态更新失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const ruleColumns: TableColumnsType<AlertRuleRecord> = [
+    {
+      title: '规则名称',
+      dataIndex: 'name',
+      width: 220,
+    },
+    {
+      title: '类型',
+      dataIndex: 'metric',
+      width: 150,
+      render: (value: string) => value === 'error_spread' ? '扩散告警' : '频率告警',
+    },
+    {
+      title: '窗口(s)',
+      dataIndex: 'windowSec',
+      width: 100,
+    },
+    {
+      title: '抑制(s)',
+      dataIndex: 'suppressSec',
+      width: 100,
+      render: (value: number | undefined) => value ?? '-',
+    },
+    {
+      title: '去重策略',
+      dataIndex: 'dedupeStrategy',
+      width: 140,
+      render: (value: AlertDedupeStrategy | undefined) => dedupeLabels[value ?? 'by_rule'],
+    },
+    {
+      title: '阈值',
+      dataIndex: 'threshold',
+      width: 90,
+    },
+    {
+      title: '级别',
+      dataIndex: 'severity',
+      width: 110,
+      render: (value: AlertSeverity) => <Tag color={value === 'critical' ? 'red' : value === 'high' ? 'volcano' : value === 'medium' ? 'gold' : 'blue'}>{value}</Tag>,
+    },
+    {
+      title: '启用',
+      dataIndex: 'enabled',
+      width: 90,
+      render: (value: boolean, record: AlertRuleRecord) => (
+        <Switch checked={value} onChange={checked => void toggleRuleEnabled(record, checked)} />
+      ),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 180,
+      render: (_: unknown, record: AlertRuleRecord) => (
+        <Space size={4}>
+          <Button type="link" onClick={() => openEditRule(record)}>
+            编辑
+          </Button>
+          <Button danger type="link" onClick={() => void deleteRule(record)}>
+            删除
+          </Button>
+        </Space>
+      ),
+    },
+  ]
+
+  const eventColumns: TableColumnsType<AlertEventRecord> = [
+    {
+      title: '触发时间',
+      dataIndex: 'triggeredAt',
+      width: 180,
+      render: (value: string | number | Date) => formatDateTime(value),
+    },
+    {
+      title: '规则',
+      dataIndex: 'ruleName',
+      width: 160,
+      ellipsis: true,
+    },
+    {
+      title: '摘要',
+      dataIndex: 'summary',
+      ellipsis: true,
+    },
+    {
+      title: '得分',
+      dataIndex: 'score',
+      width: 90,
+    },
+    {
+      title: '级别',
+      dataIndex: 'severity',
+      width: 110,
+      render: (value: AlertSeverity) => <Tag color={value === 'critical' ? 'red' : value === 'high' ? 'volcano' : value === 'medium' ? 'gold' : 'blue'}>{value}</Tag>,
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 120,
+      render: (value: string) => <Tag>{value}</Tag>,
+    },
+    {
+      title: '抑制命中',
+      dataIndex: 'suppressionHits',
+      width: 120,
+      render: (value: number | undefined) => {
+        const hits = value ?? 0
+        return hits > 0 ? <Tag color="cyan">{hits}</Tag> : <Text type="secondary">0</Text>
+      },
+    },
+    {
+      title: '处理',
+      key: 'action',
+      width: 170,
+      render: (_: unknown, record: AlertEventRecord) => (
+        <Space size={4}>
+          <Button size="small" onClick={() => void updateEventStatus(record, 'acknowledged')}>
+            已确认
+          </Button>
+          <Button size="small" type="primary" onClick={() => void updateEventStatus(record, 'resolved')}>
+            已解决
+          </Button>
+        </Space>
+      ),
+    },
+  ]
 
   return (
     <Space direction="vertical" size={16} className="page-stack">
-      <SectionCard title="SDK 采集演示开关" description="用于快速验证 PV/UV、录屏回放与错误联动链路。">
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          <Space>
-            <Text>启用 PV</Text>
-            <Switch checked={enablePv} onChange={setEnablePv} />
-          </Space>
-          <Space>
-            <Text>启用 UV</Text>
-            <Switch checked={enableUv} onChange={setEnableUv} />
-          </Space>
-          <Space>
-            <Text>启用 Replay 分段</Text>
-            <Switch checked={enableReplay} onChange={setEnableReplay} />
-          </Space>
-          <Space>
-            <Text>敏感字段脱敏</Text>
-            <Switch checked={maskSensitive} onChange={setMaskSensitive} />
-          </Space>
-          <Space>
-            <Text>发送后自动跳转</Text>
-            <Switch checked={autoNavigate} onChange={setAutoNavigate} />
-          </Space>
-          <Space>
-            <Button loading={loading} type="primary" id="demo-send" onClick={() => void submitDemoBatch(false)}>
-              发送基础样例
-            </Button>
-            <Button loading={loading} danger onClick={() => void submitDemoBatch(true)}>
-              发送错误 + 回放联动
-            </Button>
-          </Space>
-        </Space>
-      </SectionCard>
+      <Alert
+        type={stream.status === 'connected' ? 'success' : 'warning'}
+        showIcon
+        message={stream.status === 'connected' ? '实时告警流已连接' : '告警流降级为轮询'}
+        description={`实时面板当前展示 ${stream.alerts.length} 条最新告警，累计抑制命中 ${streamSuppressionHits} 次。`}
+      />
 
-      <SectionCard title="说明" description="错误样例会把 replay.segmentId 写入 error.detail.replay，随后可在错误页直接跳转到回放页定位。">
-        <pre className="detail-pre">
-          {safeStringify({
-            appId,
-            enablePv,
-            enableUv,
-            enableReplay,
-            maskSensitive,
-          })}
-        </pre>
-      </SectionCard>
-
-      {result
+      {operationResult
         ? (
             <Alert
-              type={result.startsWith('写入成功') ? 'success' : 'error'}
-              message={result.startsWith('写入成功') ? '上报结果' : '上报失败'}
-              description={result}
+              type={operationResult.includes('失败') ? 'error' : 'success'}
+              showIcon
+              message="操作结果"
+              description={operationResult}
             />
           )
         : null}
 
-      {result.startsWith('写入成功')
+      {rulesQuery.error || eventsQuery.error || trendQuery.error
         ? (
-            <SectionCard title="快速跳转" description="用于演示发送结果后的页面联动定位。">
-              <Space wrap>
-                <Button onClick={() => navigate('/dashboard')}>查看总览</Button>
-                <Button onClick={() => navigate(`/tracking?${buildDemoQuery({ keyword: 'page_view' })}`)}>
-                  查看埋点
-                </Button>
-                {lastIncludeError
-                  ? <Button danger onClick={() => navigate(`/error?${buildDemoQuery()}`)}>查看错误</Button>
-                  : null}
-                {lastSegmentId
-                  ? (
-                      <Button type="primary" onClick={() => navigate(`/replay?${buildDemoQuery({ segmentId: lastSegmentId })}`)}>
-                        查看回放
-                      </Button>
-                    )
-                  : null}
-              </Space>
-            </SectionCard>
+            <Alert
+              type="warning"
+              showIcon
+              message="部分请求失败"
+              description={rulesQuery.error ?? eventsQuery.error ?? trendQuery.error}
+            />
           )
         : null}
+
+      <FilterBar
+        appId={filters.appId}
+        onAppIdChange={filters.setAppId}
+        range={filters.range}
+        onRangeChange={filters.setRange}
+        onReset={filters.reset}
+        onRefresh={() => {
+          void Promise.allSettled([rulesQuery.refresh(), eventsQuery.refresh(), trendQuery.refresh()])
+        }}
+        loading={rulesQuery.loading || eventsQuery.loading || trendQuery.loading || creatingRule || updatingRule}
+      />
+
+      <SectionCard title="实时告警流" description="展示最近接收的告警事件，支持 SSE 自动订阅与降级轮询。">
+        <List
+          bordered
+          dataSource={stream.alerts}
+          locale={{ emptyText: renderEmpty('暂未接收到实时告警') }}
+          renderItem={item => (
+            <List.Item>
+              <Space direction="vertical" size={2}>
+                <Space>
+                  <Tag color="red">{item.severity}</Tag>
+                  <Text strong>{item.ruleName}</Text>
+                  {(item.suppressionHits ?? 0) > 0
+                    ? (
+                        <Tag color="cyan">
+                          抑制 +
+                          {item.suppressionHits}
+                        </Tag>
+                      )
+                    : null}
+                  <Text type="secondary">{formatDateTime(item.triggeredAt)}</Text>
+                </Space>
+                <Text>{item.summary}</Text>
+              </Space>
+            </List.Item>
+          )}
+        />
+      </SectionCard>
+
+      <SectionCard title="告警趋势（按天）" description="按当前筛选条件统计每日告警，并按严重级别拆分。">
+        <SectionStatus
+          loading={trendQuery.loading}
+          error={trendQuery.error}
+          hasData={trendRows.length > 0}
+          emptyDescription="当前筛选条件下暂无趋势数据"
+        >
+          <ReactECharts option={trendOption} style={{ height: 320 }} />
+        </SectionStatus>
+      </SectionCard>
+
+      <SectionCard title="创建告警规则" description="支持评估窗口、抑制窗口与去重策略配置。">
+        <Space wrap>
+          <Input
+            value={ruleName}
+            placeholder="规则名称"
+            onChange={event => setRuleName(event.target.value)}
+            style={{ width: 200 }}
+          />
+          <Select
+            value={ruleMetric}
+            onChange={value => setRuleMetric(value as 'error_frequency' | 'error_spread')}
+            options={metricOptions}
+            style={{ width: 140 }}
+          />
+          <InputNumber min={30} max={86400} value={ruleWindowSec} onChange={value => setRuleWindowSec(Number(value ?? 300))} addonAfter="s" />
+          <InputNumber min={30} max={86400} value={ruleSuppressSec} onChange={value => setRuleSuppressSec(Number(value ?? 300))} addonBefore="抑制" addonAfter="s" />
+          <Select
+            value={ruleDedupeStrategy}
+            onChange={value => setRuleDedupeStrategy(value as AlertDedupeStrategy)}
+            options={dedupeOptions}
+            style={{ width: 170 }}
+          />
+          <InputNumber min={1} max={100000} value={ruleThreshold} onChange={value => setRuleThreshold(Number(value ?? 3))} addonBefore="阈值" />
+          <Select
+            value={ruleSeverity}
+            onChange={value => setRuleSeverity(value as AlertSeverity)}
+            options={severityOptions}
+            style={{ width: 120 }}
+          />
+          <Space>
+            <Text>启用</Text>
+            <Switch checked={ruleEnabled} onChange={setRuleEnabled} />
+          </Space>
+          <Button type="primary" loading={creatingRule} onClick={() => void createRule()}>
+            新建规则
+          </Button>
+        </Space>
+      </SectionCard>
+
+      <SectionCard title="规则列表" description="支持启停、编辑、删除，并展示抑制窗口与去重策略。">
+        <Table<AlertRuleRecord>
+          rowKey={record => record._id ?? `${record.name}-${record.metric}`}
+          loading={rulesQuery.loading}
+          columns={ruleColumns}
+          dataSource={ruleRows}
+          locale={getTableLocale('暂无告警规则')}
+          pagination={false}
+        />
+      </SectionCard>
+
+      <SectionCard title="告警事件历史" description="按时间窗口查询触发记录并更新处理状态。">
+        <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
+          <Col xs={24} sm={8}>
+            <Card size="small">
+              <Statistic title="抑制命中总数（当前页）" value={eventSuppressionSummary.totalHits} />
+            </Card>
+          </Col>
+          <Col xs={24} sm={8}>
+            <Card size="small">
+              <Statistic title="发生抑制的事件数" value={eventSuppressionSummary.affectedEvents} />
+            </Card>
+          </Col>
+          <Col xs={24} sm={8}>
+            <Card size="small">
+              <Statistic title="单事件平均抑制命中" value={eventSuppressionSummary.avgHitsPerEvent} />
+            </Card>
+          </Col>
+        </Row>
+
+        <Space style={{ marginBottom: 12 }}>
+          <Text>状态筛选</Text>
+          <Select
+            value={statusFilter}
+            onChange={(value) => {
+              setStatusFilter(value)
+              setPage(1)
+            }}
+            options={[
+              { label: '全部', value: 'all' },
+              { label: 'open', value: 'open' },
+              { label: 'acknowledged', value: 'acknowledged' },
+              { label: 'resolved', value: 'resolved' },
+            ]}
+            style={{ width: 160 }}
+          />
+        </Space>
+
+        <Table<AlertEventRecord>
+          rowKey={record => record._id ?? `${record.ruleName}-${record.triggeredAt}`}
+          loading={eventsQuery.loading}
+          columns={eventColumns}
+          dataSource={eventRows}
+          locale={getTableLocale('暂无告警事件')}
+          pagination={{
+            current: page,
+            pageSize,
+            total: eventsQuery.data?.total ?? 0,
+            showSizeChanger: true,
+            onChange: (nextPage, nextPageSize) => {
+              setPage(nextPage)
+              setPageSize(nextPageSize)
+            },
+          }}
+        />
+      </SectionCard>
+
+      <Modal
+        open={Boolean(editingRule)}
+        title={editingRule ? `编辑规则：${editingRule.name}` : '编辑规则'}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={updatingRule}
+        destroyOnClose
+        onCancel={closeEditRule}
+        onOk={() => {
+          void saveRuleEdit()
+        }}
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Input
+            value={editRuleName}
+            placeholder="规则名称"
+            onChange={event => setEditRuleName(event.target.value)}
+          />
+          <Select
+            value={editRuleMetric}
+            options={metricOptions}
+            onChange={value => setEditRuleMetric(value as 'error_frequency' | 'error_spread')}
+          />
+          <InputNumber
+            min={30}
+            max={86400}
+            value={editRuleWindowSec}
+            onChange={value => setEditRuleWindowSec(Number(value ?? 300))}
+            addonBefore="窗口"
+            addonAfter="s"
+            style={{ width: '100%' }}
+          />
+          <InputNumber
+            min={30}
+            max={86400}
+            value={editRuleSuppressSec}
+            onChange={value => setEditRuleSuppressSec(Number(value ?? 300))}
+            addonBefore="抑制"
+            addonAfter="s"
+            style={{ width: '100%' }}
+          />
+          <Select
+            value={editRuleDedupeStrategy}
+            options={dedupeOptions}
+            onChange={value => setEditRuleDedupeStrategy(value as AlertDedupeStrategy)}
+          />
+          <InputNumber
+            min={1}
+            max={100000}
+            value={editRuleThreshold}
+            onChange={value => setEditRuleThreshold(Number(value ?? 3))}
+            addonBefore="阈值"
+            style={{ width: '100%' }}
+          />
+          <Select
+            value={editRuleSeverity}
+            options={severityOptions}
+            onChange={value => setEditRuleSeverity(value as AlertSeverity)}
+          />
+          <Space>
+            <Text>启用</Text>
+            <Switch checked={editRuleEnabled} onChange={setEditRuleEnabled} />
+          </Space>
+        </Space>
+      </Modal>
     </Space>
   )
 }
@@ -2263,7 +2715,7 @@ function App() {
         <Route path="performance" element={<PerformancePage />} />
         <Route path="error" element={<ErrorPage />} />
         <Route path="replay" element={<ReplayPage />} />
-        <Route path="demo" element={<DemoPage />} />
+        <Route path="alerts" element={<AlertsPage />} />
         <Route path="stats" element={<StatsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

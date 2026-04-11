@@ -1,5 +1,12 @@
 import type { AxiosResponse } from 'axios'
-import type { ApiResponse, MonitorQueryParams, MonitorStatsQueryParams } from './api'
+import type {
+  AlertEventQueryParams,
+  AlertRuleQueryParams,
+  ApiResponse,
+  LatestAlertQueryParams,
+  MonitorQueryParams,
+  MonitorStatsQueryParams,
+} from './api'
 import { monitorApi } from './api'
 
 export interface MonitorListResult<T> {
@@ -116,21 +123,72 @@ export interface ReplayRecord {
   updatedAt?: string | number | Date
 }
 
-export interface BatchWriteResponse {
-  writtenCount: number
-  summary: {
-    tracking: number
-    performance: number
-    error: number
-    replay: number
-    total: number
-  }
-  data: {
-    tracking: number
-    performance: number
-    error: number
-    replay: number
-  }
+export type AlertMetric = 'error_frequency' | 'error_spread'
+export type AlertSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type AlertEventStatus = 'open' | 'acknowledged' | 'resolved'
+export type AlertDedupeStrategy = 'by_rule' | 'by_error_type' | 'by_fingerprint' | 'by_rule_and_fingerprint'
+
+export interface AlertRuleRecord {
+  _id?: string
+  name: string
+  appId?: string
+  metric: AlertMetric
+  windowSec: number
+  suppressSec?: number
+  dedupeStrategy?: AlertDedupeStrategy
+  threshold: number
+  severity: AlertSeverity
+  enabled: boolean
+  errorType?: string
+  fingerprint?: string
+  createdAt?: string | number | Date
+  updatedAt?: string | number | Date
+}
+
+export interface AlertEventRecord {
+  _id?: string
+  ruleId?: string
+  ruleName: string
+  appId?: string
+  metric: AlertMetric
+  severity: AlertSeverity
+  score: number
+  summary: string
+  findings: string[]
+  context?: Record<string, unknown>
+  sourceErrorId?: string
+  suppressionHits?: number
+  status: AlertEventStatus
+  triggeredAt: string | number | Date
+  createdAt?: string | number | Date
+  updatedAt?: string | number | Date
+}
+
+export interface CreateAlertRulePayload {
+  name: string
+  appId?: string
+  metric: AlertMetric
+  windowSec: number
+  suppressSec?: number
+  dedupeStrategy?: AlertDedupeStrategy
+  threshold: number
+  severity: AlertSeverity
+  enabled?: boolean
+  errorType?: string
+  fingerprint?: string
+}
+
+export interface UpdateAlertRulePayload {
+  name?: string
+  metric?: AlertMetric
+  windowSec?: number
+  suppressSec?: number
+  dedupeStrategy?: AlertDedupeStrategy
+  threshold?: number
+  severity?: AlertSeverity
+  enabled?: boolean
+  errorType?: string
+  fingerprint?: string
 }
 
 async function unwrap<T>(promise: Promise<AxiosResponse<ApiResponse<T>>>): Promise<T> {
@@ -157,6 +215,18 @@ export const monitorService = {
     unwrap(monitorApi.getErrorStats<ErrorStatsItem[]>(params)),
   getReplayStats: (params?: MonitorStatsQueryParams) =>
     unwrap(monitorApi.getReplayStats<ReplayStatsItem[]>(params)),
-  sendBatch: (items: unknown[]) =>
-    unwrap(monitorApi.postBatch<BatchWriteResponse>(items)),
+  getAlertRules: (params?: AlertRuleQueryParams) =>
+    unwrap(monitorApi.getAlertRules<MonitorListResult<AlertRuleRecord>>(params)),
+  createAlertRule: (payload: CreateAlertRulePayload) =>
+    unwrap(monitorApi.createAlertRule<AlertRuleRecord>(payload)),
+  updateAlertRule: (id: string, payload: UpdateAlertRulePayload) =>
+    unwrap(monitorApi.updateAlertRule<AlertRuleRecord>(id, payload)),
+  deleteAlertRule: (id: string) =>
+    unwrap(monitorApi.deleteAlertRule<{ id: string }>(id)),
+  getAlertEvents: (params?: AlertEventQueryParams) =>
+    unwrap(monitorApi.getAlertEvents<MonitorListResult<AlertEventRecord>>(params)),
+  updateAlertEventStatus: (id: string, status: AlertEventStatus) =>
+    unwrap(monitorApi.updateAlertEventStatus<AlertEventRecord>(id, status)),
+  getLatestAlerts: (params?: LatestAlertQueryParams) =>
+    unwrap(monitorApi.getLatestAlerts<AlertEventRecord[]>(params)),
 }

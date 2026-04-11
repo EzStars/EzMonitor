@@ -101,6 +101,24 @@ export interface MonitorStatsQueryParams {
   endTime?: number
 }
 
+export interface AlertRuleQueryParams extends PaginationParams {
+  appId?: string
+  enabled?: boolean
+  metric?: 'error_frequency' | 'error_spread'
+}
+
+export interface AlertEventQueryParams extends PaginationParams {
+  appId?: string
+  status?: 'open' | 'acknowledged' | 'resolved'
+  startTime?: number
+  endTime?: number
+}
+
+export interface LatestAlertQueryParams {
+  appId?: string
+  limit?: number
+}
+
 export const monitorApi = {
   getTracking: <T = unknown>(params?: MonitorQueryParams) =>
     request.get<T>('/api/monitor/tracking', { params }),
@@ -120,8 +138,20 @@ export const monitorApi = {
     request.get<T>('/api/monitor/stats/error', { params }),
   getReplayStats: <T = unknown>(params?: MonitorStatsQueryParams) =>
     request.get<T>('/api/monitor/stats/replay', { params }),
-  postBatch: <T = unknown>(items: unknown[]) =>
-    request.post<T>('/api/monitor/batch', { items }),
+  getAlertRules: <T = unknown>(params?: AlertRuleQueryParams) =>
+    request.get<T>('/api/monitor/alerts/rules', { params }),
+  createAlertRule: <T = unknown>(payload: unknown) =>
+    request.post<T>('/api/monitor/alerts/rules', payload),
+  updateAlertRule: <T = unknown>(id: string, payload: unknown) =>
+    request.patch<T>(`/api/monitor/alerts/rules/${id}`, payload),
+  deleteAlertRule: <T = unknown>(id: string) =>
+    request.delete<T>(`/api/monitor/alerts/rules/${id}`),
+  getAlertEvents: <T = unknown>(params?: AlertEventQueryParams) =>
+    request.get<T>('/api/monitor/alerts/events', { params }),
+  updateAlertEventStatus: <T = unknown>(id: string, status: 'open' | 'acknowledged' | 'resolved') =>
+    request.patch<T>(`/api/monitor/alerts/events/${id}/status`, { status }),
+  getLatestAlerts: <T = unknown>(params?: LatestAlertQueryParams) =>
+    request.get<T>('/api/monitor/events/latest-alerts', { params }),
 }
 
 export { request }
