@@ -2,6 +2,7 @@ import type { MenuProps, TableColumnsType } from 'antd'
 
 import type { ReactNode } from 'react'
 import type {
+  AiAnalysisResult,
   ErrorRecord,
   ErrorStatsItem,
   PerformanceRecord,
@@ -59,7 +60,7 @@ import './App.css'
 const { Header, Sider, Content } = Layout
 const { Title, Text, Paragraph } = Typography
 
-type RouteKey = '/dashboard' | '/tracking' | '/performance' | '/error' | '/replay' | '/demo' | '/stats'
+type RouteKey = '/dashboard' | '/tracking' | '/performance' | '/error' | '/replay' | '/demo' | '/stats' | '/ai'
 
 const routeMeta: Record<RouteKey, { title: string, description: string }> = {
   '/dashboard': {
@@ -89,6 +90,10 @@ const routeMeta: Record<RouteKey, { title: string, description: string }> = {
   '/stats': {
     title: '统计分析页面',
     description: '统一时间范围与应用筛选，查看多维统计分析。',
+  },
+  '/ai': {
+    title: 'AI 智能分析',
+    description: '配置 AI 大模型接口，对错误日志进行根因分析和修复建议。',
   },
 }
 
@@ -1152,6 +1157,8 @@ function ErrorPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [selected, setSelected] = useState<ErrorRecord | null>(null)
+  const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
   const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
   const listParams = useMemo(
     () => ({ ...timeParams, page, pageSize, sortBy: 'timestamp', sortOrder: 'desc' as const }),
@@ -1163,6 +1170,30 @@ function ErrorPage() {
   useEffect(() => {
     setPage(1)
   }, [timeParams])
+
+  const handleAiAnalyze = async (record: ErrorRecord) => {
+    setAiLoading(true)
+    setAiResult(null)
+    try {
+      const result = await monitorService.analyzeError({
+        message: record.message,
+        errorType: record.errorType,
+        stack: record.stack,
+        url: record.url,
+        frames: record.frames,
+      })
+      setAiResult(result)
+    }
+    catch (err) {
+      setAiResult({
+        available: false,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+    finally {
+      setAiLoading(false)
+    }
+  }
 
   const listQuery = useMonitorQuery(() => monitorService.getErrors(listParams), listKey)
   const statsQuery = useMonitorQuery(() => monitorService.getErrorStats(timeParams), statsKey)
@@ -1237,11 +1268,22 @@ function ErrorPage() {
     {
       title: '操作',
       render: (_, record) => (
-        <Button type="link" onClick={() => setSelected(record)}>
-          详情
-        </Button>
+        <Space>
+          <Button type="link" onClick={() => setSelected(record)}>
+            详情
+          </Button>
+          <Button
+            type="link"
+            onClick={() => {
+              setSelected(record)
+              void handleAiAnalyze(record)
+            }}
+          >
+            AI 分析
+          </Button>
+        </Space>
       ),
-      width: 100,
+      width: 160,
     },
   ]
 
@@ -1374,7 +1416,10 @@ function ErrorPage() {
         open={selected !== null}
         title={selected?.message ?? '错误详情'}
         subtitle={selected ? formatDateTime(selected.timestamp) : undefined}
-        onClose={() => setSelected(null)}
+        onClose={() => {
+          setSelected(null)
+          setAiResult(null)
+        }}
         items={[
           { label: 'appId', value: selected?.appId ?? '-' },
           { label: '错误类型', value: selected?.errorType ?? '-' },
@@ -1395,6 +1440,40 @@ function ErrorPage() {
           },
         ]}
         sections={[
+          {
+            title: 'AI 智能分析',
+            content: (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Space>
+                  <Button
+                    type="primary"
+                    loading={aiLoading}
+                    onClick={() => selected && void handleAiAnalyze(selected)}
+                  >
+                    {aiResult ? '重新分析' : 'AI 分析此错误'}
+                  </Button>
+                  {aiResult && !aiLoading && (
+                    <Tag color={aiResult.available ? 'blue' : 'orange'}>
+                      {aiResult.available ? `模型: ${aiResult.model ?? '-'}` : '未配置'}
+                    </Tag>
+                  )}
+                </Space>
+                {aiLoading && <Spin tip="AI 正在分析中..." />}
+                {!aiLoading && aiResult && (
+                  aiResult.error
+                    ? <Alert type="warning" showIcon message="分析失败" description={aiResult.error} />
+                    : (
+                        <pre className="detail-pre" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                          {aiResult.analysis ?? '-'}
+                        </pre>
+                      )
+                )}
+                {!aiLoading && !aiResult && (
+                  <Text type="secondary">点击「AI 分析此错误」，AI 将根据错误信息和源码定位帧给出根因分析和修复建议。</Text>
+                )}
+              </Space>
+            ),
+          },
           {
             title: 'stack',
             content: <pre className="detail-pre">{selected?.stack ?? '-'}</pre>,
@@ -2085,6 +2164,127 @@ function StatsPage() {
   )
 }
 
+function AiPage() {
+  const [testError, setTestError] = useState<{
+    message: string
+    errorType: string
+    stack: string
+  }>({
+    message: 'Cannot read properties of undefined (reading \'map\')',
+    errorType: 'TypeError',
+    stack: 'TypeError: Cannot read properties of undefined (reading \'map\')\n    at ProductList (src/components/ProductList.tsx:42:18)\n    at renderWithHooks',
+  })
+  const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+
+  const handleTest = async () => {
+    setAiLoading(true)
+    setAiResult(null)
+    try {
+      const result = await monitorService.analyzeError(testError)
+      setAiResult(result)
+    }
+    catch (err) {
+      setAiResult({ available: false, error: err instanceof Error ? err.message : String(err) })
+    }
+    finally {
+      setAiLoading(false)
+    }
+  }
+
+  return (
+    <Space direction="vertical" size={16} className="page-stack">
+      <SectionCard
+        title="AI 大模型配置说明"
+        description="在 monitor-node 服务端的 .env 文件中配置以下环境变量，即可启用 AI 智能分析功能。"
+      >
+        <pre className="detail-pre" style={{ whiteSpace: 'pre-wrap' }}>
+          {[
+            '# AI 大模型配置（支持 OpenAI 兼容接口）',
+            'AI_API_KEY=sk-xxxxxx',
+            'AI_API_BASE_URL=https://api.openai.com/v1',
+            'AI_MODEL=gpt-4o-mini',
+            '',
+            '# 也可使用国内大模型或本地模型：',
+            '# DeepSeek',
+            '# AI_API_BASE_URL=https://api.deepseek.com/v1',
+            '# AI_MODEL=deepseek-chat',
+            '',
+            '# Ollama 本地模型',
+            '# AI_API_BASE_URL=http://localhost:11434/v1',
+            '# AI_MODEL=llama3',
+          ].join('\n')}
+        </pre>
+      </SectionCard>
+
+      <SectionCard
+        title="AI 分析工作原理"
+        description="错误发生时，AI 会综合以下信息进行分析，给出根因、源码位置和修复建议。"
+      >
+        <Descriptions bordered column={1} size="small">
+          <Descriptions.Item label="错误信息">错误类型、消息文本、发生 URL</Descriptions.Item>
+          <Descriptions.Item label="错误堆栈">原始 stack trace（最多 2000 字符）</Descriptions.Item>
+          <Descriptions.Item label="源码定位帧">
+            通过 SourceMap 还原后的真实源码文件路径、行列号和函数名（originalFile / originalLine）
+          </Descriptions.Item>
+          <Descriptions.Item label="输出格式">
+            ## 错误原因 → ## 源码位置 → ## 修复建议（含代码示例）
+          </Descriptions.Item>
+        </Descriptions>
+      </SectionCard>
+
+      <SectionCard title="快速测试 AI 分析接口" description="输入一条测试错误，验证 AI 分析是否正常工作。">
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          <Input
+            addonBefore="错误类型"
+            value={testError.errorType}
+            onChange={e => setTestError(prev => ({ ...prev, errorType: e.target.value }))}
+          />
+          <Input
+            addonBefore="错误消息"
+            value={testError.message}
+            onChange={e => setTestError(prev => ({ ...prev, message: e.target.value }))}
+          />
+          <Input.TextArea
+            rows={4}
+            placeholder="错误 stack（可选）"
+            value={testError.stack}
+            onChange={e => setTestError(prev => ({ ...prev, stack: e.target.value }))}
+          />
+          <Button type="primary" loading={aiLoading} onClick={() => void handleTest()}>
+            发起 AI 分析
+          </Button>
+          {aiLoading && <Spin tip="AI 正在分析中..." />}
+          {!aiLoading && aiResult && (
+            aiResult.error
+              ? <Alert type="warning" showIcon message="分析失败" description={aiResult.error} />
+              : (
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    <Tag color="blue">
+                      模型：
+                      {aiResult.model ?? '-'}
+                    </Tag>
+                    <pre className="detail-pre" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      {aiResult.analysis ?? '-'}
+                    </pre>
+                  </Space>
+                )
+          )}
+        </Space>
+      </SectionCard>
+
+      <SectionCard title="在错误日志页使用 AI 分析" description="进入「错误日志展示」页面，点击每条错误记录的「AI 分析」按钮即可触发。">
+        <Descriptions bordered column={1} size="small">
+          <Descriptions.Item label="触发方式">错误列表表格中每行的「AI 分析」按钮</Descriptions.Item>
+          <Descriptions.Item label="结果展示">错误详情抽屉的「AI 智能分析」卡片中展示，包含根因、源码位置、修复建议</Descriptions.Item>
+          <Descriptions.Item label="重新分析">在抽屉中点击「重新分析」可重新调用 AI</Descriptions.Item>
+          <Descriptions.Item label="源码位置精度">已上传 SourceMap 的错误会自动提供 originalFile / originalLine 给 AI，提升分析精度</Descriptions.Item>
+        </Descriptions>
+      </SectionCard>
+    </Space>
+  )
+}
+
 function App() {
   return (
     <Routes>
@@ -2097,6 +2297,7 @@ function App() {
         <Route path="replay" element={<ReplayPage />} />
         <Route path="demo" element={<DemoPage />} />
         <Route path="stats" element={<StatsPage />} />
+        <Route path="ai" element={<AiPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
