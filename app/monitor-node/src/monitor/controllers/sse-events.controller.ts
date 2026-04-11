@@ -1,6 +1,8 @@
 import type { MessageEvent } from '@nestjs/common'
 import type { Observable } from 'rxjs'
+import type { AuthTokenPayload } from '../../auth'
 import { BadRequestException, Controller, Get, Inject, Query, Sse } from '@nestjs/common'
+import { AuthRequired, AuthService, CurrentUser } from '../../auth'
 import { validateAlertStreamQueryDto } from '../dto/validation'
 import { AlertEventService } from '../services/alert-event.service'
 import { SseBroadcastService } from '../services/sse-broadcast.service'
@@ -12,18 +14,30 @@ export class SseEventsController {
     private readonly sseBroadcastService: SseBroadcastService,
     @Inject(AlertEventService)
     private readonly alertEventService: AlertEventService,
+    @Inject(AuthService)
+    private readonly authService: AuthService,
   ) {}
 
   @Sse('stream')
-  stream(@Query() query: unknown): Observable<MessageEvent> {
+  @AuthRequired()
+  async stream(
+    @CurrentUser() user: AuthTokenPayload,
+    @Query() query: unknown,
+  ): Promise<Observable<MessageEvent>> {
     const dto = this.parseDto(validateAlertStreamQueryDto, query, 'Invalid stream query')
-    return this.sseBroadcastService.stream(dto.appId)
+    const scope = await this.authService.resolveProjectScope(user.sub, dto.appId)
+    return this.sseBroadcastService.stream(scope.selectedAppId)
   }
 
   @Get('latest-alerts')
-  async latest(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
+  @AuthRequired()
+  async latest(
+    @CurrentUser() user: AuthTokenPayload,
+    @Query() query: unknown,
+  ): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateAlertStreamQueryDto, query, 'Invalid latest alerts query')
-    const data = await this.alertEventService.getLatestAlerts(dto.appId, dto.limit)
+    const allowedAppIds = await this.authService.getReadableAppIds(user.sub, dto.appId)
+    const data = await this.alertEventService.getLatestAlertsForAppIds(allowedAppIds, dto.appId, dto.limit)
     return { success: true, data }
   }
 

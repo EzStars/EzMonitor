@@ -43,10 +43,14 @@ import {
   Typography,
 } from 'antd'
 import ReactECharts from 'echarts-for-react'
-import { Component, useEffect, useMemo, useState } from 'react'
+import { Component, useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useAuth } from './auth/AuthProvider'
+import ProtectedRoute from './auth/ProtectedRoute'
 import { useAlertStream } from './hooks/useAlertStream'
 import { useMonitorQuery } from './hooks/useMonitorQuery'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 import ReplayPlayer from './ReplayPlayer'
 import { monitorService } from './services/monitor'
 import {
@@ -209,7 +213,46 @@ function useCommonFilters() {
   }
 }
 
+function useProjectScopedFilters() {
+  const auth = useAuth()
+  const filters = useCommonFilters()
+  const effectiveAppId = auth.currentAppId ?? filters.appId
+
+  const setAppId = useCallback((value: string) => {
+    if (auth.currentAppId) {
+      return
+    }
+    filters.setAppId(value)
+  }, [auth.currentAppId, filters.setAppId])
+
+  const reset = useCallback(() => {
+    filters.setRange(createDefaultRange())
+    if (!auth.currentAppId) {
+      filters.setAppId('')
+    }
+  }, [auth.currentAppId, filters.setAppId, filters.setRange])
+
+  useEffect(() => {
+    if (auth.currentAppId && filters.appId !== auth.currentAppId) {
+      filters.setAppId(auth.currentAppId)
+    }
+  }, [auth.currentAppId, filters.appId, filters.setAppId])
+
+  return {
+    ...filters,
+    appId: effectiveAppId,
+    setAppId,
+    reset,
+  }
+}
+
+function useUserControlledAppId() {
+  const auth = useAuth()
+  return !auth.currentAppId
+}
+
 function ShellLayout() {
+  const auth = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const selectedKey
@@ -233,6 +276,24 @@ function ShellLayout() {
             <Title level={3}>{current.title}</Title>
           </Space>
           <Space wrap>
+            <Select
+              value={auth.currentProjectId ?? undefined}
+              options={auth.projects.map(project => ({
+                label: `${project.name} (${project.appId})`,
+                value: project.id,
+              }))}
+              onChange={value => auth.switchProject(value)}
+              style={{ minWidth: 240 }}
+              placeholder="选择项目"
+            />
+            <Text type="secondary">{auth.user?.email}</Text>
+            <Button onClick={() => {
+              auth.logout()
+              navigate('/login', { replace: true })
+            }}
+            >
+              退出登录
+            </Button>
             {(Object.keys(routeMeta) as RouteKey[]).map(path => (
               <Button key={path} type={selectedKey === path ? 'primary' : 'default'} onClick={() => navigate(path)}>
                 {routeMeta[path].title}
@@ -302,6 +363,7 @@ function SectionStatus({
 
 function FilterBar({
   appId,
+  appIdDisabled = false,
   onAppIdChange,
   range,
   onRangeChange,
@@ -311,6 +373,7 @@ function FilterBar({
   extra,
 }: {
   appId: string
+  appIdDisabled?: boolean
   onAppIdChange: (value: string) => void
   range: QueryRange
   onRangeChange: (value: QueryRange) => void
@@ -326,6 +389,7 @@ function FilterBar({
           allowClear
           placeholder="按 appId 过滤"
           value={appId}
+          disabled={appIdDisabled}
           onChange={event => onAppIdChange(event.target.value)}
           className="filter-input"
         />
@@ -491,7 +555,8 @@ function buildCategoryTrend<T extends { timestamp: string | number | Date }>(
 }
 
 function DashboardPage() {
-  const filters = useCommonFilters()
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
   const navigate = useNavigate()
   const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
   const listParams = useMemo(
@@ -630,10 +695,12 @@ function DashboardPage() {
 
       <FilterBar
         appId={filters.appId}
+        appIdDisabled={!canEditAppId}
         onAppIdChange={filters.setAppId}
         range={filters.range}
         onRangeChange={filters.setRange}
         onReset={filters.reset}
+        extra={!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : undefined}
         onRefresh={() => {
           void Promise.allSettled([overview.refresh(), trackingStats.refresh(), tracking.refresh(), performance.refresh(), errors.refresh(), replay.refresh()])
         }}
@@ -704,7 +771,8 @@ function DashboardPage() {
 }
 
 function TrackingPage() {
-  const filters = useCommonFilters()
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
   const [searchParams] = useSearchParams()
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
@@ -827,6 +895,7 @@ function TrackingPage() {
 
       <FilterBar
         appId={filters.appId}
+        appIdDisabled={!canEditAppId}
         onAppIdChange={filters.setAppId}
         range={filters.range}
         onRangeChange={filters.setRange}
@@ -840,7 +909,12 @@ function TrackingPage() {
           void Promise.allSettled([listQuery.refresh(), statsQuery.refresh()])
         }}
         loading={listQuery.loading || statsQuery.loading}
-        extra={<Input allowClear placeholder="过滤当前页事件/属性" value={keyword} onChange={e => setKeyword(e.target.value)} className="filter-input" />}
+        extra={(
+          <Space wrap size={8}>
+            {!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : null}
+            <Input allowClear placeholder="过滤当前页事件/属性" value={keyword} onChange={e => setKeyword(e.target.value)} className="filter-input" />
+          </Space>
+        )}
       />
 
       <Row gutter={[16, 16]}>
@@ -910,7 +984,8 @@ function TrackingPage() {
 }
 
 function PerformancePage() {
-  const filters = useCommonFilters()
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [selected, setSelected] = useState<PerformanceRecord | null>(null)
@@ -1046,6 +1121,7 @@ function PerformancePage() {
 
       <FilterBar
         appId={filters.appId}
+        appIdDisabled={!canEditAppId}
         onAppIdChange={filters.setAppId}
         range={filters.range}
         onRangeChange={filters.setRange}
@@ -1054,6 +1130,7 @@ function PerformancePage() {
           setPage(1)
           setPageSize(10)
         }}
+        extra={!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : undefined}
         onRefresh={() => {
           void Promise.allSettled([listQuery.refresh(), chartQuery.refresh(), statsQuery.refresh()])
         }}
@@ -1209,7 +1286,8 @@ function PerformancePage() {
 }
 
 function ErrorPage() {
-  const filters = useCommonFilters()
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [keyword, setKeyword] = useState('')
@@ -1418,6 +1496,7 @@ function ErrorPage() {
 
       <FilterBar
         appId={filters.appId}
+        appIdDisabled={!canEditAppId}
         onAppIdChange={filters.setAppId}
         range={filters.range}
         onRangeChange={filters.setRange}
@@ -1431,7 +1510,12 @@ function ErrorPage() {
           void Promise.allSettled([listQuery.refresh(), statsQuery.refresh(), rootCauseSummaryQuery.refresh()])
         }}
         loading={listQuery.loading || statsQuery.loading || rootCauseSummaryQuery.loading}
-        extra={<Input allowClear placeholder="过滤当前页错误消息/类型" value={keyword} onChange={e => setKeyword(e.target.value)} className="filter-input" />}
+        extra={(
+          <Space wrap size={8}>
+            {!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : null}
+            <Input allowClear placeholder="过滤当前页错误消息/类型" value={keyword} onChange={e => setKeyword(e.target.value)} className="filter-input" />
+          </Space>
+        )}
       />
 
       <Row gutter={[16, 16]}>
@@ -1660,7 +1744,8 @@ function ErrorPage() {
 }
 
 function ReplayPage() {
-  const filters = useCommonFilters()
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
   const [searchParams, setSearchParams] = useSearchParams()
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
@@ -1818,6 +1903,7 @@ function ReplayPage() {
 
       <FilterBar
         appId={filters.appId}
+        appIdDisabled={!canEditAppId}
         onAppIdChange={filters.setAppId}
         range={filters.range}
         onRangeChange={filters.setRange}
@@ -1833,13 +1919,16 @@ function ReplayPage() {
         }}
         loading={listQuery.loading || statsQuery.loading}
         extra={(
-          <Input
-            allowClear
-            placeholder="按 segmentId / route / reason 过滤"
-            value={keyword}
-            onChange={e => setKeyword(e.target.value)}
-            className="filter-input"
-          />
+          <Space wrap size={8}>
+            {!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : null}
+            <Input
+              allowClear
+              placeholder="按 segmentId / route / reason 过滤"
+              value={keyword}
+              onChange={e => setKeyword(e.target.value)}
+              className="filter-input"
+            />
+          </Space>
         )}
       />
 
@@ -1921,7 +2010,8 @@ function ReplayPage() {
 }
 
 function AlertsPage() {
-  const filters = useCommonFilters()
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'acknowledged' | 'resolved'>('all')
@@ -2403,10 +2493,12 @@ function AlertsPage() {
 
       <FilterBar
         appId={filters.appId}
+        appIdDisabled={!canEditAppId}
         onAppIdChange={filters.setAppId}
         range={filters.range}
         onRangeChange={filters.setRange}
         onReset={filters.reset}
+        extra={!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : undefined}
         onRefresh={() => {
           void Promise.allSettled([rulesQuery.refresh(), eventsQuery.refresh(), trendQuery.refresh()])
         }}
@@ -2628,7 +2720,8 @@ function AlertsPage() {
 }
 
 function StatsPage() {
-  const filters = useCommonFilters()
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
   const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
   const statsKey = useMemo(() => queryKey(timeParams), [timeParams])
 
@@ -2695,10 +2788,12 @@ function StatsPage() {
 
       <FilterBar
         appId={filters.appId}
+        appIdDisabled={!canEditAppId}
         onAppIdChange={filters.setAppId}
         range={filters.range}
         onRangeChange={filters.setRange}
         onReset={filters.reset}
+        extra={!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : undefined}
         onRefresh={() => {
           void Promise.allSettled([overview.refresh(), trackingStats.refresh(), performanceStats.refresh(), errorStats.refresh(), replayStats.refresh()])
         }}
@@ -2834,17 +2929,21 @@ function StatsPage() {
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<ShellLayout />}>
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="tracking" element={<TrackingPage />} />
-        <Route path="performance" element={<PerformancePage />} />
-        <Route path="error" element={<ErrorPage />} />
-        <Route path="replay" element={<ReplayPage />} />
-        <Route path="alerts" element={<AlertsPage />} />
-        <Route path="stats" element={<StatsPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route element={<ProtectedRoute />}>
+        <Route path="/" element={<ShellLayout />}>
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="tracking" element={<TrackingPage />} />
+          <Route path="performance" element={<PerformancePage />} />
+          <Route path="error" element={<ErrorPage />} />
+          <Route path="replay" element={<ReplayPage />} />
+          <Route path="alerts" element={<AlertsPage />} />
+          <Route path="stats" element={<StatsPage />} />
+        </Route>
       </Route>
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
 }

@@ -313,7 +313,7 @@ export class Reporter implements ReporterLike {
       throw new Error('No supported transport adapter found')
     }
 
-    await transport.send(reportUrl, body)
+    await transport.send(reportUrl, body, this.getReportHeaders())
   }
 
   private serializeBatchItem(envelope: ReportEnvelope): Record<string, unknown> {
@@ -514,6 +514,27 @@ export class Reporter implements ReporterLike {
   private getBatchSize(): number {
     const batchSize = this.getConfig().batchSize ?? DEFAULT_BATCH_SIZE
     return Math.max(1, batchSize)
+  }
+
+  private getReportHeaders(): Record<string, string> {
+    const headers = this.getConfig().reportHeaders
+    if (!headers || typeof headers !== 'object' || Array.isArray(headers)) {
+      return {}
+    }
+
+    const result: Record<string, string> = {}
+    for (const [key, value] of Object.entries(headers)) {
+      if (typeof key !== 'string' || key.trim() === '') {
+        continue
+      }
+      if (typeof value !== 'string' || value.trim() === '') {
+        continue
+      }
+
+      result[key] = value
+    }
+
+    return result
   }
 
   private scheduleFlush(): void {

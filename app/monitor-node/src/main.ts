@@ -70,6 +70,10 @@ async function bootstrap() {
     rawBody: false,
   })
 
+  app.use((_req, res, next) => {
+    res.removeHeader('X-Powered-By')
+    next()
+  })
   app.use(json({ limit: process.env.MONITOR_MAX_BODY_SIZE || '8mb' }))
   app.use(applyRateLimit)
   app.useGlobalFilters(new AllExceptionsFilter())
@@ -99,7 +103,7 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-monitor-api-key', 'x-monitor-upload-key'],
   })
 
   const port = process.env.PORT ?? 3000

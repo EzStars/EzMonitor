@@ -102,10 +102,87 @@ export class AlertEventService {
     }
   }
 
+  async listEventsForAppIds(appIds: string[], query: AlertEventQueryDto): Promise<PaginatedResult<AlertEvent>> {
+    const normalized = [...new Set(appIds.map(item => item.trim()).filter(Boolean))]
+    if (!normalized.length) {
+      return {
+        items: [],
+        page: query.page ?? 1,
+        pageSize: query.pageSize ?? 20,
+        total: 0,
+        totalPages: 0,
+      }
+    }
+
+    const page = query.page ?? 1
+    const pageSize = query.pageSize ?? 20
+    const filter = this.buildFilter(query)
+    const existingAppId = typeof filter.appId === 'string' ? filter.appId : undefined
+    if (existingAppId && !normalized.includes(existingAppId)) {
+      return {
+        items: [],
+        page,
+        pageSize,
+        total: 0,
+        totalPages: 0,
+      }
+    }
+    if (!existingAppId) {
+      filter.appId = { $in: normalized }
+    }
+
+    const [total, items] = await Promise.all([
+      this.alertEventModel.countDocuments(filter).exec(),
+      this.alertEventModel
+        .find(filter)
+        .sort({ triggeredAt: -1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .lean()
+        .exec(),
+    ])
+
+    return {
+      items: items as AlertEvent[],
+      page,
+      pageSize,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+    }
+  }
+
   async getLatestAlerts(appId?: string, limit = 20): Promise<AlertEvent[]> {
     const filter: FilterQuery<AlertEvent> = {}
     if (appId) {
       filter.appId = appId
+    }
+
+    const clampedLimit = Math.max(1, Math.min(limit, 100))
+    const items = await this.alertEventModel
+      .find(filter)
+      .sort({ triggeredAt: -1 })
+      .limit(clampedLimit)
+      .lean()
+      .exec()
+
+    return items as AlertEvent[]
+  }
+
+  async getLatestAlertsForAppIds(appIds: string[], appId?: string, limit = 20): Promise<AlertEvent[]> {
+    const normalized = [...new Set(appIds.map(item => item.trim()).filter(Boolean))]
+    if (!normalized.length) {
+      return []
+    }
+
+    const filter: FilterQuery<AlertEvent> = {}
+    if (appId) {
+      if (!normalized.includes(appId)) {
+        return []
+      }
+      filter.appId = appId
+    }
+    else {
+      filter.appId = { $in: normalized }
     }
 
     const clampedLimit = Math.max(1, Math.min(limit, 100))
@@ -130,6 +207,11 @@ export class AlertEventService {
     }
 
     return updated as AlertEvent
+  }
+
+  async getEventById(id: string): Promise<AlertEvent | null> {
+    const event = await this.alertEventModel.findById(id).lean().exec()
+    return event as AlertEvent | null
   }
 
   async hasRecentDuplicate(dedupeKey: string, suppressSec: number): Promise<boolean> {

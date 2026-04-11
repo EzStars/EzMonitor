@@ -11,6 +11,7 @@ const DEFAULT_RELEASE = 'monitor-test-local'
 const apiUrl = import.meta.env.VITE_API_URL?.trim() || DEFAULT_API_URL
 const reportUrl = import.meta.env.VITE_MONITOR_REPORT_URL?.trim() || `${apiUrl}/api/monitor/batch`
 const release = import.meta.env.VITE_MONITOR_RELEASE?.trim() || DEFAULT_RELEASE
+const reportApiKey = import.meta.env.VITE_MONITOR_REPORT_API_KEY?.trim()
 
 const sdk = createSDK({
   appId: 'monitor-test-app',
@@ -19,6 +20,11 @@ const sdk = createSDK({
   debug: true,
   enabled: true,
   reportUrl,
+  reportHeaders: reportApiKey
+    ? {
+        'x-monitor-api-key': reportApiKey,
+      }
+    : undefined,
 })
 
 const trackingPlugin = new TrackingPlugin({

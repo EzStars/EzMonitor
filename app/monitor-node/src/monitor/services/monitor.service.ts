@@ -12,7 +12,7 @@ import type {
   TrackingQueryDto,
 } from '../dto'
 import type { RootCauseDetail, RootCauseSummaryItem } from './error-analysis.service'
-import { BadRequestException, Inject, Injectable } from '@nestjs/common'
+import { BadRequestException, Inject, Injectable, UnauthorizedException } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import {
   MonitorBatchItemType,
@@ -83,7 +83,8 @@ export class MonitorService {
     private readonly errorModel: Model<ErrorLog>,
     @InjectModel(ReplaySegment.name)
     private readonly replayModel: Model<ReplaySegment>,
-    private readonly sourceMapService: SourceMapService = new SourceMapService(),
+    @Inject(SourceMapService)
+    private readonly sourceMapService: SourceMapService,
     @Inject(ErrorAnalysisService)
     private readonly errorAnalysisService?: ErrorAnalysisService,
   ) {}
@@ -251,22 +252,23 @@ export class MonitorService {
     }
   }
 
-  async queryTracking(query: TrackingQueryDto): Promise<PaginatedResult<TrackingEvent>> {
-    return this.queryCollection(this.trackingModel, query)
+  async queryTracking(query: TrackingQueryDto, allowedAppIds?: string[]): Promise<PaginatedResult<TrackingEvent>> {
+    return this.queryCollection(this.trackingModel, query, allowedAppIds)
   }
 
   async queryPerformance(
     query: PerformanceQueryDto,
+    allowedAppIds?: string[],
   ): Promise<PaginatedResult<PerformanceMetric>> {
-    return this.queryCollection(this.performanceModel, query)
+    return this.queryCollection(this.performanceModel, query, allowedAppIds)
   }
 
-  async queryErrors(query: ErrorQueryDto): Promise<PaginatedResult<ErrorLog>> {
-    return this.queryCollection(this.errorModel, query)
+  async queryErrors(query: ErrorQueryDto, allowedAppIds?: string[]): Promise<PaginatedResult<ErrorLog>> {
+    return this.queryCollection(this.errorModel, query, allowedAppIds)
   }
 
-  async queryReplay(query: ReplayQueryDto): Promise<PaginatedResult<ReplaySegment>> {
-    const filter = this.buildTimeAppFilter(query)
+  async queryReplay(query: ReplayQueryDto, allowedAppIds?: string[]): Promise<PaginatedResult<ReplaySegment>> {
+    const filter = this.buildTimeAppFilter(query, allowedAppIds)
     if (query.segmentId) {
       filter.segmentId = query.segmentId
     }
@@ -295,8 +297,8 @@ export class MonitorService {
     }
   }
 
-  async getStatsOverview(query: StatsQueryDto): Promise<OverviewStats> {
-    const filter = this.buildTimeAppFilter(query)
+  async getStatsOverview(query: StatsQueryDto, allowedAppIds?: string[]): Promise<OverviewStats> {
+    const filter = this.buildTimeAppFilter(query, allowedAppIds)
     const [tracking, performance, error, replay] = await Promise.all([
       this.trackingModel.countDocuments(filter),
       this.performanceModel.countDocuments(filter),
@@ -313,12 +315,12 @@ export class MonitorService {
     }
   }
 
-  async getTrackingStats(query: StatsQueryDto): Promise<TrackingStatsItem[]> {
+  async getTrackingStats(query: StatsQueryDto, allowedAppIds?: string[]): Promise<TrackingStatsItem[]> {
     const rows = await this.trackingModel.aggregate<{
       _id: string | null
       count: number
     }>([
-      { $match: this.buildTimeAppFilter(query) },
+      { $match: this.buildTimeAppFilter(query, allowedAppIds) },
       {
         $group: {
           _id: { $ifNull: ['$eventName', 'unknown'] },
@@ -334,7 +336,7 @@ export class MonitorService {
     }))
   }
 
-  async getPerformanceStats(query: StatsQueryDto): Promise<PerformanceStatsItem[]> {
+  async getPerformanceStats(query: StatsQueryDto, allowedAppIds?: string[]): Promise<PerformanceStatsItem[]> {
     const rows = await this.performanceModel.aggregate<{
       _id: string | null
       count: number
@@ -343,7 +345,7 @@ export class MonitorService {
       maxValue: number
       values: number[]
     }>([
-      { $match: this.buildTimeAppFilter(query) },
+      { $match: this.buildTimeAppFilter(query, allowedAppIds) },
       {
         $group: {
           _id: { $ifNull: ['$metricType', 'unknown'] },
@@ -370,9 +372,9 @@ export class MonitorService {
     })
   }
 
-  async getErrorStats(query: StatsQueryDto): Promise<ErrorStatsItem[]> {
+  async getErrorStats(query: StatsQueryDto, allowedAppIds?: string[]): Promise<ErrorStatsItem[]> {
     const rows = await this.errorModel.aggregate<{ _id: string | null, count: number }>([
-      { $match: this.buildTimeAppFilter(query) },
+      { $match: this.buildTimeAppFilter(query, allowedAppIds) },
       {
         $group: {
           _id: { $ifNull: ['$errorType', 'unknown'] },
@@ -388,12 +390,12 @@ export class MonitorService {
     }))
   }
 
-  async getReplayStats(query: StatsQueryDto): Promise<ReplayStatsItem[]> {
+  async getReplayStats(query: StatsQueryDto, allowedAppIds?: string[]): Promise<ReplayStatsItem[]> {
     const rows = await this.replayModel.aggregate<{
       _id: string | null
       count: number
     }>([
-      { $match: this.buildTimeAppFilter(query) },
+      { $match: this.buildTimeAppFilter(query, allowedAppIds) },
       {
         $group: {
           _id: { $ifNull: ['$route', 'unknown'] },
@@ -409,21 +411,38 @@ export class MonitorService {
     }))
   }
 
-  async getErrorRootCause(errorId: string): Promise<RootCauseDetail | null> {
+  async getErrorRootCause(errorId: string, allowedAppIds?: string[]): Promise<RootCauseDetail | null> {
     if (!this.errorAnalysisService) {
       return null
+    }
+
+    const allowed = this.normalizeAllowedAppIds(allowedAppIds)
+    if (allowed.length > 0) {
+      const errorRecord = await this.errorModel.findById(errorId).select({ appId: 1 }).lean().exec()
+      if (!errorRecord) {
+        return null
+      }
+
+      if (!allowed.includes(errorRecord.appId)) {
+        throw new UnauthorizedException('Requested error is not accessible')
+      }
     }
 
     return this.errorAnalysisService.getRootCauseByErrorId(errorId)
   }
 
-  async getRootCauseSummary(query: StatsQueryDto & { limit?: number }): Promise<RootCauseSummaryItem[]> {
+  async getRootCauseSummary(
+    query: StatsQueryDto & { limit?: number },
+    allowedAppIds?: string[],
+  ): Promise<RootCauseSummaryItem[]> {
     if (!this.errorAnalysisService) {
       return []
     }
 
+    const appScope = this.resolveAppScope(query.appId, allowedAppIds)
     return this.errorAnalysisService.getRootCauseSummary({
-      appId: query.appId,
+      appId: appScope.appId,
+      appIds: appScope.appIds,
       startTime: query.startTime,
       endTime: query.endTime,
       limit: query.limit,
@@ -448,8 +467,9 @@ export class MonitorService {
   >(
     model: Model<T>,
     query: TrackingQueryDto | PerformanceQueryDto | ErrorQueryDto,
+    allowedAppIds?: string[],
   ): Promise<PaginatedResult<T>> {
-    const filter = this.buildTimeAppFilter(query)
+    const filter = this.buildTimeAppFilter(query, allowedAppIds)
     const page = query.page ?? 1
     const pageSize = query.pageSize ?? 20
     const sortDirection: 1 | -1 = query.sortOrder === 'asc' ? 1 : -1
@@ -474,11 +494,18 @@ export class MonitorService {
     }
   }
 
-  private buildTimeAppFilter(query: StatsQueryDto | TrackingQueryDto | PerformanceQueryDto | ErrorQueryDto | ReplayQueryDto) {
+  private buildTimeAppFilter(
+    query: StatsQueryDto | TrackingQueryDto | PerformanceQueryDto | ErrorQueryDto | ReplayQueryDto,
+    allowedAppIds?: string[],
+  ) {
     const filter: Record<string, unknown> = {}
 
-    if (query.appId) {
-      filter.appId = query.appId
+    const appScope = this.resolveAppScope(query.appId, allowedAppIds)
+    if (appScope.appId) {
+      filter.appId = appScope.appId
+    }
+    else if (appScope.appIds?.length) {
+      filter.appId = { $in: appScope.appIds }
     }
 
     if (query.startTime || query.endTime) {
@@ -523,5 +550,34 @@ export class MonitorService {
     void this.errorAnalysisService.handleErrorRecord(errorRecord).catch((error: unknown) => {
       console.error('[monitor-node] error analysis failed', error)
     })
+  }
+
+  private resolveAppScope(
+    requestedAppId?: string,
+    allowedAppIds?: string[],
+  ): { appId?: string, appIds?: string[] } {
+    const requested = requestedAppId?.trim()
+    const allowed = this.normalizeAllowedAppIds(allowedAppIds)
+    if (!allowed.length) {
+      return requested ? { appId: requested } : {}
+    }
+
+    if (requested) {
+      if (!allowed.includes(requested)) {
+        throw new UnauthorizedException('Requested appId is not accessible')
+      }
+
+      return { appId: requested }
+    }
+
+    return { appIds: allowed }
+  }
+
+  private normalizeAllowedAppIds(allowedAppIds?: string[]): string[] {
+    if (!allowedAppIds?.length) {
+      return []
+    }
+
+    return [...new Set(allowedAppIds.map(item => item.trim()).filter(Boolean))]
   }
 }

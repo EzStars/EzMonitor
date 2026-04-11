@@ -24,6 +24,7 @@ export interface SDKConfig {
   userId?: string
   sessionId?: string
   reportUrl?: string
+  reportHeaders?: Record<string, string>
   enabled?: boolean
   debug?: boolean
   batchSize?: number

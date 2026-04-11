@@ -1,6 +1,7 @@
 /// <reference types="jest" />
 import { BadRequestException } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
+import { AuthService } from '../../auth'
 import { MonitorService } from '../services/monitor.service'
 import { SourceMapService } from '../services/sourcemap.service'
 import { MonitorController } from './monitor.controller'
@@ -19,6 +20,15 @@ describe('monitorController', () => {
   const sourceMapService = {
     saveSourceMap: jest.fn(),
   }
+  const authService = {
+    getReadableAppIds: jest.fn().mockResolvedValue(['app-1']),
+  }
+  const currentUser = {
+    sub: 'user-1',
+    email: 'user@example.com',
+    iat: 0,
+    exp: 9999999999,
+  }
 
   beforeEach(async () => {
     jest.clearAllMocks()
@@ -34,6 +44,10 @@ describe('monitorController', () => {
           provide: SourceMapService,
           useValue: sourceMapService,
         },
+        {
+          provide: AuthService,
+          useValue: authService,
+        },
       ],
     }).compile()
 
@@ -45,6 +59,8 @@ describe('monitorController', () => {
 
     await expect(
       controller.queryTracking({
+        ...currentUser,
+      }, {
         appId: 'app-1',
         page: '2',
         pageSize: '10',
@@ -55,13 +71,14 @@ describe('monitorController', () => {
       success: true,
       data: { items: [], page: 1 },
     })
+    expect(authService.getReadableAppIds).toHaveBeenCalledWith('user-1', 'app-1')
     expect(monitorService.queryTracking).toHaveBeenCalledWith({
       appId: 'app-1',
       page: 2,
       pageSize: 10,
       sortBy: 'timestamp',
       sortOrder: 'asc',
-    })
+    }, ['app-1'])
   })
 
   it('should return tracking write response', async () => {
@@ -131,6 +148,8 @@ describe('monitorController', () => {
 
     await expect(
       controller.queryReplay({
+        ...currentUser,
+      }, {
         appId: 'app-1',
         page: '1',
         pageSize: '10',
@@ -141,6 +160,13 @@ describe('monitorController', () => {
       success: true,
       data: { items: [], page: 1 },
     })
+    expect(monitorService.queryReplay).toHaveBeenCalledWith({
+      appId: 'app-1',
+      page: 1,
+      pageSize: 10,
+      sortBy: 'timestamp',
+      sortOrder: 'desc',
+    }, ['app-1'])
   })
 
   it('should return root cause summary data', async () => {
@@ -154,6 +180,8 @@ describe('monitorController', () => {
 
     await expect(
       controller.getRootCauseSummary({
+        ...currentUser,
+      }, {
         appId: 'app-1',
         startTime: '1712700000000',
         endTime: '1712786400000',
@@ -174,6 +202,7 @@ describe('monitorController', () => {
         appId: 'app-1',
         limit: 5,
       }),
+      ['app-1'],
     )
   })
 
@@ -186,7 +215,7 @@ describe('monitorController', () => {
       confidence: 86,
     })
 
-    await expect(controller.getErrorRootCause('error-1')).resolves.toEqual({
+    await expect(controller.getErrorRootCause(currentUser, 'error-1')).resolves.toEqual({
       success: true,
       data: {
         rootCause: {
@@ -196,17 +225,17 @@ describe('monitorController', () => {
         confidence: 86,
       },
     })
-    expect(monitorService.getErrorRootCause).toHaveBeenCalledWith('error-1')
+    expect(monitorService.getErrorRootCause).toHaveBeenCalledWith('error-1', ['app-1'])
   })
 
   it('should reject invalid root cause summary limit', async () => {
-    await expect(controller.getRootCauseSummary({ limit: '0' })).rejects.toBeInstanceOf(
+    await expect(controller.getRootCauseSummary(currentUser, { limit: '0' })).rejects.toBeInstanceOf(
       BadRequestException,
     )
   })
 
   it('should reject invalid query payloads', async () => {
-    await expect(controller.queryTracking({ page: '0' })).rejects.toBeInstanceOf(
+    await expect(controller.queryTracking(currentUser, { page: '0' })).rejects.toBeInstanceOf(
       BadRequestException,
     )
   })
@@ -216,6 +245,8 @@ describe('monitorController', () => {
 
     await expect(
       controller.queryTracking({
+        ...currentUser,
+      }, {
         appId: 'app-1',
         page: '1',
         pageSize: '10',

@@ -59,6 +59,55 @@ export class AlertRuleService {
     }
   }
 
+  async listRulesForAppIds(appIds: string[], query: AlertRuleQueryDto): Promise<PaginatedResult<AlertRule>> {
+    const normalized = [...new Set(appIds.map(item => item.trim()).filter(Boolean))]
+    if (!normalized.length) {
+      return {
+        items: [],
+        page: query.page ?? 1,
+        pageSize: query.pageSize ?? 20,
+        total: 0,
+        totalPages: 0,
+      }
+    }
+
+    const page = query.page ?? 1
+    const pageSize = query.pageSize ?? 20
+    const filter = this.buildFilter(query)
+    const existingAppId = typeof filter.appId === 'string' ? filter.appId : undefined
+    if (existingAppId && !normalized.includes(existingAppId)) {
+      return {
+        items: [],
+        page,
+        pageSize,
+        total: 0,
+        totalPages: 0,
+      }
+    }
+    if (!existingAppId) {
+      filter.appId = { $in: normalized }
+    }
+
+    const [total, items] = await Promise.all([
+      this.alertRuleModel.countDocuments(filter).exec(),
+      this.alertRuleModel
+        .find(filter)
+        .sort({ updatedAt: -1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .lean()
+        .exec(),
+    ])
+
+    return {
+      items: items as AlertRule[],
+      page,
+      pageSize,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+    }
+  }
+
   async updateRule(id: string, dto: UpdateAlertRuleDto): Promise<AlertRule> {
     const updated = await this.alertRuleModel
       .findByIdAndUpdate(id, dto, { new: true })
@@ -79,6 +128,11 @@ export class AlertRuleService {
     }
 
     return { id }
+  }
+
+  async getRuleById(id: string): Promise<AlertRule | null> {
+    const rule = await this.alertRuleModel.findById(id).lean().exec()
+    return rule as AlertRule | null
   }
 
   async getEnabledRules(appId?: string): Promise<AlertRule[]> {

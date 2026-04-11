@@ -51,12 +51,13 @@ class XhrTransport implements ITransportAdapter {
     return typeof fetch === 'function' || typeof XMLHttpRequest !== 'undefined'
   }
 
-  async send(url: string, body: string): Promise<void> {
+  async send(url: string, body: string, headers: Record<string, string> = {}): Promise<void> {
     if (typeof fetch === 'function') {
       const response = await fetch(url, {
         body,
         headers: {
           'Content-Type': 'application/json',
+          ...headers,
         },
         method: 'POST',
       })
@@ -69,13 +70,16 @@ class XhrTransport implements ITransportAdapter {
     }
 
     if (typeof XMLHttpRequest === 'undefined') {
-      throw new Error('XHR transport is not supported')
+      throw new TypeError('XHR transport is not supported')
     }
 
     await new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest()
       xhr.open('POST', url, true)
       xhr.setRequestHeader('Content-Type', 'application/json')
+      for (const [key, value] of Object.entries(headers)) {
+        xhr.setRequestHeader(key, value)
+      }
       xhr.onreadystatechange = () => {
         if (xhr.readyState !== XMLHttpRequest.DONE) {
           return

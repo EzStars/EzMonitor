@@ -1,5 +1,6 @@
 import type { AlertEventRecord } from '../services/monitor'
 import { useEffect, useMemo, useState } from 'react'
+import { ACCESS_TOKEN_STORAGE_KEY } from '../auth/constants'
 import { monitorService } from '../services/monitor'
 
 export type AlertStreamStatus = 'connecting' | 'connected' | 'degraded'
@@ -105,6 +106,10 @@ export function useAlertStream(appId?: string, limit = 20) {
       const params = new URLSearchParams()
       if (appId) {
         params.set('appId', appId)
+      }
+      const token = globalThis.window?.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
+      if (token) {
+        params.set('authToken', token)
       }
 
       const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'

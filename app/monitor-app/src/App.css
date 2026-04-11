@@ -102,6 +102,22 @@
   text-transform: uppercase;
 }
 
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #f5f7fb 0%, #e9eef8 100%);
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 460px;
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+
 @media (max-width: 992px) {
   .app-header {
     flex-direction: column;

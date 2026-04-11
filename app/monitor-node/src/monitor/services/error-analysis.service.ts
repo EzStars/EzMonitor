@@ -225,6 +225,7 @@ export class ErrorAnalysisService {
 
   async getRootCauseSummary(query: {
     appId?: string
+    appIds?: string[]
     startTime?: Date
     endTime?: Date
     limit?: number
@@ -232,6 +233,9 @@ export class ErrorAnalysisService {
     const match: FilterQuery<ErrorAnalysis> = {}
     if (query.appId) {
       match.appId = query.appId
+    }
+    else if (query.appIds?.length) {
+      match.appId = { $in: query.appIds }
     }
 
     if (query.startTime || query.endTime) {

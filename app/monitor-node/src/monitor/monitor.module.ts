@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { MongooseModule } from '@nestjs/mongoose'
+import { AuthModule } from '../auth'
 import { AlertController, MonitorController, SseEventsController } from './controllers'
 import {
   AlertEvent,
@@ -29,6 +30,7 @@ import {
 @Module({
   controllers: [MonitorController, AlertController, SseEventsController],
   imports: [
+    AuthModule,
     MongooseModule.forFeature([
       { name: TrackingEvent.name, schema: TrackingEventSchema },
       { name: PerformanceMetric.name, schema: PerformanceMetricSchema },

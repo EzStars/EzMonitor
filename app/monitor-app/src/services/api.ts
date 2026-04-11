@@ -1,6 +1,12 @@
 import type { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { message } from 'antd'
 import axios from 'axios'
+import {
+  ACCESS_TOKEN_STORAGE_KEY,
+  AUTH_CURRENT_PROJECT_STORAGE_KEY,
+  AUTH_PROJECTS_STORAGE_KEY,
+  AUTH_USER_STORAGE_KEY,
+} from '../auth/constants'
 
 export interface ApiResponse<T = unknown> {
   code?: number
@@ -37,7 +43,7 @@ export const api: AxiosInstance = axios.create({
 })
 
 api.interceptors.request.use((config) => {
-  const token = globalThis.window?.localStorage.getItem('token')
+  const token = globalThis.window?.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
 
   if (token) {
     ;(config.headers as Record<string, string>).Authorization = `Bearer ${token}`
@@ -68,6 +74,18 @@ api.interceptors.response.use(
       code: status,
       message: serverData?.message ?? error.message ?? '网络请求失败',
       details: serverData?.data ?? error.response?.data,
+    }
+
+    if (status === 401 && globalThis.window) {
+      globalThis.window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
+      globalThis.window.localStorage.removeItem(AUTH_USER_STORAGE_KEY)
+      globalThis.window.localStorage.removeItem(AUTH_PROJECTS_STORAGE_KEY)
+      globalThis.window.localStorage.removeItem(AUTH_CURRENT_PROJECT_STORAGE_KEY)
+
+      if (!globalThis.window.location.pathname.startsWith('/login')) {
+        const next = `${globalThis.window.location.pathname}${globalThis.window.location.search}`
+        globalThis.window.location.href = `/login?next=${encodeURIComponent(next)}`
+      }
     }
 
     message.error(apiError.message)

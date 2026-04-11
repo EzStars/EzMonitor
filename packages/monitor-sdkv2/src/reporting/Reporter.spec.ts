@@ -22,7 +22,7 @@ class MemoryStorage {
 
 class MockTransport implements ITransportAdapter {
   readonly type = 'xhr' as const
-  readonly calls: string[] = []
+  readonly calls: Array<{ url: string, body: string, headers: Record<string, string> }> = []
 
   constructor(private readonly failures = 0) {}
 
@@ -30,8 +30,8 @@ class MockTransport implements ITransportAdapter {
     return true
   }
 
-  async send(url: string, body: string): Promise<void> {
-    this.calls.push(`${url}::${body}`)
+  async send(url: string, body: string, headers: Record<string, string> = {}): Promise<void> {
+    this.calls.push({ url, body, headers })
     if (this.calls.length <= this.failures) {
       throw new Error('mock transport failure')
     }
@@ -39,7 +39,7 @@ class MockTransport implements ITransportAdapter {
 }
 
 class TypedMockTransport implements ITransportAdapter {
-  readonly calls: string[] = []
+  readonly calls: Array<{ url: string, body: string, headers: Record<string, string> }> = []
 
   constructor(readonly type: 'beacon' | 'image' | 'xhr') {}
 
@@ -47,8 +47,8 @@ class TypedMockTransport implements ITransportAdapter {
     return true
   }
 
-  async send(url: string, body: string): Promise<void> {
-    this.calls.push(`${url}::${body}`)
+  async send(url: string, body: string, headers: Record<string, string> = {}): Promise<void> {
+    this.calls.push({ url, body, headers })
   }
 }
 
@@ -92,7 +92,7 @@ describe('reporter', () => {
     await reporter.flush()
 
     expect(transport.calls).toHaveLength(1)
-    const [, body] = transport.calls[0].split('::')
+    const body = transport.calls[0].body
     const parsed = JSON.parse(body) as {
       items: Array<{
         type: string
@@ -163,7 +163,7 @@ describe('reporter', () => {
     await secondReporter.flush()
 
     expect(secondTransport.calls).toHaveLength(1)
-    const [, body] = secondTransport.calls[0].split('::')
+    const body = secondTransport.calls[0].body
     const parsed = JSON.parse(body) as { items: Array<{ type: string, properties?: { persisted?: boolean } }> }
     expect(parsed.items[0]).toMatchObject({
       type: 'tracking',
@@ -201,5 +201,27 @@ describe('reporter', () => {
     expect(beaconTransport.calls).toHaveLength(1)
     expect(imageTransport.calls).toHaveLength(0)
     expect(xhrTransport.calls).toHaveLength(0)
+  })
+
+  it('passes configured custom report headers', async () => {
+    const transport = new MockTransport()
+    const reporter = new Reporter(() => createConfig({
+      batchSize: 1,
+      reportHeaders: {
+        'x-monitor-api-key': 'test-api-key',
+      },
+    }), {
+      storage: new MemoryStorage(),
+      transports: [transport],
+    })
+
+    await reporter.start()
+    reporter.report('tracking:event', { secure: true })
+    await reporter.flush()
+
+    expect(transport.calls).toHaveLength(1)
+    expect(transport.calls[0].headers).toMatchObject({
+      'x-monitor-api-key': 'test-api-key',
+    })
   })
 })

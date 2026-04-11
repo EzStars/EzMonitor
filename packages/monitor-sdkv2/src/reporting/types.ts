@@ -29,7 +29,7 @@ export interface ReporterLike {
 export interface ITransportAdapter {
   readonly type: ReportTransportType
   isSupported: () => boolean
-  send: (url: string, body: string) => Promise<void>
+  send: (url: string, body: string, headers?: Record<string, string>) => Promise<void>
 }
 
 export interface ReporterOptions {

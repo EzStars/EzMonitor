@@ -18,6 +18,8 @@ NestJS 后端服务，负责接收监控上报、写入 MongoDB，并向 `monito
 | `PORT` | `3001` | 后端监听端口 |
 | `NODE_ENV` | `development` | 运行环境 |
 | `CORS_ORIGINS` | `http://localhost:5173,http://localhost:5174` | 前端来源白名单（当前实现实际在 `src/main.ts` 里固定允许 5173/5174） |
+| `AUTH_JWT_SECRET` | `replace_with_strong_jwt_secret` | JWT 签名密钥（生产环境必须替换） |
+| `AUTH_ACCESS_TOKEN_TTL_SEC` | `900` | Access token 生命周期（秒） |
 
 ## 启动
 
@@ -29,6 +31,10 @@ pnpm --filter monitor-node run start:dev
 ## API 概览
 
 - `GET /`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `GET /api/auth/projects`
 - `GET /api/monitor/tracking`
 - `GET /api/monitor/performance`
 - `GET /api/monitor/error`
@@ -43,6 +49,13 @@ pnpm --filter monitor-node run start:dev
 - `POST /api/monitor/error`
 - `POST /api/monitor/replay`
 - `POST /api/monitor/batch`
+
+## 鉴权与项目安全守护
+
+1. 所有监控查询接口（含告警/SSE）都要求 `Authorization: Bearer <token>`。
+2. 查询层在服务端按当前用户可访问项目做强制过滤，不信任客户端随意传入的 `appId`。
+3. 监控写入接口要求 `x-monitor-api-key`，并将该 key 与请求 `appId` 绑定校验。
+4. sourcemap 上传仍使用 `x-monitor-upload-key`（`MONITOR_SOURCEMAP_UPLOAD_KEY`）独立管控。
 
 ## 验证
 

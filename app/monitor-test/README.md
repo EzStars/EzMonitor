@@ -32,6 +32,7 @@ pnpm --filter monitor-test run dev
 3. 启动本应用
 
 默认上报地址为 `${VITE_API_URL || http://localhost:3000}/api/monitor/batch`，可通过 `VITE_MONITOR_REPORT_URL` 覆盖。
+如后端启用了项目写入鉴权，请同时配置 `VITE_MONITOR_REPORT_API_KEY`（会透传为 `x-monitor-api-key` 请求头）。
 
 ## 验收步骤
 
@@ -50,6 +51,7 @@ pnpm --filter monitor-test run lint
 
 - 默认：`${VITE_API_URL || http://localhost:3000}/api/monitor/batch`
 - 覆盖：设置 `VITE_MONITOR_REPORT_URL`
+- 写入鉴权：设置 `VITE_MONITOR_REPORT_API_KEY`
 
 ## SourceMap 定位验证
 
