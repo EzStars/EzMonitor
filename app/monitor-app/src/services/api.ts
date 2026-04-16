@@ -122,6 +122,8 @@ export const monitorApi = {
     request.get<T>('/api/monitor/stats/replay', { params }),
   postBatch: <T = unknown>(items: unknown[]) =>
     request.post<T>('/api/monitor/batch', { items }),
+  postAiAnalyze: <T = unknown>(payload: unknown) =>
+    request.post<T>('/api/monitor/ai/analyze', payload),
 }
 
 export { request }

@@ -1,6 +1,7 @@
 /// <reference types="jest" />
 import { BadRequestException } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
+import { AiService } from '../services/ai.service'
 import { MonitorService } from '../services/monitor.service'
 import { SourceMapService } from '../services/sourcemap.service'
 import { MonitorController } from './monitor.controller'
@@ -17,6 +18,10 @@ describe('monitorController', () => {
   const sourceMapService = {
     saveSourceMap: jest.fn(),
   }
+  const aiService = {
+    isAvailable: jest.fn().mockReturnValue(false),
+    analyzeError: jest.fn().mockResolvedValue({ available: false }),
+  }
 
   beforeEach(async () => {
     jest.clearAllMocks()
@@ -31,6 +36,10 @@ describe('monitorController', () => {
         {
           provide: SourceMapService,
           useValue: sourceMapService,
+        },
+        {
+          provide: AiService,
+          useValue: aiService,
         },
       ],
     }).compile()

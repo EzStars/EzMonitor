@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common'
 import { AllExceptionsFilter } from './all-exceptions.filter'
 
-describe('AllExceptionsFilter', () => {
+describe('allExceptionsFilter', () => {
   const response = {
     status: jest.fn().mockReturnThis(),
     json: jest.fn(),
