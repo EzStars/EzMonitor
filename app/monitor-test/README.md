@@ -31,7 +31,7 @@ pnpm --filter monitor-test run dev
 2. 启动 `monitor-node`
 3. 启动本应用
 
-默认上报地址为 `${VITE_API_URL || http://localhost:3000}/api/monitor/batch`，可通过 `VITE_MONITOR_REPORT_URL` 覆盖。
+默认上报地址为 `/api/monitor/batch`（由 Vite 代理到 `${VITE_API_URL || http://localhost:${PORT || 3000}}`），可通过 `VITE_MONITOR_REPORT_URL` 覆盖。
 
 ## 验收步骤
 
@@ -48,7 +48,7 @@ pnpm --filter monitor-test run lint
 
 ## 上报地址
 
-- 默认：`${VITE_API_URL || http://localhost:3000}/api/monitor/batch`
+- 默认：`/api/monitor/batch`（由 Vite 代理）
 - 覆盖：设置 `VITE_MONITOR_REPORT_URL`
 
 ## SourceMap 定位验证

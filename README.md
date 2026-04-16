@@ -209,7 +209,7 @@ interface ConfigType {
 | `CORS_ORIGINS` | `http://localhost:5173,http://localhost:5174` | 允许的前端来源（逗号分隔） |
 | `CORS_ALLOW_LOCALHOST` | `true` | 是否允许 `localhost/127.0.0.1` 任意端口（开发环境建议开启） |
 | `VITE_API_URL` | `http://localhost:3000` | `monitor-app` 查询后端的基础地址 |
-| `VITE_MONITOR_REPORT_URL` | `http://localhost:3000/api/monitor/batch` | `monitor-test` 的上报地址 |
+| `VITE_MONITOR_REPORT_URL` | `/api/monitor/batch` | `monitor-test` 的上报地址（默认通过 Vite 代理到 `VITE_API_URL`，未配置时回落 `http://localhost:${PORT || 3000}`） |
 | `MONITOR_MAX_BODY_SIZE` | `8mb` | 后端 JSON 请求体大小上限（影响 sourcemap 上传） |
 
 ### 启动步骤
