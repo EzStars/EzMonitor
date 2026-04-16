@@ -68,6 +68,7 @@ export class ReplayPlugin implements IPlugin {
   private events: ReplayEventRecord[] = []
   private rrwebEvents: Array<Record<string, unknown>> = []
   private rrwebStop?: () => void
+  private rrwebRestarting = false
   private removeListeners: Listener[] = []
   private flushTimer: ReturnType<typeof setInterval> | undefined
 
@@ -443,8 +444,32 @@ export class ReplayPlugin implements IPlugin {
     this.startedAt = Date.now()
     this.events = []
     this.rrwebEvents = []
+    this.restartRrwebRecording()
 
     return segment
+  }
+
+  private restartRrwebRecording(): void {
+    if (this.pluginConfig.recordMode !== 'rrweb' || this.status !== 'started' || this.rrwebRestarting) {
+      return
+    }
+
+    this.rrwebRestarting = true
+    const stop = this.rrwebStop
+    this.rrwebStop = undefined
+
+    if (stop) {
+      try {
+        stop()
+      }
+      catch {
+        // Ignore rrweb stop failures to keep SDK alive.
+      }
+    }
+
+    void this.startRrwebRecording().finally(() => {
+      this.rrwebRestarting = false
+    })
   }
 
   private getErrorContext(): ReplayErrorContext | undefined {
@@ -669,6 +694,7 @@ export class ReplayPlugin implements IPlugin {
 
     this.events = []
     this.rrwebEvents = []
+    this.rrwebRestarting = false
     this.startedAt = 0
     this.segmentId = createSegmentId()
     this.sampled = true

@@ -1,4 +1,15 @@
-import type { AiAnalyzeErrorDto, AiErrorFrameDto } from './ai.dto'
+import type { AiAnalyzeErrorDto, AiErrorFrameDto, AiStatusQueryDto } from './ai.dto'
+import type {
+  AlertEventQueryDto,
+  AlertEventStatus,
+  AlertMetric,
+  AlertRuleQueryDto,
+  AlertSeverity,
+  AlertStreamQueryDto,
+  CreateAlertRuleDto,
+  UpdateAlertEventStatusDto,
+  UpdateAlertRuleDto,
+} from './alert.dto'
 import type {
   CreateMonitorBatchDto,
   MonitorBatchItemDto,
@@ -16,6 +27,12 @@ import type {
 import type { CreateReplaySegmentDto } from './replay.dto'
 import type { UploadSourceMapDto } from './sourcemap.dto'
 import type { CreateTrackingEventDto } from './tracking-event.dto'
+import {
+  ALERT_EVENT_STATUSES,
+  ALERT_METRICS,
+  ALERT_SEVERITIES,
+  DEDUPE_STRATEGIES,
+} from './alert.dto'
 import {
   MonitorBatchItemType,
 } from './batch-monitor.dto'
@@ -136,6 +153,69 @@ function parseOptionalPositiveInt(
   }
 
   return parsed
+}
+
+function parseMaybePositiveInt(
+  value: unknown,
+  fieldName: string,
+  minimum = 1,
+  maximum = Number.MAX_SAFE_INTEGER,
+): number | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  return parseOptionalPositiveInt(value, fieldName, minimum, minimum, maximum)
+}
+
+function parseOptionalBoolean(value: unknown, fieldName: string): boolean | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (typeof value === 'boolean') {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    if (value === 'true') {
+      return true
+    }
+    if (value === 'false') {
+      return false
+    }
+  }
+
+  throw new Error(`${fieldName} must be a boolean`)
+}
+
+function parseRequiredEnum<T extends readonly string[]>(
+  value: unknown,
+  fieldName: string,
+  options: T,
+): T[number] {
+  if (typeof value !== 'string') {
+    throw new TypeError(`${fieldName} is required`)
+  }
+
+  const normalized = value.trim()
+  if ((options as readonly string[]).includes(normalized)) {
+    return normalized as T[number]
+  }
+
+  throw new Error(`${fieldName} must be one of: ${options.join(', ')}`)
+}
+
+function parseOptionalEnum<T extends readonly string[]>(
+  value: unknown,
+  fieldName: string,
+  options: T,
+): T[number] | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  return parseRequiredEnum(value, fieldName, options)
 }
 
 function parseOptionalDate(
@@ -311,6 +391,99 @@ export function validateReplayQueryDto(body: unknown): ReplayQueryDto {
 
 export function validateStatsQueryDto(body: unknown): StatsQueryDto {
   return validateBaseQuery<StatsQueryDto>(body)
+}
+
+export function validateCreateAlertRuleDto(body: unknown): CreateAlertRuleDto {
+  if (!isRecord(body)) {
+    throw new Error('body must be an object')
+  }
+
+  const name = parseOptionalString(body.name, 'name')
+  if (!name) {
+    throw new Error('name is required')
+  }
+
+  return {
+    name,
+    appId: parseOptionalString(body.appId, 'appId'),
+    metric: parseRequiredEnum(body.metric, 'metric', ALERT_METRICS) as AlertMetric,
+    windowSec: parseOptionalPositiveInt(body.windowSec, 'windowSec', 300, 30, 86400),
+    suppressSec: parseOptionalPositiveInt(body.suppressSec, 'suppressSec', 300, 30, 86400),
+    dedupeStrategy: parseOptionalEnum(body.dedupeStrategy, 'dedupeStrategy', DEDUPE_STRATEGIES),
+    threshold: parseOptionalPositiveInt(body.threshold, 'threshold', 5, 1, 100000),
+    severity: parseRequiredEnum(body.severity, 'severity', ALERT_SEVERITIES) as AlertSeverity,
+    enabled: parseOptionalBoolean(body.enabled, 'enabled'),
+    errorType: parseOptionalString(body.errorType, 'errorType'),
+    fingerprint: parseOptionalString(body.fingerprint, 'fingerprint'),
+  }
+}
+
+export function validateUpdateAlertRuleDto(body: unknown): UpdateAlertRuleDto {
+  if (!isRecord(body)) {
+    throw new Error('body must be an object')
+  }
+
+  return {
+    name: parseOptionalString(body.name, 'name'),
+    metric: parseOptionalEnum(body.metric, 'metric', ALERT_METRICS) as AlertMetric | undefined,
+    windowSec: parseMaybePositiveInt(body.windowSec, 'windowSec', 30, 86400),
+    suppressSec: parseMaybePositiveInt(body.suppressSec, 'suppressSec', 30, 86400),
+    dedupeStrategy: parseOptionalEnum(body.dedupeStrategy, 'dedupeStrategy', DEDUPE_STRATEGIES),
+    threshold: parseMaybePositiveInt(body.threshold, 'threshold', 1, 100000),
+    severity: parseOptionalEnum(body.severity, 'severity', ALERT_SEVERITIES) as AlertSeverity | undefined,
+    enabled: parseOptionalBoolean(body.enabled, 'enabled'),
+    errorType: parseOptionalString(body.errorType, 'errorType'),
+    fingerprint: parseOptionalString(body.fingerprint, 'fingerprint'),
+  }
+}
+
+export function validateAlertRuleQueryDto(body: unknown): AlertRuleQueryDto {
+  if (!isRecord(body)) {
+    throw new Error('query must be an object')
+  }
+
+  return {
+    appId: parseOptionalString(body.appId, 'appId'),
+    enabled: parseOptionalBoolean(body.enabled, 'enabled'),
+    metric: parseOptionalEnum(body.metric, 'metric', ALERT_METRICS) as AlertMetric | undefined,
+    page: parseOptionalPositiveInt(body.page, 'page', 1, 1, 100000),
+    pageSize: parseOptionalPositiveInt(body.pageSize, 'pageSize', 20, 1, 100),
+  }
+}
+
+export function validateAlertEventQueryDto(body: unknown): AlertEventQueryDto {
+  const base = validateBaseQuery<AlertEventQueryDto>(body)
+  if (!isRecord(body)) {
+    throw new Error('query must be an object')
+  }
+
+  return {
+    ...base,
+    status: parseOptionalEnum(body.status, 'status', ALERT_EVENT_STATUSES) as AlertEventStatus | undefined,
+    page: parseOptionalPositiveInt(body.page, 'page', 1, 1, 100000),
+    pageSize: parseOptionalPositiveInt(body.pageSize, 'pageSize', 20, 1, 100),
+  }
+}
+
+export function validateAlertEventStatusDto(body: unknown): UpdateAlertEventStatusDto {
+  if (!isRecord(body)) {
+    throw new Error('body must be an object')
+  }
+
+  return {
+    status: parseRequiredEnum(body.status, 'status', ALERT_EVENT_STATUSES) as AlertEventStatus,
+  }
+}
+
+export function validateAlertStreamQueryDto(body: unknown): AlertStreamQueryDto {
+  if (!isRecord(body)) {
+    throw new Error('query must be an object')
+  }
+
+  return {
+    appId: parseOptionalString(body.appId, 'appId'),
+    limit: parseOptionalPositiveInt(body.limit, 'limit', 20, 1, 100),
+  }
 }
 
 export function validateCreateTrackingEventDto(
@@ -744,5 +917,76 @@ export function validateAiAnalyzeErrorDto(body: unknown): AiAnalyzeErrorDto {
     stack: parseOptionalString(body.stack, 'stack'),
     url: parseOptionalString(body.url, 'url'),
     frames,
+    apiKey: parseOptionalString(body.apiKey, 'apiKey'),
+    apiBaseUrl: (() => {
+      const value = parseOptionalString(body.apiBaseUrl, 'apiBaseUrl')
+      if (!value) {
+        return value
+      }
+
+      let parsedUrl: URL
+      try {
+        parsedUrl = new URL(value)
+      }
+      catch {
+        throw new Error('apiBaseUrl must be a valid URL')
+      }
+
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+        throw new Error('apiBaseUrl must use http or https')
+      }
+
+      return value
+    })(),
+    model: parseOptionalString(body.model, 'model'),
+  }
+}
+
+export function validateAiStatusQueryDto(query: unknown): AiStatusQueryDto {
+  if (!isRecord(query)) {
+    throw new Error('query must be an object')
+  }
+
+  let hasClientApiKey = false
+  if (query.hasClientApiKey !== undefined) {
+    const raw = query.hasClientApiKey
+    if (typeof raw === 'boolean') {
+      hasClientApiKey = raw
+    }
+    else if (typeof raw === 'string') {
+      if (raw === 'true') {
+        hasClientApiKey = true
+      }
+      else if (raw === 'false') {
+        hasClientApiKey = false
+      }
+      else {
+        throw new Error('hasClientApiKey must be true or false')
+      }
+    }
+    else {
+      throw new TypeError('hasClientApiKey must be a boolean')
+    }
+  }
+
+  const apiBaseUrl = parseOptionalString(query.apiBaseUrl, 'apiBaseUrl')
+  if (apiBaseUrl) {
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(apiBaseUrl)
+    }
+    catch {
+      throw new Error('apiBaseUrl must be a valid URL')
+    }
+
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      throw new Error('apiBaseUrl must use http or https')
+    }
+  }
+
+  return {
+    hasClientApiKey,
+    apiBaseUrl,
+    model: parseOptionalString(query.model, 'model'),
   }
 }

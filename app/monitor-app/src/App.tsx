@@ -3,12 +3,18 @@ import type { MenuProps, TableColumnsType } from 'antd'
 import type { ReactNode } from 'react'
 import type {
   AiAnalysisResult,
+  AlertDedupeStrategy,
+  AlertEventRecord,
+  AlertRuleRecord,
+  AlertSeverity,
+  CreateAlertRulePayload,
   ErrorRecord,
   ErrorStatsItem,
   PerformanceRecord,
   PerformanceStatsItem,
   ReplayRecord,
   ReplayStatsItem,
+  RootCauseSummaryItem,
   TrackingRecord,
   TrackingStatsItem,
 } from './services/monitor'
@@ -21,10 +27,13 @@ import {
   Drawer,
   Empty,
   Input,
+  InputNumber,
   Layout,
   List,
   Menu,
+  Modal,
   Row,
+  Select,
   Space,
   Spin,
   Statistic,
@@ -35,15 +44,16 @@ import {
   Typography,
 } from 'antd'
 import ReactECharts from 'echarts-for-react'
-import { Component, useEffect, useMemo, useState } from 'react'
+import { Component, useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useAuth } from './auth/AuthProvider'
+import ProtectedRoute from './auth/ProtectedRoute'
+import { useAlertStream } from './hooks/useAlertStream'
 import { useMonitorQuery } from './hooks/useMonitorQuery'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 import ReplayPlayer from './ReplayPlayer'
-import {
-
-  monitorService,
-
-} from './services/monitor'
+import { monitorService } from './services/monitor'
 import {
   average,
   collectLatestRecords,
@@ -60,7 +70,7 @@ import './App.css'
 const { Header, Sider, Content } = Layout
 const { Title, Text, Paragraph } = Typography
 
-type RouteKey = '/dashboard' | '/tracking' | '/performance' | '/error' | '/replay' | '/demo' | '/stats' | '/ai'
+type RouteKey = '/dashboard' | '/tracking' | '/performance' | '/error' | '/replay' | '/alerts' | '/stats'
 
 const routeMeta: Record<RouteKey, { title: string, description: string }> = {
   '/dashboard': {
@@ -83,17 +93,13 @@ const routeMeta: Record<RouteKey, { title: string, description: string }> = {
     title: '录屏回放',
     description: '查看回放分段、样本事件和错误联动信息。',
   },
-  '/demo': {
-    title: '采集演示',
-    description: '可开关触发 PV/UV/回放/错误联动上报，验证端到端链路。',
+  '/alerts': {
+    title: '告警中心',
+    description: '管理告警规则、实时查看告警事件并处理状态。',
   },
   '/stats': {
     title: '统计分析页面',
     description: '统一时间范围与应用筛选，查看多维统计分析。',
-  },
-  '/ai': {
-    title: 'AI 智能分析',
-    description: '配置 AI 大模型接口，对错误日志进行根因分析和修复建议。',
   },
 }
 
@@ -145,6 +151,97 @@ const navItems: MenuProps['items'] = (Object.keys(routeMeta) as RouteKey[]).map(
 }))
 
 type QueryRange = [string, string]
+
+interface AiConfig {
+  apiKey: string
+  apiBaseUrl: string
+  model: string
+}
+
+const DEFAULT_AI_CONFIG: AiConfig = {
+  apiKey: '',
+  apiBaseUrl: 'https://api.openai.com/v1',
+  model: 'gpt-4o-mini',
+}
+
+const AI_CONFIG_STORAGE_KEY = 'ezmonitor.ai-config'
+
+function readAiConfig(): AiConfig {
+  if (typeof window === 'undefined') {
+    return DEFAULT_AI_CONFIG
+  }
+
+  try {
+    const raw = window.localStorage.getItem(AI_CONFIG_STORAGE_KEY)
+    if (!raw) {
+      return DEFAULT_AI_CONFIG
+    }
+
+    const parsed = JSON.parse(raw) as Partial<AiConfig>
+    return {
+      apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : DEFAULT_AI_CONFIG.apiKey,
+      apiBaseUrl: typeof parsed.apiBaseUrl === 'string' && parsed.apiBaseUrl.trim() ? parsed.apiBaseUrl : DEFAULT_AI_CONFIG.apiBaseUrl,
+      model: typeof parsed.model === 'string' && parsed.model.trim() ? parsed.model : DEFAULT_AI_CONFIG.model,
+    }
+  }
+  catch {
+    return DEFAULT_AI_CONFIG
+  }
+}
+
+function useAiConfig() {
+  const [config, setConfig] = useState<AiConfig>(() => readAiConfig())
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.localStorage.setItem(AI_CONFIG_STORAGE_KEY, JSON.stringify(config))
+  }, [config])
+
+  return { config, setConfig, resetConfig: () => setConfig(DEFAULT_AI_CONFIG) }
+}
+
+function getAiErrorDisplay(result: AiAnalysisResult): { message: string, description: string } {
+  switch (result.errorCode) {
+    case 'missing_api_key':
+      return {
+        message: 'AI 密钥未配置',
+        description: result.error ?? '请在前端填写 AI_API_KEY，或在 monitor-node 服务端 .env 中配置 AI_API_KEY。',
+      }
+    case 'upstream_auth_error':
+      return {
+        message: '上游模型鉴权失败',
+        description: result.error ?? '请检查 AI_API_KEY 是否正确，或对应服务是否允许当前密钥访问。',
+      }
+    case 'upstream_request_error':
+      return {
+        message: '上游请求参数错误',
+        description: result.error ?? '请检查 API Base URL、模型名与请求参数是否匹配目标模型服务。',
+      }
+    case 'upstream_timeout':
+      return {
+        message: '上游模型请求超时',
+        description: result.error ?? '请检查网络连通性，或稍后重试。',
+      }
+    case 'upstream_network_error':
+      return {
+        message: '无法连接上游模型服务',
+        description: result.error ?? '请检查 API Base URL 是否可达，以及服务端网络访问权限。',
+      }
+    case 'upstream_http_error':
+      return {
+        message: '上游模型接口异常',
+        description: result.error ?? '模型服务返回了非预期状态码，请检查服务状态。',
+      }
+    default:
+      return {
+        message: '分析失败',
+        description: result.error ?? '请稍后重试。',
+      }
+  }
+}
 
 function createDefaultRange(days = 7): QueryRange {
   const end = new Date()
@@ -208,7 +305,46 @@ function useCommonFilters() {
   }
 }
 
+function useProjectScopedFilters() {
+  const auth = useAuth()
+  const filters = useCommonFilters()
+  const effectiveAppId = auth.currentAppId ?? filters.appId
+
+  const setAppId = useCallback((value: string) => {
+    if (auth.currentAppId) {
+      return
+    }
+    filters.setAppId(value)
+  }, [auth.currentAppId, filters.setAppId])
+
+  const reset = useCallback(() => {
+    filters.setRange(createDefaultRange())
+    if (!auth.currentAppId) {
+      filters.setAppId('')
+    }
+  }, [auth.currentAppId, filters.setAppId, filters.setRange])
+
+  useEffect(() => {
+    if (auth.currentAppId && filters.appId !== auth.currentAppId) {
+      filters.setAppId(auth.currentAppId)
+    }
+  }, [auth.currentAppId, filters.appId, filters.setAppId])
+
+  return {
+    ...filters,
+    appId: effectiveAppId,
+    setAppId,
+    reset,
+  }
+}
+
+function useUserControlledAppId() {
+  const auth = useAuth()
+  return !auth.currentAppId
+}
+
 function ShellLayout() {
+  const auth = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const selectedKey
@@ -232,6 +368,24 @@ function ShellLayout() {
             <Title level={3}>{current.title}</Title>
           </Space>
           <Space wrap>
+            <Select
+              value={auth.currentProjectId ?? undefined}
+              options={auth.projects.map(project => ({
+                label: `${project.name} (${project.appId})`,
+                value: project.id,
+              }))}
+              onChange={value => auth.switchProject(value)}
+              style={{ minWidth: 240 }}
+              placeholder="选择项目"
+            />
+            <Text type="secondary">{auth.user?.email}</Text>
+            <Button onClick={() => {
+              auth.logout()
+              navigate('/login', { replace: true })
+            }}
+            >
+              退出登录
+            </Button>
             {(Object.keys(routeMeta) as RouteKey[]).map(path => (
               <Button key={path} type={selectedKey === path ? 'primary' : 'default'} onClick={() => navigate(path)}>
                 {routeMeta[path].title}
@@ -301,6 +455,7 @@ function SectionStatus({
 
 function FilterBar({
   appId,
+  appIdDisabled = false,
   onAppIdChange,
   range,
   onRangeChange,
@@ -310,6 +465,7 @@ function FilterBar({
   extra,
 }: {
   appId: string
+  appIdDisabled?: boolean
   onAppIdChange: (value: string) => void
   range: QueryRange
   onRangeChange: (value: QueryRange) => void
@@ -325,6 +481,7 @@ function FilterBar({
           allowClear
           placeholder="按 appId 过滤"
           value={appId}
+          disabled={appIdDisabled}
           onChange={event => onAppIdChange(event.target.value)}
           className="filter-input"
         />
@@ -354,7 +511,7 @@ function FilterBar({
 function MetricGrid({
   items,
 }: {
-  items: Array<{ title: string, value: string | number | null | undefined, suffix?: ReactNode, tooltip?: string }>
+  items: Array<{ title: string, value: string | number | null | undefined, suffix?: ReactNode, tooltip?: string, action?: ReactNode }>
 }) {
   return (
     <Row gutter={[16, 16]}>
@@ -363,6 +520,7 @@ function MetricGrid({
           <Card className="metric-card">
             <Statistic title={item.title} value={item.value ?? undefined} suffix={item.suffix} />
             {item.tooltip ? <Text type="secondary">{item.tooltip}</Text> : null}
+            {item.action ? <div style={{ marginTop: 8 }}>{item.action}</div> : null}
           </Card>
         </Col>
       ))}
@@ -489,7 +647,9 @@ function buildCategoryTrend<T extends { timestamp: string | number | Date }>(
 }
 
 function DashboardPage() {
-  const filters = useCommonFilters()
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
+  const navigate = useNavigate()
   const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
   const listParams = useMemo(
     () => ({ ...timeParams, page: 1, pageSize: 100, sortBy: 'timestamp', sortOrder: 'desc' as const }),
@@ -499,10 +659,26 @@ function DashboardPage() {
   const listKey = useMemo(() => queryKey(listParams), [listParams])
 
   const overview = useMonitorQuery(() => monitorService.getOverviewStats(timeParams), statsKey)
+  const trackingStats = useMonitorQuery(() => monitorService.getTrackingStats(timeParams), statsKey)
   const tracking = useMonitorQuery(() => monitorService.getTracking(listParams), listKey)
   const performance = useMonitorQuery(() => monitorService.getPerformance(listParams), listKey)
   const errors = useMonitorQuery(() => monitorService.getErrors(listParams), listKey)
   const replay = useMonitorQuery(() => monitorService.getReplays(listParams), listKey)
+
+  const getTrackingEventCount = (eventName: string) => {
+    return trackingStats.data?.find(item => item.eventName === eventName)?.count ?? 0
+  }
+
+  const gotoTrackingWithFilter = (eventName: string) => {
+    const params = new URLSearchParams()
+    params.set('keyword', eventName)
+    if (filters.appId.trim()) {
+      params.set('appId', filters.appId.trim())
+    }
+    params.set('start', filters.range[0])
+    params.set('end', filters.range[1])
+    navigate(`/tracking?${params.toString()}`)
+  }
 
   const latestPreview = useMemo(
     () =>
@@ -570,6 +746,26 @@ function DashboardPage() {
       tooltip: '当前筛选范围内的回放分段数量',
     },
     {
+      title: 'PV (page_view)',
+      value: getTrackingEventCount('page_view'),
+      tooltip: '当前筛选范围内的页面访问次数',
+      action: (
+        <Button type="link" size="small" onClick={() => gotoTrackingWithFilter('page_view')}>
+          一键筛选
+        </Button>
+      ),
+    },
+    {
+      title: 'UV (uv_visit)',
+      value: getTrackingEventCount('uv_visit'),
+      tooltip: '当前筛选范围内的独立访客事件数',
+      action: (
+        <Button type="link" size="small" onClick={() => gotoTrackingWithFilter('uv_visit')}>
+          一键筛选
+        </Button>
+      ),
+    },
+    {
       title: '合计',
       value: overview.data?.total ?? 0,
       tooltip: '四类数据总数',
@@ -578,27 +774,29 @@ function DashboardPage() {
 
   return (
     <Space direction="vertical" size={16} className="page-stack">
-      {overview.error || tracking.error || performance.error || errors.error || replay.error
+      {overview.error || trackingStats.error || tracking.error || performance.error || errors.error || replay.error
         ? (
             <Alert
               type="warning"
               showIcon
               message="部分请求失败"
-              description={overview.error ?? tracking.error ?? performance.error ?? errors.error ?? replay.error}
+              description={overview.error ?? trackingStats.error ?? tracking.error ?? performance.error ?? errors.error ?? replay.error}
             />
           )
         : null}
 
       <FilterBar
         appId={filters.appId}
+        appIdDisabled={!canEditAppId}
         onAppIdChange={filters.setAppId}
         range={filters.range}
         onRangeChange={filters.setRange}
         onReset={filters.reset}
+        extra={!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : undefined}
         onRefresh={() => {
-          void Promise.allSettled([overview.refresh(), tracking.refresh(), performance.refresh(), errors.refresh(), replay.refresh()])
+          void Promise.allSettled([overview.refresh(), trackingStats.refresh(), tracking.refresh(), performance.refresh(), errors.refresh(), replay.refresh()])
         }}
-        loading={overview.loading || tracking.loading || performance.loading || errors.loading || replay.loading}
+        loading={overview.loading || trackingStats.loading || tracking.loading || performance.loading || errors.loading || replay.loading}
       />
 
       <MetricGrid items={metricItems} />
@@ -665,7 +863,9 @@ function DashboardPage() {
 }
 
 function TrackingPage() {
-  const filters = useCommonFilters()
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
+  const [searchParams] = useSearchParams()
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -681,6 +881,24 @@ function TrackingPage() {
   useEffect(() => {
     setPage(1)
   }, [timeParams])
+
+  useEffect(() => {
+    const keywordFromQuery = searchParams.get('keyword')?.trim()
+    if (keywordFromQuery) {
+      setKeyword(keywordFromQuery)
+    }
+
+    const appIdFromQuery = searchParams.get('appId')?.trim()
+    if (appIdFromQuery) {
+      filters.setAppId(appIdFromQuery)
+    }
+
+    const start = searchParams.get('start')
+    const end = searchParams.get('end')
+    if (start && end) {
+      filters.setRange([start, end])
+    }
+  }, [searchParams])
 
   const listQuery = useMonitorQuery(() => monitorService.getTracking(listParams), listKey)
   const statsQuery = useMonitorQuery(() => monitorService.getTrackingStats(timeParams), statsKey)
@@ -769,6 +987,7 @@ function TrackingPage() {
 
       <FilterBar
         appId={filters.appId}
+        appIdDisabled={!canEditAppId}
         onAppIdChange={filters.setAppId}
         range={filters.range}
         onRangeChange={filters.setRange}
@@ -782,7 +1001,12 @@ function TrackingPage() {
           void Promise.allSettled([listQuery.refresh(), statsQuery.refresh()])
         }}
         loading={listQuery.loading || statsQuery.loading}
-        extra={<Input allowClear placeholder="过滤当前页事件/属性" value={keyword} onChange={e => setKeyword(e.target.value)} className="filter-input" />}
+        extra={(
+          <Space wrap size={8}>
+            {!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : null}
+            <Input allowClear placeholder="过滤当前页事件/属性" value={keyword} onChange={e => setKeyword(e.target.value)} className="filter-input" />
+          </Space>
+        )}
       />
 
       <Row gutter={[16, 16]}>
@@ -852,7 +1076,8 @@ function TrackingPage() {
 }
 
 function PerformancePage() {
-  const filters = useCommonFilters()
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [selected, setSelected] = useState<PerformanceRecord | null>(null)
@@ -988,6 +1213,7 @@ function PerformancePage() {
 
       <FilterBar
         appId={filters.appId}
+        appIdDisabled={!canEditAppId}
         onAppIdChange={filters.setAppId}
         range={filters.range}
         onRangeChange={filters.setRange}
@@ -996,6 +1222,7 @@ function PerformancePage() {
           setPage(1)
           setPageSize(10)
         }}
+        extra={!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : undefined}
         onRefresh={() => {
           void Promise.allSettled([listQuery.refresh(), chartQuery.refresh(), statsQuery.refresh()])
         }}
@@ -1151,8 +1378,11 @@ function PerformancePage() {
 }
 
 function ErrorPage() {
-  const filters = useCommonFilters()
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const { config: aiConfig } = useAiConfig()
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -1166,6 +1396,7 @@ function ErrorPage() {
   )
   const statsKey = useMemo(() => queryKey(timeParams), [timeParams])
   const listKey = useMemo(() => queryKey(listParams), [listParams])
+  const rootCauseSummaryKey = useMemo(() => `${statsKey}:root-cause-summary`, [statsKey])
 
   useEffect(() => {
     setPage(1)
@@ -1181,6 +1412,9 @@ function ErrorPage() {
         stack: record.stack,
         url: record.url,
         frames: record.frames,
+        apiKey: aiConfig.apiKey,
+        apiBaseUrl: aiConfig.apiBaseUrl,
+        model: aiConfig.model,
       })
       setAiResult(result)
     }
@@ -1195,8 +1429,25 @@ function ErrorPage() {
     }
   }
 
+  useEffect(() => {
+    const appIdFromQuery = searchParams.get('appId')?.trim()
+    if (appIdFromQuery) {
+      filters.setAppId(appIdFromQuery)
+    }
+
+    const start = searchParams.get('start')
+    const end = searchParams.get('end')
+    if (start && end) {
+      filters.setRange([start, end])
+    }
+  }, [searchParams])
+
   const listQuery = useMonitorQuery(() => monitorService.getErrors(listParams), listKey)
   const statsQuery = useMonitorQuery(() => monitorService.getErrorStats(timeParams), statsKey)
+  const rootCauseSummaryQuery = useMonitorQuery(
+    () => monitorService.getRootCauseSummary({ ...timeParams, limit: 6 }),
+    rootCauseSummaryKey,
+  )
   const items = listQuery.data?.items ?? []
   const visibleItems = useMemo(() => {
     const normalized = keyword.trim().toLowerCase()
@@ -1347,6 +1598,27 @@ function ErrorPage() {
     return replay ?? null
   }, [selected])
 
+  const selectedErrorId = selected?._id ?? ''
+  const rootCauseDetailKey = useMemo(
+    () => (selectedErrorId ? `root-cause:${selectedErrorId}` : 'root-cause:none'),
+    [selectedErrorId],
+  )
+  const rootCauseDetailQuery = useMonitorQuery(
+    () => (selectedErrorId ? monitorService.getErrorRootCause(selectedErrorId) : Promise.resolve(null)),
+    rootCauseDetailKey,
+  )
+  const rootCauseSummaryRows = rootCauseSummaryQuery.data ?? []
+  const selectedRootCause = rootCauseDetailQuery.data
+  const selectedRootCauseReplaySegmentId = selectedRootCause?.correlations.replays?.[0]?.segmentId
+
+  const rootCauseCategoryLabels: Record<string, string> = {
+    custom_rule: '自定义规则',
+    error_frequency: '高频错误',
+    error_spread: '错误扩散',
+    performance_regression: '性能回归',
+    unknown: '未知',
+  }
+
   return (
     <Space direction="vertical" size={16} className="page-stack">
       {listQuery.error || statsQuery.error
@@ -1357,6 +1629,7 @@ function ErrorPage() {
 
       <FilterBar
         appId={filters.appId}
+        appIdDisabled={!canEditAppId}
         onAppIdChange={filters.setAppId}
         range={filters.range}
         onRangeChange={filters.setRange}
@@ -1367,10 +1640,15 @@ function ErrorPage() {
           setPageSize(10)
         }}
         onRefresh={() => {
-          void Promise.allSettled([listQuery.refresh(), statsQuery.refresh()])
+          void Promise.allSettled([listQuery.refresh(), statsQuery.refresh(), rootCauseSummaryQuery.refresh()])
         }}
-        loading={listQuery.loading || statsQuery.loading}
-        extra={<Input allowClear placeholder="过滤当前页错误消息/类型" value={keyword} onChange={e => setKeyword(e.target.value)} className="filter-input" />}
+        loading={listQuery.loading || statsQuery.loading || rootCauseSummaryQuery.loading}
+        extra={(
+          <Space wrap size={8}>
+            {!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : null}
+            <Input allowClear placeholder="过滤当前页错误消息/类型" value={keyword} onChange={e => setKeyword(e.target.value)} className="filter-input" />
+          </Space>
+        )}
       />
 
       <Row gutter={[16, 16]}>
@@ -1412,6 +1690,63 @@ function ErrorPage() {
         </Col>
       </Row>
 
+      <SectionCard title="根因聚类摘要（Top）" description="按当前筛选窗口聚合错误根因，快速定位主要问题来源。">
+        <SectionStatus
+          loading={rootCauseSummaryQuery.loading}
+          error={rootCauseSummaryQuery.error}
+          hasData={rootCauseSummaryRows.length > 0}
+          emptyDescription="当前筛选窗口暂无可用根因聚类数据"
+        >
+          <Table<RootCauseSummaryItem>
+            rowKey={record => `${record.category}-${record.count}-${record.lastAnalyzedAt}`}
+            size="small"
+            pagination={false}
+            dataSource={rootCauseSummaryRows}
+            columns={[
+              {
+                title: '根因类别',
+                dataIndex: 'category',
+                width: 180,
+                render: (category: RootCauseSummaryItem['category']) => (
+                  <Tag color="geekblue">{rootCauseCategoryLabels[category] ?? category}</Tag>
+                ),
+              },
+              {
+                title: '根因标题',
+                dataIndex: 'title',
+                width: 280,
+                render: (value: string) => value || '-',
+              },
+              {
+                title: '严重级别',
+                dataIndex: 'severity',
+                width: 120,
+                render: (value: AlertSeverity) => <Tag color={value === 'critical' ? 'red' : value === 'high' ? 'volcano' : value === 'medium' ? 'gold' : 'blue'}>{value}</Tag>,
+              },
+              {
+                title: '平均置信度',
+                dataIndex: 'avgConfidence',
+                width: 140,
+                render: (value: number) => `${formatNumber(value)}%`,
+              },
+              {
+                title: '样本数',
+                dataIndex: 'count',
+                width: 110,
+                render: (count: number) => formatNumber(count),
+              },
+              {
+                title: '最近分析',
+                dataIndex: 'lastAnalyzedAt',
+                width: 200,
+                render: (value: string) => formatDateTime(value),
+              },
+            ]}
+            scroll={{ x: 980 }}
+          />
+        </SectionStatus>
+      </SectionCard>
+
       <DetailDrawer
         open={selected !== null}
         title={selected?.message ?? '错误详情'}
@@ -1423,16 +1758,60 @@ function ErrorPage() {
         items={[
           { label: 'appId', value: selected?.appId ?? '-' },
           { label: '错误类型', value: selected?.errorType ?? '-' },
+          {
+            label: '根因类别',
+            value: selectedRootCause
+              ? <Tag color="geekblue">{rootCauseCategoryLabels[selectedRootCause.rootCause.category] ?? selectedRootCause.rootCause.category}</Tag>
+              : '-',
+          },
+          {
+            label: '根因置信度',
+            value: selectedRootCause ? `${formatNumber(selectedRootCause.confidence)}%` : '-',
+          },
           { label: 'release', value: selected?.release ?? '-' },
           { label: '定位状态', value: selected?.symbolicationStatus ?? 'skipped' },
           { label: '定位原因', value: selected?.symbolicationReason ?? '-' },
           { label: 'URL', value: selected?.url ?? '-' },
           { label: 'User-Agent', value: selected?.userAgent ?? '-' },
           {
+            label: '根因回放 segment',
+            value: selectedRootCauseReplaySegmentId
+              ? (
+                  <Button
+                    type="link"
+                    onClick={() => {
+                      const params = new URLSearchParams()
+                      if (selected?.appId) {
+                        params.set('appId', selected.appId)
+                      }
+                      params.set('start', filters.range[0])
+                      params.set('end', filters.range[1])
+                      params.set('segmentId', selectedRootCauseReplaySegmentId)
+                      navigate(`/replay?${params.toString()}`)
+                    }}
+                  >
+                    {selectedRootCauseReplaySegmentId}
+                  </Button>
+                )
+              : '-',
+          },
+          {
             label: '回放 segment',
             value: selectedReplaySegmentId
               ? (
-                  <Button type="link" onClick={() => navigate(`/replay?segmentId=${encodeURIComponent(selectedReplaySegmentId)}`)}>
+                  <Button
+                    type="link"
+                    onClick={() => {
+                      const params = new URLSearchParams()
+                      if (selected?.appId) {
+                        params.set('appId', selected.appId)
+                      }
+                      params.set('start', filters.range[0])
+                      params.set('end', filters.range[1])
+                      params.set('segmentId', selectedReplaySegmentId)
+                      navigate(`/replay?${params.toString()}`)
+                    }}
+                  >
                     {selectedReplaySegmentId}
                   </Button>
                 )
@@ -1461,7 +1840,7 @@ function ErrorPage() {
                 {aiLoading && <Spin tip="AI 正在分析中..." />}
                 {!aiLoading && aiResult && (
                   aiResult.error
-                    ? <Alert type="warning" showIcon message="分析失败" description={aiResult.error} />
+                    ? <Alert type="warning" showIcon message={getAiErrorDisplay(aiResult).message} description={getAiErrorDisplay(aiResult).description} />
                     : (
                         <pre className="detail-pre" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                           {aiResult.analysis ?? '-'}
@@ -1473,6 +1852,16 @@ function ErrorPage() {
                 )}
               </Space>
             ),
+          },
+          {
+            title: 'root cause analysis',
+            content: rootCauseDetailQuery.loading
+              ? <Spin size="small" />
+              : rootCauseDetailQuery.error
+                ? <Alert type="warning" showIcon message="根因分析加载失败" description={rootCauseDetailQuery.error} />
+                : selectedRootCause
+                  ? <pre className="detail-pre">{safeStringify(selectedRootCause)}</pre>
+                  : <pre className="detail-pre">-</pre>,
           },
           {
             title: 'stack',
@@ -1525,7 +1914,8 @@ function ErrorPage() {
 }
 
 function ReplayPage() {
-  const filters = useCommonFilters()
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
   const [searchParams, setSearchParams] = useSearchParams()
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
@@ -1543,6 +1933,19 @@ function ReplayPage() {
   useEffect(() => {
     setPage(1)
   }, [timeParams, segmentId])
+
+  useEffect(() => {
+    const appIdFromQuery = searchParams.get('appId')?.trim()
+    if (appIdFromQuery) {
+      filters.setAppId(appIdFromQuery)
+    }
+
+    const start = searchParams.get('start')
+    const end = searchParams.get('end')
+    if (start && end) {
+      filters.setRange([start, end])
+    }
+  }, [searchParams])
 
   const listQuery = useMonitorQuery(() => monitorService.getReplays(listParams), listKey)
   const statsQuery = useMonitorQuery(() => monitorService.getReplayStats(timeParams), statsKey)
@@ -1670,6 +2073,7 @@ function ReplayPage() {
 
       <FilterBar
         appId={filters.appId}
+        appIdDisabled={!canEditAppId}
         onAppIdChange={filters.setAppId}
         range={filters.range}
         onRangeChange={filters.setRange}
@@ -1685,13 +2089,16 @@ function ReplayPage() {
         }}
         loading={listQuery.loading || statsQuery.loading}
         extra={(
-          <Input
-            allowClear
-            placeholder="按 segmentId / route / reason 过滤"
-            value={keyword}
-            onChange={e => setKeyword(e.target.value)}
-            className="filter-input"
-          />
+          <Space wrap size={8}>
+            {!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : null}
+            <Input
+              allowClear
+              placeholder="按 segmentId / route / reason 过滤"
+              value={keyword}
+              onChange={e => setKeyword(e.target.value)}
+              className="filter-input"
+            />
+          </Space>
         )}
       />
 
@@ -1772,196 +2179,719 @@ function ReplayPage() {
   )
 }
 
-function DemoPage() {
-  const [enablePv, setEnablePv] = useState(true)
-  const [enableUv, setEnableUv] = useState(true)
-  const [enableReplay, setEnableReplay] = useState(true)
-  const [maskSensitive, setMaskSensitive] = useState(true)
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState('')
+function AlertsPage() {
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'acknowledged' | 'resolved'>('all')
+  const [operationResult, setOperationResult] = useState('')
 
-  const appId = 'monitor-app-demo'
+  const [ruleName, setRuleName] = useState('')
+  const [ruleMetric, setRuleMetric] = useState<'error_frequency' | 'error_spread'>('error_frequency')
+  const [ruleWindowSec, setRuleWindowSec] = useState(300)
+  const [ruleSuppressSec, setRuleSuppressSec] = useState(300)
+  const [ruleDedupeStrategy, setRuleDedupeStrategy] = useState<AlertDedupeStrategy>('by_rule')
+  const [ruleThreshold, setRuleThreshold] = useState(3)
+  const [ruleSeverity, setRuleSeverity] = useState<AlertSeverity>('high')
+  const [ruleEnabled, setRuleEnabled] = useState(true)
+  const [creatingRule, setCreatingRule] = useState(false)
+  const [updatingRule, setUpdatingRule] = useState(false)
 
-  const submitDemoBatch = async (includeError = false) => {
-    setLoading(true)
-    setResult('')
-    try {
-      const now = Date.now()
-      const route = `${window.location.pathname}${window.location.search}${window.location.hash}`
-      const visitorId = `demo-${Math.random().toString(16).slice(2, 10)}`
-      const segmentId = `demo-segment-${now}`
+  const [editingRule, setEditingRule] = useState<AlertRuleRecord | null>(null)
+  const [editRuleName, setEditRuleName] = useState('')
+  const [editRuleMetric, setEditRuleMetric] = useState<'error_frequency' | 'error_spread'>('error_frequency')
+  const [editRuleWindowSec, setEditRuleWindowSec] = useState(300)
+  const [editRuleSuppressSec, setEditRuleSuppressSec] = useState(300)
+  const [editRuleDedupeStrategy, setEditRuleDedupeStrategy] = useState<AlertDedupeStrategy>('by_rule')
+  const [editRuleThreshold, setEditRuleThreshold] = useState(3)
+  const [editRuleSeverity, setEditRuleSeverity] = useState<AlertSeverity>('high')
+  const [editRuleEnabled, setEditRuleEnabled] = useState(true)
 
-      const items: Array<Record<string, unknown>> = []
+  const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
 
-      if (enablePv) {
-        items.push({
-          type: 'tracking',
-          appId,
-          timestamp: now,
-          eventName: 'page_view',
-          properties: {
-            page: route,
-            source: 'demo_page',
-          },
-          context: {
-            page: route,
-          },
-        })
-      }
+  const rulesParams = useMemo(() => ({
+    appId: filters.appId.trim() || undefined,
+    page: 1,
+    pageSize: 100,
+  }), [filters.appId])
+  const rulesKey = useMemo(() => queryKey(rulesParams), [rulesParams])
 
-      if (enableUv) {
-        items.push({
-          type: 'tracking',
-          appId,
-          timestamp: now,
-          eventName: 'uv_visit',
-          properties: {
-            visitorId,
-            day: new Date(now).toISOString().slice(0, 10),
-          },
-          context: {
-            page: route,
-            visitorId,
-          },
-        })
-      }
+  const eventsParams = useMemo(() => ({
+    appId: timeParams.appId,
+    startTime: timeParams.startTime,
+    endTime: timeParams.endTime,
+    status: statusFilter === 'all' ? undefined : statusFilter,
+    page,
+    pageSize,
+  }), [timeParams, statusFilter, page, pageSize])
+  const eventsKey = useMemo(() => queryKey(eventsParams), [eventsParams])
 
-      if (enableReplay) {
-        items.push({
-          type: 'replay',
-          appId,
-          timestamp: now,
-          segmentId,
-          startedAt: now - 5000,
-          endedAt: now,
-          eventCount: 3,
-          route,
-          reason: includeError ? 'error_js' : 'manual_demo',
-          sample: [
-            { type: 'click', at: now - 3000, data: { target: 'button#demo-send', x: 123, y: 45 } },
-            {
-              type: 'input',
-              at: now - 2000,
-              data: {
-                target: 'input#demo-sensitive',
-                value: maskSensitive ? '[MASKED]' : 'token-demo-123',
-                valueLength: 14,
-              },
-            },
-            { type: 'route', at: now - 1000, data: { route } },
-          ],
-          context: {
-            page: route,
-            privacy: {
-              maskSensitive,
-            },
-          },
-        })
-      }
+  const trendParams = useMemo(() => ({
+    appId: timeParams.appId,
+    startTime: timeParams.startTime,
+    endTime: timeParams.endTime,
+    page: 1,
+    pageSize: 500,
+  }), [timeParams])
+  const trendKey = useMemo(() => queryKey({ ...trendParams, trend: true }), [trendParams])
 
-      items.push({
-        type: 'performance',
-        appId,
-        timestamp: now,
-        metricType: 'performance_ttfb',
-        value: 180,
-        url: window.location.href,
-        context: {
-          from: 'demo_page',
-        },
+  const rulesQuery = useMonitorQuery(() => monitorService.getAlertRules(rulesParams), rulesKey)
+  const eventsQuery = useMonitorQuery(() => monitorService.getAlertEvents(eventsParams), eventsKey)
+  const trendQuery = useMonitorQuery(() => monitorService.getAlertEvents(trendParams), trendKey)
+  const stream = useAlertStream(timeParams.appId, 20)
+
+  const ruleRows = rulesQuery.data?.items ?? []
+  const eventRows = eventsQuery.data?.items ?? []
+  const trendRows = trendQuery.data?.items ?? []
+
+  const streamSuppressionHits = useMemo(
+    () => stream.alerts.reduce((sum, item) => sum + (item.suppressionHits ?? 0), 0),
+    [stream.alerts],
+  )
+
+  const eventSuppressionSummary = useMemo(() => {
+    const totalHits = eventRows.reduce((sum, item) => sum + (item.suppressionHits ?? 0), 0)
+    const affectedEvents = eventRows.filter(item => (item.suppressionHits ?? 0) > 0).length
+
+    return {
+      affectedEvents,
+      avgHitsPerEvent: eventRows.length > 0 ? Number((totalHits / eventRows.length).toFixed(2)) : 0,
+      totalHits,
+    }
+  }, [eventRows])
+
+  const metricOptions = [
+    { label: '错误频率', value: 'error_frequency' },
+    { label: '错误扩散', value: 'error_spread' },
+  ]
+  const dedupeOptions: Array<{ label: string, value: AlertDedupeStrategy }> = [
+    { label: '按规则', value: 'by_rule' },
+    { label: '按错误类型', value: 'by_error_type' },
+    { label: '按错误指纹', value: 'by_fingerprint' },
+    { label: '规则 + 指纹', value: 'by_rule_and_fingerprint' },
+  ]
+  const severityOptions = [
+    { label: 'low', value: 'low' },
+    { label: 'medium', value: 'medium' },
+    { label: 'high', value: 'high' },
+    { label: 'critical', value: 'critical' },
+  ]
+  const severityLabels: Record<AlertSeverity, string> = {
+    critical: '严重',
+    high: '高',
+    low: '低',
+    medium: '中',
+  }
+  const severityColors: Record<AlertSeverity, string> = {
+    critical: '#cf1322',
+    high: '#fa541c',
+    low: '#1677ff',
+    medium: '#faad14',
+  }
+  const dedupeLabels: Record<AlertDedupeStrategy, string> = {
+    by_error_type: '按错误类型',
+    by_fingerprint: '按错误指纹',
+    by_rule: '按规则',
+    by_rule_and_fingerprint: '规则 + 指纹',
+  }
+
+  const dayAxis = useMemo(() => {
+    if (typeof timeParams.startTime !== 'number' || typeof timeParams.endTime !== 'number') {
+      return getRecentDays(7)
+    }
+
+    const start = new Date(timeParams.startTime)
+    const end = new Date(timeParams.endTime)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start.getTime() > end.getTime()) {
+      return getRecentDays(7)
+    }
+
+    const cursor = new Date(start)
+    cursor.setHours(0, 0, 0, 0)
+
+    const boundary = new Date(end)
+    boundary.setHours(0, 0, 0, 0)
+
+    const result: Array<{ key: string, label: string }> = []
+    while (cursor.getTime() <= boundary.getTime()) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`
+      result.push({
+        key,
+        label: `${cursor.getMonth() + 1}/${cursor.getDate()}`,
       })
+      cursor.setDate(cursor.getDate() + 1)
+    }
 
-      if (includeError) {
-        items.push({
-          type: 'error',
-          appId,
-          timestamp: now,
-          errorType: 'error_js',
-          message: 'Demo error from monitor-app',
-          stack: 'Error: Demo error from monitor-app\n    at DemoPage (App.tsx:1:1)',
-          url: window.location.href,
-          detail: {
-            source: 'demo_page',
-            replay: enableReplay
-              ? {
-                  segmentId,
-                  route,
-                  eventCount: 3,
-                }
-              : undefined,
-          },
-        })
+    return result.length > 0 ? result : getRecentDays(7)
+  }, [timeParams.endTime, timeParams.startTime])
+
+  const trendOption = useMemo(() => {
+    const severityOrder: AlertSeverity[] = ['critical', 'high', 'medium', 'low']
+    const series = severityOrder.map((severity) => {
+      const counts = groupCountsByDay(
+        trendRows.filter(item => item.severity === severity),
+        item => item.triggeredAt,
+      )
+
+      return {
+        name: severityLabels[severity],
+        type: 'line',
+        smooth: true,
+        showSymbol: false,
+        lineStyle: { width: 2 },
+        itemStyle: { color: severityColors[severity] },
+        data: dayAxis.map(day => counts.get(day.key) ?? 0),
       }
+    })
 
-      const response = await monitorService.sendBatch(items)
-      setResult(`写入成功：total=${response.summary.total}，tracking=${response.summary.tracking}，performance=${response.summary.performance}，error=${response.summary.error}，replay=${response.summary.replay}`)
+    return {
+      tooltip: { trigger: 'axis' },
+      legend: {
+        top: 0,
+        data: series.map(item => item.name),
+      },
+      grid: { left: 12, right: 12, top: 48, bottom: 8, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: dayAxis.map(day => day.label),
+      },
+      yAxis: {
+        type: 'value',
+        minInterval: 1,
+      },
+      series,
+    }
+  }, [dayAxis, severityColors, severityLabels, trendRows])
+
+  const createRule = async () => {
+    const trimmed = ruleName.trim()
+    if (!trimmed) {
+      setOperationResult('规则名称不能为空')
+      return
+    }
+
+    setCreatingRule(true)
+    setOperationResult('')
+
+    const payload: CreateAlertRulePayload = {
+      name: trimmed,
+      appId: filters.appId.trim() || undefined,
+      metric: ruleMetric,
+      windowSec: Math.max(30, Math.round(ruleWindowSec)),
+      suppressSec: Math.max(30, Math.round(ruleSuppressSec)),
+      dedupeStrategy: ruleDedupeStrategy,
+      threshold: Math.max(1, Math.round(ruleThreshold)),
+      severity: ruleSeverity,
+      enabled: ruleEnabled,
+    }
+
+    try {
+      await monitorService.createAlertRule(payload)
+      setRuleName('')
+      setRuleWindowSec(300)
+      setRuleSuppressSec(300)
+      setRuleDedupeStrategy('by_rule')
+      setRuleThreshold(3)
+      setRuleSeverity('high')
+      setRuleEnabled(true)
+      setOperationResult('规则创建成功')
+      await rulesQuery.refresh()
     }
     catch (error) {
-      setResult(`写入失败：${error instanceof Error ? error.message : String(error)}`)
+      setOperationResult(`规则创建失败：${error instanceof Error ? error.message : String(error)}`)
     }
     finally {
-      setLoading(false)
+      setCreatingRule(false)
     }
   }
 
+  const openEditRule = (rule: AlertRuleRecord) => {
+    setEditingRule(rule)
+    setEditRuleName(rule.name)
+    setEditRuleMetric(rule.metric)
+    setEditRuleWindowSec(rule.windowSec)
+    setEditRuleSuppressSec(rule.suppressSec ?? 300)
+    setEditRuleDedupeStrategy(rule.dedupeStrategy ?? 'by_rule')
+    setEditRuleThreshold(rule.threshold)
+    setEditRuleSeverity(rule.severity)
+    setEditRuleEnabled(rule.enabled)
+  }
+
+  const closeEditRule = () => {
+    setEditingRule(null)
+    setUpdatingRule(false)
+  }
+
+  const saveRuleEdit = async () => {
+    if (!editingRule?._id) {
+      return
+    }
+
+    const trimmed = editRuleName.trim()
+    if (!trimmed) {
+      setOperationResult('规则名称不能为空')
+      return
+    }
+
+    setUpdatingRule(true)
+
+    try {
+      await monitorService.updateAlertRule(editingRule._id, {
+        dedupeStrategy: editRuleDedupeStrategy,
+        enabled: editRuleEnabled,
+        metric: editRuleMetric,
+        name: trimmed,
+        severity: editRuleSeverity,
+        suppressSec: Math.max(30, Math.round(editRuleSuppressSec)),
+        threshold: Math.max(1, Math.round(editRuleThreshold)),
+        windowSec: Math.max(30, Math.round(editRuleWindowSec)),
+      })
+      setOperationResult(`规则 ${trimmed} 更新成功`)
+      closeEditRule()
+      await rulesQuery.refresh()
+    }
+    catch (error) {
+      setOperationResult(`规则更新失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+    finally {
+      setUpdatingRule(false)
+    }
+  }
+
+  const toggleRuleEnabled = async (rule: AlertRuleRecord, enabled: boolean) => {
+    if (!rule._id) {
+      return
+    }
+
+    try {
+      await monitorService.updateAlertRule(rule._id, { enabled })
+      setOperationResult(`规则 ${rule.name} 已${enabled ? '启用' : '停用'}`)
+      await rulesQuery.refresh()
+    }
+    catch (error) {
+      setOperationResult(`规则更新失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const deleteRule = async (rule: AlertRuleRecord) => {
+    if (!rule._id) {
+      return
+    }
+
+    try {
+      await monitorService.deleteAlertRule(rule._id)
+      setOperationResult(`规则 ${rule.name} 已删除`)
+      await rulesQuery.refresh()
+    }
+    catch (error) {
+      setOperationResult(`规则删除失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const updateEventStatus = async (record: AlertEventRecord, status: 'acknowledged' | 'resolved') => {
+    if (!record._id) {
+      return
+    }
+
+    try {
+      await monitorService.updateAlertEventStatus(record._id, status)
+      setOperationResult(`事件状态已更新为 ${status}`)
+      await eventsQuery.refresh()
+    }
+    catch (error) {
+      setOperationResult(`事件状态更新失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const ruleColumns: TableColumnsType<AlertRuleRecord> = [
+    {
+      title: '规则名称',
+      dataIndex: 'name',
+      width: 220,
+    },
+    {
+      title: '类型',
+      dataIndex: 'metric',
+      width: 150,
+      render: (value: string) => value === 'error_spread' ? '扩散告警' : '频率告警',
+    },
+    {
+      title: '窗口(s)',
+      dataIndex: 'windowSec',
+      width: 100,
+    },
+    {
+      title: '抑制(s)',
+      dataIndex: 'suppressSec',
+      width: 100,
+      render: (value: number | undefined) => value ?? '-',
+    },
+    {
+      title: '去重策略',
+      dataIndex: 'dedupeStrategy',
+      width: 140,
+      render: (value: AlertDedupeStrategy | undefined) => dedupeLabels[value ?? 'by_rule'],
+    },
+    {
+      title: '阈值',
+      dataIndex: 'threshold',
+      width: 90,
+    },
+    {
+      title: '级别',
+      dataIndex: 'severity',
+      width: 110,
+      render: (value: AlertSeverity) => <Tag color={value === 'critical' ? 'red' : value === 'high' ? 'volcano' : value === 'medium' ? 'gold' : 'blue'}>{value}</Tag>,
+    },
+    {
+      title: '启用',
+      dataIndex: 'enabled',
+      width: 90,
+      render: (value: boolean, record: AlertRuleRecord) => (
+        <Switch checked={value} onChange={checked => void toggleRuleEnabled(record, checked)} />
+      ),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 180,
+      render: (_: unknown, record: AlertRuleRecord) => (
+        <Space size={4}>
+          <Button type="link" onClick={() => openEditRule(record)}>
+            编辑
+          </Button>
+          <Button danger type="link" onClick={() => void deleteRule(record)}>
+            删除
+          </Button>
+        </Space>
+      ),
+    },
+  ]
+
+  const eventColumns: TableColumnsType<AlertEventRecord> = [
+    {
+      title: '触发时间',
+      dataIndex: 'triggeredAt',
+      width: 180,
+      render: (value: string | number | Date) => formatDateTime(value),
+    },
+    {
+      title: '规则',
+      dataIndex: 'ruleName',
+      width: 160,
+      ellipsis: true,
+    },
+    {
+      title: '摘要',
+      dataIndex: 'summary',
+      ellipsis: true,
+    },
+    {
+      title: '得分',
+      dataIndex: 'score',
+      width: 90,
+    },
+    {
+      title: '级别',
+      dataIndex: 'severity',
+      width: 110,
+      render: (value: AlertSeverity) => <Tag color={value === 'critical' ? 'red' : value === 'high' ? 'volcano' : value === 'medium' ? 'gold' : 'blue'}>{value}</Tag>,
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 120,
+      render: (value: string) => <Tag>{value}</Tag>,
+    },
+    {
+      title: '抑制命中',
+      dataIndex: 'suppressionHits',
+      width: 120,
+      render: (value: number | undefined) => {
+        const hits = value ?? 0
+        return hits > 0 ? <Tag color="cyan">{hits}</Tag> : <Text type="secondary">0</Text>
+      },
+    },
+    {
+      title: '处理',
+      key: 'action',
+      width: 170,
+      render: (_: unknown, record: AlertEventRecord) => (
+        <Space size={4}>
+          <Button size="small" onClick={() => void updateEventStatus(record, 'acknowledged')}>
+            已确认
+          </Button>
+          <Button size="small" type="primary" onClick={() => void updateEventStatus(record, 'resolved')}>
+            已解决
+          </Button>
+        </Space>
+      ),
+    },
+  ]
+
   return (
     <Space direction="vertical" size={16} className="page-stack">
-      <SectionCard title="SDK 采集演示开关" description="用于快速验证 PV/UV、录屏回放与错误联动链路。">
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          <Space>
-            <Text>启用 PV</Text>
-            <Switch checked={enablePv} onChange={setEnablePv} />
-          </Space>
-          <Space>
-            <Text>启用 UV</Text>
-            <Switch checked={enableUv} onChange={setEnableUv} />
-          </Space>
-          <Space>
-            <Text>启用 Replay 分段</Text>
-            <Switch checked={enableReplay} onChange={setEnableReplay} />
-          </Space>
-          <Space>
-            <Text>敏感字段脱敏</Text>
-            <Switch checked={maskSensitive} onChange={setMaskSensitive} />
-          </Space>
-          <Space>
-            <Button loading={loading} type="primary" id="demo-send" onClick={() => void submitDemoBatch(false)}>
-              发送基础样例
-            </Button>
-            <Button loading={loading} danger onClick={() => void submitDemoBatch(true)}>
-              发送错误 + 回放联动
-            </Button>
-          </Space>
-        </Space>
-      </SectionCard>
+      <Alert
+        type={stream.status === 'connected' ? 'success' : 'warning'}
+        showIcon
+        message={stream.status === 'connected' ? '实时告警流已连接' : '告警流降级为轮询'}
+        description={`实时面板当前展示 ${stream.alerts.length} 条最新告警，累计抑制命中 ${streamSuppressionHits} 次。`}
+      />
 
-      <SectionCard title="说明" description="错误样例会把 replay.segmentId 写入 error.detail.replay，随后可在错误页直接跳转到回放页定位。">
-        <pre className="detail-pre">
-          {safeStringify({
-            appId,
-            enablePv,
-            enableUv,
-            enableReplay,
-            maskSensitive,
-          })}
-        </pre>
-      </SectionCard>
-
-      {result
+      {operationResult
         ? (
             <Alert
-              type={result.startsWith('写入成功') ? 'success' : 'error'}
-              message={result.startsWith('写入成功') ? '上报结果' : '上报失败'}
-              description={result}
+              type={operationResult.includes('失败') ? 'error' : 'success'}
+              showIcon
+              message="操作结果"
+              description={operationResult}
             />
           )
         : null}
+
+      {rulesQuery.error || eventsQuery.error || trendQuery.error
+        ? (
+            <Alert
+              type="warning"
+              showIcon
+              message="部分请求失败"
+              description={rulesQuery.error ?? eventsQuery.error ?? trendQuery.error}
+            />
+          )
+        : null}
+
+      <FilterBar
+        appId={filters.appId}
+        appIdDisabled={!canEditAppId}
+        onAppIdChange={filters.setAppId}
+        range={filters.range}
+        onRangeChange={filters.setRange}
+        onReset={filters.reset}
+        extra={!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : undefined}
+        onRefresh={() => {
+          void Promise.allSettled([rulesQuery.refresh(), eventsQuery.refresh(), trendQuery.refresh()])
+        }}
+        loading={rulesQuery.loading || eventsQuery.loading || trendQuery.loading || creatingRule || updatingRule}
+      />
+
+      <SectionCard title="实时告警流" description="展示最近接收的告警事件，支持 SSE 自动订阅与降级轮询。">
+        <List
+          bordered
+          dataSource={stream.alerts}
+          locale={{ emptyText: renderEmpty('暂未接收到实时告警') }}
+          renderItem={item => (
+            <List.Item>
+              <Space direction="vertical" size={2}>
+                <Space>
+                  <Tag color="red">{item.severity}</Tag>
+                  <Text strong>{item.ruleName}</Text>
+                  {(item.suppressionHits ?? 0) > 0
+                    ? (
+                        <Tag color="cyan">
+                          抑制 +
+                          {item.suppressionHits}
+                        </Tag>
+                      )
+                    : null}
+                  <Text type="secondary">{formatDateTime(item.triggeredAt)}</Text>
+                </Space>
+                <Text>{item.summary}</Text>
+              </Space>
+            </List.Item>
+          )}
+        />
+      </SectionCard>
+
+      <SectionCard title="告警趋势（按天）" description="按当前筛选条件统计每日告警，并按严重级别拆分。">
+        <SectionStatus
+          loading={trendQuery.loading}
+          error={trendQuery.error}
+          hasData={trendRows.length > 0}
+          emptyDescription="当前筛选条件下暂无趋势数据"
+        >
+          <ReactECharts option={trendOption} style={{ height: 320 }} />
+        </SectionStatus>
+      </SectionCard>
+
+      <SectionCard title="创建告警规则" description="支持评估窗口、抑制窗口与去重策略配置。">
+        <Space wrap>
+          <Input
+            value={ruleName}
+            placeholder="规则名称"
+            onChange={event => setRuleName(event.target.value)}
+            style={{ width: 200 }}
+          />
+          <Select
+            value={ruleMetric}
+            onChange={value => setRuleMetric(value as 'error_frequency' | 'error_spread')}
+            options={metricOptions}
+            style={{ width: 140 }}
+          />
+          <InputNumber min={30} max={86400} value={ruleWindowSec} onChange={value => setRuleWindowSec(Number(value ?? 300))} addonAfter="s" />
+          <InputNumber min={30} max={86400} value={ruleSuppressSec} onChange={value => setRuleSuppressSec(Number(value ?? 300))} addonBefore="抑制" addonAfter="s" />
+          <Select
+            value={ruleDedupeStrategy}
+            onChange={value => setRuleDedupeStrategy(value as AlertDedupeStrategy)}
+            options={dedupeOptions}
+            style={{ width: 170 }}
+          />
+          <InputNumber min={1} max={100000} value={ruleThreshold} onChange={value => setRuleThreshold(Number(value ?? 3))} addonBefore="阈值" />
+          <Select
+            value={ruleSeverity}
+            onChange={value => setRuleSeverity(value as AlertSeverity)}
+            options={severityOptions}
+            style={{ width: 120 }}
+          />
+          <Space>
+            <Text>启用</Text>
+            <Switch checked={ruleEnabled} onChange={setRuleEnabled} />
+          </Space>
+          <Button type="primary" loading={creatingRule} onClick={() => void createRule()}>
+            新建规则
+          </Button>
+        </Space>
+      </SectionCard>
+
+      <SectionCard title="规则列表" description="支持启停、编辑、删除，并展示抑制窗口与去重策略。">
+        <Table<AlertRuleRecord>
+          rowKey={record => record._id ?? `${record.name}-${record.metric}`}
+          loading={rulesQuery.loading}
+          columns={ruleColumns}
+          dataSource={ruleRows}
+          locale={getTableLocale('暂无告警规则')}
+          pagination={false}
+        />
+      </SectionCard>
+
+      <SectionCard title="告警事件历史" description="按时间窗口查询触发记录并更新处理状态。">
+        <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
+          <Col xs={24} sm={8}>
+            <Card size="small">
+              <Statistic title="抑制命中总数（当前页）" value={eventSuppressionSummary.totalHits} />
+            </Card>
+          </Col>
+          <Col xs={24} sm={8}>
+            <Card size="small">
+              <Statistic title="发生抑制的事件数" value={eventSuppressionSummary.affectedEvents} />
+            </Card>
+          </Col>
+          <Col xs={24} sm={8}>
+            <Card size="small">
+              <Statistic title="单事件平均抑制命中" value={eventSuppressionSummary.avgHitsPerEvent} />
+            </Card>
+          </Col>
+        </Row>
+
+        <Space style={{ marginBottom: 12 }}>
+          <Text>状态筛选</Text>
+          <Select
+            value={statusFilter}
+            onChange={(value) => {
+              setStatusFilter(value)
+              setPage(1)
+            }}
+            options={[
+              { label: '全部', value: 'all' },
+              { label: 'open', value: 'open' },
+              { label: 'acknowledged', value: 'acknowledged' },
+              { label: 'resolved', value: 'resolved' },
+            ]}
+            style={{ width: 160 }}
+          />
+        </Space>
+
+        <Table<AlertEventRecord>
+          rowKey={record => record._id ?? `${record.ruleName}-${record.triggeredAt}`}
+          loading={eventsQuery.loading}
+          columns={eventColumns}
+          dataSource={eventRows}
+          locale={getTableLocale('暂无告警事件')}
+          pagination={{
+            current: page,
+            pageSize,
+            total: eventsQuery.data?.total ?? 0,
+            showSizeChanger: true,
+            onChange: (nextPage, nextPageSize) => {
+              setPage(nextPage)
+              setPageSize(nextPageSize)
+            },
+          }}
+        />
+      </SectionCard>
+
+      <Modal
+        open={Boolean(editingRule)}
+        title={editingRule ? `编辑规则：${editingRule.name}` : '编辑规则'}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={updatingRule}
+        destroyOnClose
+        onCancel={closeEditRule}
+        onOk={() => {
+          void saveRuleEdit()
+        }}
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Input
+            value={editRuleName}
+            placeholder="规则名称"
+            onChange={event => setEditRuleName(event.target.value)}
+          />
+          <Select
+            value={editRuleMetric}
+            options={metricOptions}
+            onChange={value => setEditRuleMetric(value as 'error_frequency' | 'error_spread')}
+          />
+          <InputNumber
+            min={30}
+            max={86400}
+            value={editRuleWindowSec}
+            onChange={value => setEditRuleWindowSec(Number(value ?? 300))}
+            addonBefore="窗口"
+            addonAfter="s"
+            style={{ width: '100%' }}
+          />
+          <InputNumber
+            min={30}
+            max={86400}
+            value={editRuleSuppressSec}
+            onChange={value => setEditRuleSuppressSec(Number(value ?? 300))}
+            addonBefore="抑制"
+            addonAfter="s"
+            style={{ width: '100%' }}
+          />
+          <Select
+            value={editRuleDedupeStrategy}
+            options={dedupeOptions}
+            onChange={value => setEditRuleDedupeStrategy(value as AlertDedupeStrategy)}
+          />
+          <InputNumber
+            min={1}
+            max={100000}
+            value={editRuleThreshold}
+            onChange={value => setEditRuleThreshold(Number(value ?? 3))}
+            addonBefore="阈值"
+            style={{ width: '100%' }}
+          />
+          <Select
+            value={editRuleSeverity}
+            options={severityOptions}
+            onChange={value => setEditRuleSeverity(value as AlertSeverity)}
+          />
+          <Space>
+            <Text>启用</Text>
+            <Switch checked={editRuleEnabled} onChange={setEditRuleEnabled} />
+          </Space>
+        </Space>
+      </Modal>
     </Space>
   )
 }
 
 function StatsPage() {
-  const filters = useCommonFilters()
+  const filters = useProjectScopedFilters()
+  const canEditAppId = useUserControlledAppId()
   const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
   const statsKey = useMemo(() => queryKey(timeParams), [timeParams])
 
@@ -2028,10 +2958,12 @@ function StatsPage() {
 
       <FilterBar
         appId={filters.appId}
+        appIdDisabled={!canEditAppId}
         onAppIdChange={filters.setAppId}
         range={filters.range}
         onRangeChange={filters.setRange}
         onReset={filters.reset}
+        extra={!canEditAppId ? <Tag color="blue">当前由项目绑定 appId</Tag> : undefined}
         onRefresh={() => {
           void Promise.allSettled([overview.refresh(), trackingStats.refresh(), performanceStats.refresh(), errorStats.refresh(), replayStats.refresh()])
         }}
@@ -2164,142 +3096,24 @@ function StatsPage() {
   )
 }
 
-function AiPage() {
-  const [testError, setTestError] = useState<{
-    message: string
-    errorType: string
-    stack: string
-  }>({
-    message: 'Cannot read properties of undefined (reading \'map\')',
-    errorType: 'TypeError',
-    stack: 'TypeError: Cannot read properties of undefined (reading \'map\')\n    at ProductList (src/components/ProductList.tsx:42:18)\n    at renderWithHooks',
-  })
-  const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null)
-  const [aiLoading, setAiLoading] = useState(false)
-
-  const handleTest = async () => {
-    setAiLoading(true)
-    setAiResult(null)
-    try {
-      const result = await monitorService.analyzeError(testError)
-      setAiResult(result)
-    }
-    catch (err) {
-      setAiResult({ available: false, error: err instanceof Error ? err.message : String(err) })
-    }
-    finally {
-      setAiLoading(false)
-    }
-  }
-
-  return (
-    <Space direction="vertical" size={16} className="page-stack">
-      <SectionCard
-        title="AI 大模型配置说明"
-        description="在 monitor-node 服务端的 .env 文件中配置以下环境变量，即可启用 AI 智能分析功能。"
-      >
-        <pre className="detail-pre" style={{ whiteSpace: 'pre-wrap' }}>
-          {[
-            '# AI 大模型配置（支持 OpenAI 兼容接口）',
-            'AI_API_KEY=sk-xxxxxx',
-            'AI_API_BASE_URL=https://api.openai.com/v1',
-            'AI_MODEL=gpt-4o-mini',
-            '',
-            '# 也可使用国内大模型或本地模型：',
-            '# DeepSeek',
-            '# AI_API_BASE_URL=https://api.deepseek.com/v1',
-            '# AI_MODEL=deepseek-chat',
-            '',
-            '# Ollama 本地模型',
-            '# AI_API_BASE_URL=http://localhost:11434/v1',
-            '# AI_MODEL=llama3',
-          ].join('\n')}
-        </pre>
-      </SectionCard>
-
-      <SectionCard
-        title="AI 分析工作原理"
-        description="错误发生时，AI 会综合以下信息进行分析，给出根因、源码位置和修复建议。"
-      >
-        <Descriptions bordered column={1} size="small">
-          <Descriptions.Item label="错误信息">错误类型、消息文本、发生 URL</Descriptions.Item>
-          <Descriptions.Item label="错误堆栈">原始 stack trace（最多 2000 字符）</Descriptions.Item>
-          <Descriptions.Item label="源码定位帧">
-            通过 SourceMap 还原后的真实源码文件路径、行列号和函数名（originalFile / originalLine）
-          </Descriptions.Item>
-          <Descriptions.Item label="输出格式">
-            ## 错误原因 → ## 源码位置 → ## 修复建议（含代码示例）
-          </Descriptions.Item>
-        </Descriptions>
-      </SectionCard>
-
-      <SectionCard title="快速测试 AI 分析接口" description="输入一条测试错误，验证 AI 分析是否正常工作。">
-        <Space direction="vertical" style={{ width: '100%' }} size={12}>
-          <Input
-            addonBefore="错误类型"
-            value={testError.errorType}
-            onChange={e => setTestError(prev => ({ ...prev, errorType: e.target.value }))}
-          />
-          <Input
-            addonBefore="错误消息"
-            value={testError.message}
-            onChange={e => setTestError(prev => ({ ...prev, message: e.target.value }))}
-          />
-          <Input.TextArea
-            rows={4}
-            placeholder="错误 stack（可选）"
-            value={testError.stack}
-            onChange={e => setTestError(prev => ({ ...prev, stack: e.target.value }))}
-          />
-          <Button type="primary" loading={aiLoading} onClick={() => void handleTest()}>
-            发起 AI 分析
-          </Button>
-          {aiLoading && <Spin tip="AI 正在分析中..." />}
-          {!aiLoading && aiResult && (
-            aiResult.error
-              ? <Alert type="warning" showIcon message="分析失败" description={aiResult.error} />
-              : (
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <Tag color="blue">
-                      模型：
-                      {aiResult.model ?? '-'}
-                    </Tag>
-                    <pre className="detail-pre" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {aiResult.analysis ?? '-'}
-                    </pre>
-                  </Space>
-                )
-          )}
-        </Space>
-      </SectionCard>
-
-      <SectionCard title="在错误日志页使用 AI 分析" description="进入「错误日志展示」页面，点击每条错误记录的「AI 分析」按钮即可触发。">
-        <Descriptions bordered column={1} size="small">
-          <Descriptions.Item label="触发方式">错误列表表格中每行的「AI 分析」按钮</Descriptions.Item>
-          <Descriptions.Item label="结果展示">错误详情抽屉的「AI 智能分析」卡片中展示，包含根因、源码位置、修复建议</Descriptions.Item>
-          <Descriptions.Item label="重新分析">在抽屉中点击「重新分析」可重新调用 AI</Descriptions.Item>
-          <Descriptions.Item label="源码位置精度">已上传 SourceMap 的错误会自动提供 originalFile / originalLine 给 AI，提升分析精度</Descriptions.Item>
-        </Descriptions>
-      </SectionCard>
-    </Space>
-  )
-}
-
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<ShellLayout />}>
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="tracking" element={<TrackingPage />} />
-        <Route path="performance" element={<PerformancePage />} />
-        <Route path="error" element={<ErrorPage />} />
-        <Route path="replay" element={<ReplayPage />} />
-        <Route path="demo" element={<DemoPage />} />
-        <Route path="stats" element={<StatsPage />} />
-        <Route path="ai" element={<AiPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route element={<ProtectedRoute />}>
+        <Route path="/" element={<ShellLayout />}>
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="tracking" element={<TrackingPage />} />
+          <Route path="performance" element={<PerformancePage />} />
+          <Route path="error" element={<ErrorPage />} />
+          <Route path="replay" element={<ReplayPage />} />
+          <Route path="alerts" element={<AlertsPage />} />
+          <Route path="stats" element={<StatsPage />} />
+        </Route>
       </Route>
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
 }

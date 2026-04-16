@@ -1,5 +1,13 @@
 import type { AxiosResponse } from 'axios'
-import type { ApiResponse, MonitorQueryParams, MonitorStatsQueryParams } from './api'
+import type {
+  AlertEventQueryParams,
+  AlertRuleQueryParams,
+  ApiResponse,
+  LatestAlertQueryParams,
+  MonitorQueryParams,
+  MonitorStatsQueryParams,
+  RootCauseSummaryQueryParams,
+} from './api'
 import { monitorApi } from './api'
 
 export interface MonitorListResult<T> {
@@ -116,21 +124,122 @@ export interface ReplayRecord {
   updatedAt?: string | number | Date
 }
 
-export interface BatchWriteResponse {
-  writtenCount: number
-  summary: {
-    tracking: number
-    performance: number
-    error: number
-    replay: number
-    total: number
+export interface RootCauseDetail {
+  analysisId?: string
+  sourceErrorId?: string
+  appId: string
+  analyzedAt: string
+  analysisVersion: string
+  score: number
+  severity: AlertSeverity
+  confidence: number
+  rootCause: {
+    category: string
+    title: string
+    summary: string
+    evidence: string[]
   }
-  data: {
-    tracking: number
-    performance: number
-    error: number
-    replay: number
+  timeline: {
+    errorAt: string
+    windowStart: string
+    windowEnd: string
   }
+  correlations: {
+    sameFingerprintCount: number
+    spreadSessionCount: number
+    performance: Array<{
+      metricType: string
+      value: number
+      timestamp: string
+      url?: string
+    }>
+    replays: Array<{
+      segmentId: string
+      timestamp: string
+      route?: string
+      reason?: string
+      eventCount: number
+      sessionId?: string
+    }>
+  }
+  findings: string[]
+}
+
+export interface RootCauseSummaryItem {
+  category: string
+  title: string
+  severity: AlertSeverity
+  count: number
+  avgConfidence: number
+  lastAnalyzedAt: string
+}
+
+export type AlertMetric = 'error_frequency' | 'error_spread'
+export type AlertSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type AlertEventStatus = 'open' | 'acknowledged' | 'resolved'
+export type AlertDedupeStrategy = 'by_rule' | 'by_error_type' | 'by_fingerprint' | 'by_rule_and_fingerprint'
+
+export interface AlertRuleRecord {
+  _id?: string
+  name: string
+  appId?: string
+  metric: AlertMetric
+  windowSec: number
+  suppressSec?: number
+  dedupeStrategy?: AlertDedupeStrategy
+  threshold: number
+  severity: AlertSeverity
+  enabled: boolean
+  errorType?: string
+  fingerprint?: string
+  createdAt?: string | number | Date
+  updatedAt?: string | number | Date
+}
+
+export interface AlertEventRecord {
+  _id?: string
+  ruleId?: string
+  ruleName: string
+  appId?: string
+  metric: AlertMetric
+  severity: AlertSeverity
+  score: number
+  summary: string
+  findings: string[]
+  context?: Record<string, unknown>
+  sourceErrorId?: string
+  suppressionHits?: number
+  status: AlertEventStatus
+  triggeredAt: string | number | Date
+  createdAt?: string | number | Date
+  updatedAt?: string | number | Date
+}
+
+export interface CreateAlertRulePayload {
+  name: string
+  appId?: string
+  metric: AlertMetric
+  windowSec: number
+  suppressSec?: number
+  dedupeStrategy?: AlertDedupeStrategy
+  threshold: number
+  severity: AlertSeverity
+  enabled?: boolean
+  errorType?: string
+  fingerprint?: string
+}
+
+export interface UpdateAlertRulePayload {
+  name?: string
+  metric?: AlertMetric
+  windowSec?: number
+  suppressSec?: number
+  dedupeStrategy?: AlertDedupeStrategy
+  threshold?: number
+  severity?: AlertSeverity
+  enabled?: boolean
+  errorType?: string
+  fingerprint?: string
 }
 
 export interface AiAnalyzeErrorPayload {
@@ -138,6 +247,9 @@ export interface AiAnalyzeErrorPayload {
   errorType?: string
   stack?: string
   url?: string
+  apiKey?: string
+  apiBaseUrl?: string
+  model?: string
   frames?: Array<{
     file?: string
     line?: number
@@ -155,6 +267,23 @@ export interface AiAnalysisResult {
   model?: string
   analysis?: string
   error?: string
+  errorCode?:
+    | 'missing_api_key'
+    | 'upstream_auth_error'
+    | 'upstream_request_error'
+    | 'upstream_http_error'
+    | 'upstream_timeout'
+    | 'upstream_network_error'
+    | 'unknown'
+}
+
+export interface AiStatusResult {
+  available: boolean
+  hasApiKey: boolean
+  keySource: 'server' | 'client' | 'none'
+  apiBaseUrl: string
+  model: string
+  message?: string
 }
 
 async function unwrap<T>(promise: Promise<AxiosResponse<ApiResponse<T>>>): Promise<T> {
@@ -181,8 +310,28 @@ export const monitorService = {
     unwrap(monitorApi.getErrorStats<ErrorStatsItem[]>(params)),
   getReplayStats: (params?: MonitorStatsQueryParams) =>
     unwrap(monitorApi.getReplayStats<ReplayStatsItem[]>(params)),
+  getRootCauseSummary: (params?: RootCauseSummaryQueryParams) =>
+    unwrap(monitorApi.getRootCauseSummary<RootCauseSummaryItem[]>(params)),
+  getErrorRootCause: (id: string) =>
+    unwrap(monitorApi.getErrorRootCause<RootCauseDetail | null>(id)),
+  getAlertRules: (params?: AlertRuleQueryParams) =>
+    unwrap(monitorApi.getAlertRules<MonitorListResult<AlertRuleRecord>>(params)),
+  createAlertRule: (payload: CreateAlertRulePayload) =>
+    unwrap(monitorApi.createAlertRule<AlertRuleRecord>(payload)),
+  updateAlertRule: (id: string, payload: UpdateAlertRulePayload) =>
+    unwrap(monitorApi.updateAlertRule<AlertRuleRecord>(id, payload)),
+  deleteAlertRule: (id: string) =>
+    unwrap(monitorApi.deleteAlertRule<{ id: string }>(id)),
+  getAlertEvents: (params?: AlertEventQueryParams) =>
+    unwrap(monitorApi.getAlertEvents<MonitorListResult<AlertEventRecord>>(params)),
+  updateAlertEventStatus: (id: string, status: AlertEventStatus) =>
+    unwrap(monitorApi.updateAlertEventStatus<AlertEventRecord>(id, status)),
+  getLatestAlerts: (params?: LatestAlertQueryParams) =>
+    unwrap(monitorApi.getLatestAlerts<AlertEventRecord[]>(params)),
   sendBatch: (items: unknown[]) =>
-    unwrap(monitorApi.postBatch<BatchWriteResponse>(items)),
+    unwrap(monitorApi.postBatch<{ writtenCount: number, summary: Record<string, number>, data: Record<string, number> }>(items)),
   analyzeError: (payload: AiAnalyzeErrorPayload) =>
     unwrap(monitorApi.postAiAnalyze<AiAnalysisResult>(payload)),
+  getAiStatus: (params?: { hasClientApiKey?: boolean, apiBaseUrl?: string, model?: string }) =>
+    unwrap(monitorApi.getAiStatus<AiStatusResult>(params)),
 }

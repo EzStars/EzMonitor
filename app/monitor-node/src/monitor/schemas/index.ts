@@ -1,3 +1,6 @@
+export * from './alert-event.schema'
+export * from './alert-rule.schema'
+export * from './error-analysis.schema'
 export * from './error-log.schema'
 export * from './performance-metric.schema'
 export * from './replay-segment.schema'

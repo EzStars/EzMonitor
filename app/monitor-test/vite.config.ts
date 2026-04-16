@@ -1,7 +1,7 @@
+import { createAutoSourcemapUploadPlugin } from '@ezstars/monitor-sdkv2/vite'
 import babel from '@rolldown/plugin-babel'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
-import { createAutoSourcemapUploadPlugin } from './build/autoSourcemapUploadPlugin'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {

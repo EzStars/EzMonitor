@@ -1,4 +1,5 @@
 export * from './ai.dto'
+export * from './alert.dto'
 export * from './batch-monitor.dto'
 export * from './error-log.dto'
 export * from './performance-metric.dto'

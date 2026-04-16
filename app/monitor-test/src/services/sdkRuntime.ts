@@ -11,6 +11,7 @@ const DEFAULT_RELEASE = 'monitor-test-local'
 const apiUrl = import.meta.env.VITE_API_URL?.trim() || DEFAULT_API_URL
 const reportUrl = import.meta.env.VITE_MONITOR_REPORT_URL?.trim() || `${apiUrl}/api/monitor/batch`
 const release = import.meta.env.VITE_MONITOR_RELEASE?.trim() || DEFAULT_RELEASE
+const reportApiKey = import.meta.env.VITE_MONITOR_REPORT_API_KEY?.trim()
 
 const sdk = createSDK({
   appId: 'monitor-test-app',
@@ -19,6 +20,11 @@ const sdk = createSDK({
   debug: true,
   enabled: true,
   reportUrl,
+  reportHeaders: reportApiKey
+    ? {
+        'x-monitor-api-key': reportApiKey,
+      }
+    : undefined,
 })
 
 const trackingPlugin = new TrackingPlugin({
@@ -61,6 +67,26 @@ type TrackEventResult = Awaited<ReturnType<typeof trackingPlugin.track>>
 type TrackPageResult = Awaited<ReturnType<typeof trackingPlugin.trackPage>>
 type TrackUserResult = Awaited<ReturnType<typeof trackingPlugin.trackUser>>
 type TrackUvResult = Awaited<ReturnType<typeof trackingPlugin.trackUv>>
+
+interface PerformanceMetricReportPayload {
+  appId?: string
+  timestamp: number
+  value: number
+  url?: string
+  extra?: Record<string, unknown>
+  context?: Record<string, unknown>
+  sessionId: string
+  userId?: string
+}
+
+function normalizePerformanceMetricType(metricType: string) {
+  const normalized = metricType.trim().toLowerCase().replace(/\s+/g, '_')
+  if (!normalized) {
+    return 'performance_custom'
+  }
+
+  return normalized.startsWith('performance_') ? normalized : `performance_${normalized}`
+}
 
 let startPromise: Promise<void> | null = null
 
@@ -127,6 +153,32 @@ export async function trackUv(
 ): Promise<TrackUvResult> {
   await ensureSDKStarted()
   return trackingPlugin.trackUv(properties)
+}
+
+export async function reportPerformanceMetric(
+  metricType: string,
+  value: number,
+  options?: {
+    url?: string
+    extra?: Record<string, unknown>
+    context?: Record<string, unknown>
+  },
+): Promise<PerformanceMetricReportPayload> {
+  await ensureSDKStarted()
+
+  const payload: PerformanceMetricReportPayload = {
+    appId: sdk.getConfig().appId as string | undefined,
+    timestamp: Date.now(),
+    value: Number.isFinite(value) ? Number(value) : 0,
+    url: options?.url ?? (typeof window !== 'undefined' ? window.location.href : undefined),
+    extra: options?.extra,
+    context: options?.context,
+    sessionId: sdk.getSessionId(),
+    userId: sdk.getConfig().userId as string | undefined,
+  }
+
+  sdk.report(normalizePerformanceMetricType(metricType), payload)
+  return payload
 }
 
 export async function reportError(

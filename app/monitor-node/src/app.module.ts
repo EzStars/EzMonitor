@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
+import { APP_GUARD } from '@nestjs/core'
 import { MongooseModule } from '@nestjs/mongoose'
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
+import { AuthGuard, AuthModule } from './auth'
 import { MonitorModule } from './monitor/monitor.module'
 
 @Module({
@@ -20,9 +22,16 @@ import { MonitorModule } from './monitor/monitor.module'
         uri: configService.get<string>('MONGODB_URI'),
       }),
     }),
+    AuthModule,
     MonitorModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
+  ],
 })
 export class AppModule {}

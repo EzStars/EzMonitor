@@ -1,6 +1,12 @@
 import type { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { message } from 'antd'
 import axios from 'axios'
+import {
+  ACCESS_TOKEN_STORAGE_KEY,
+  AUTH_CURRENT_PROJECT_STORAGE_KEY,
+  AUTH_PROJECTS_STORAGE_KEY,
+  AUTH_USER_STORAGE_KEY,
+} from '../auth/constants'
 
 export interface ApiResponse<T = unknown> {
   code?: number
@@ -37,7 +43,7 @@ export const api: AxiosInstance = axios.create({
 })
 
 api.interceptors.request.use((config) => {
-  const token = globalThis.window?.localStorage.getItem('token')
+  const token = globalThis.window?.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
 
   if (token) {
     ;(config.headers as Record<string, string>).Authorization = `Bearer ${token}`
@@ -68,6 +74,18 @@ api.interceptors.response.use(
       code: status,
       message: serverData?.message ?? error.message ?? '网络请求失败',
       details: serverData?.data ?? error.response?.data,
+    }
+
+    if (status === 401 && globalThis.window) {
+      globalThis.window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
+      globalThis.window.localStorage.removeItem(AUTH_USER_STORAGE_KEY)
+      globalThis.window.localStorage.removeItem(AUTH_PROJECTS_STORAGE_KEY)
+      globalThis.window.localStorage.removeItem(AUTH_CURRENT_PROJECT_STORAGE_KEY)
+
+      if (!globalThis.window.location.pathname.startsWith('/login')) {
+        const next = `${globalThis.window.location.pathname}${globalThis.window.location.search}`
+        globalThis.window.location.href = `/login?next=${encodeURIComponent(next)}`
+      }
     }
 
     message.error(apiError.message)
@@ -101,6 +119,28 @@ export interface MonitorStatsQueryParams {
   endTime?: number
 }
 
+export interface RootCauseSummaryQueryParams extends MonitorStatsQueryParams {
+  limit?: number
+}
+
+export interface AlertRuleQueryParams extends PaginationParams {
+  appId?: string
+  enabled?: boolean
+  metric?: 'error_frequency' | 'error_spread'
+}
+
+export interface AlertEventQueryParams extends PaginationParams {
+  appId?: string
+  status?: 'open' | 'acknowledged' | 'resolved'
+  startTime?: number
+  endTime?: number
+}
+
+export interface LatestAlertQueryParams {
+  appId?: string
+  limit?: number
+}
+
 export const monitorApi = {
   getTracking: <T = unknown>(params?: MonitorQueryParams) =>
     request.get<T>('/api/monitor/tracking', { params }),
@@ -120,10 +160,30 @@ export const monitorApi = {
     request.get<T>('/api/monitor/stats/error', { params }),
   getReplayStats: <T = unknown>(params?: MonitorStatsQueryParams) =>
     request.get<T>('/api/monitor/stats/replay', { params }),
+  getRootCauseSummary: <T = unknown>(params?: RootCauseSummaryQueryParams) =>
+    request.get<T>('/api/monitor/stats/root-cause', { params }),
+  getErrorRootCause: <T = unknown>(id: string) =>
+    request.get<T>(`/api/monitor/error/${id}/root-cause`),
+  getAlertRules: <T = unknown>(params?: AlertRuleQueryParams) =>
+    request.get<T>('/api/monitor/alerts/rules', { params }),
+  createAlertRule: <T = unknown>(payload: unknown) =>
+    request.post<T>('/api/monitor/alerts/rules', payload),
+  updateAlertRule: <T = unknown>(id: string, payload: unknown) =>
+    request.patch<T>(`/api/monitor/alerts/rules/${id}`, payload),
+  deleteAlertRule: <T = unknown>(id: string) =>
+    request.delete<T>(`/api/monitor/alerts/rules/${id}`),
+  getAlertEvents: <T = unknown>(params?: AlertEventQueryParams) =>
+    request.get<T>('/api/monitor/alerts/events', { params }),
+  updateAlertEventStatus: <T = unknown>(id: string, status: 'open' | 'acknowledged' | 'resolved') =>
+    request.patch<T>(`/api/monitor/alerts/events/${id}/status`, { status }),
+  getLatestAlerts: <T = unknown>(params?: LatestAlertQueryParams) =>
+    request.get<T>('/api/monitor/events/latest-alerts', { params }),
   postBatch: <T = unknown>(items: unknown[]) =>
     request.post<T>('/api/monitor/batch', { items }),
   postAiAnalyze: <T = unknown>(payload: unknown) =>
     request.post<T>('/api/monitor/ai/analyze', payload),
+  getAiStatus: <T = unknown>(params?: { hasClientApiKey?: boolean, apiBaseUrl?: string, model?: string }) =>
+    request.get<T>('/api/monitor/ai/status', { params }),
 }
 
 export { request }

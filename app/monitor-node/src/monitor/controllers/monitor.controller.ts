@@ -1,8 +1,11 @@
+import type { AuthTokenPayload } from '../../auth'
 import type { AiAnalysisResult } from '../dto'
 import * as process from 'node:process'
-import { BadRequestException, Body, Controller, Get, Headers, Inject, Post, Query, UnauthorizedException } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Post, Query, UnauthorizedException } from '@nestjs/common'
+import { AuthRequired, AuthService, CurrentUser, ProjectApiKeyOptional } from '../../auth'
 import {
   validateAiAnalyzeErrorDto,
+  validateAiStatusQueryDto,
   validateCreateErrorLogDto,
   validateCreateMonitorBatchDto,
   validateCreatePerformanceMetricDto,
@@ -25,68 +28,145 @@ export class MonitorController {
     @Inject(MonitorService) private readonly monitorService: MonitorService,
     @Inject(SourceMapService) private readonly sourceMapService: SourceMapService,
     @Inject(AiService) private readonly aiService: AiService,
+    @Inject(AuthService) private readonly authService: AuthService,
   ) {}
 
   @Get('tracking')
-  async queryTracking(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
+  @AuthRequired()
+  async queryTracking(
+    @CurrentUser() user: AuthTokenPayload,
+    @Query() query: unknown,
+  ): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateTrackingQueryDto, query, 'Invalid tracking query')
-    const data = await this.monitorService.queryTracking(dto)
+    const allowedAppIds = await this.getAllowedAppIds(user.sub, dto.appId)
+    const data = await this.monitorService.queryTracking(dto, allowedAppIds)
     return this.buildSuccessResponse(data)
   }
 
   @Get('performance')
-  async queryPerformance(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
+  @AuthRequired()
+  async queryPerformance(
+    @CurrentUser() user: AuthTokenPayload,
+    @Query() query: unknown,
+  ): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validatePerformanceQueryDto, query, 'Invalid performance query')
-    const data = await this.monitorService.queryPerformance(dto)
+    const allowedAppIds = await this.getAllowedAppIds(user.sub, dto.appId)
+    const data = await this.monitorService.queryPerformance(dto, allowedAppIds)
     return this.buildSuccessResponse(data)
   }
 
   @Get('error')
-  async queryError(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
+  @AuthRequired()
+  async queryError(
+    @CurrentUser() user: AuthTokenPayload,
+    @Query() query: unknown,
+  ): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateErrorQueryDto, query, 'Invalid error query')
-    const data = await this.monitorService.queryErrors(dto)
+    const allowedAppIds = await this.getAllowedAppIds(user.sub, dto.appId)
+    const data = await this.monitorService.queryErrors(dto, allowedAppIds)
     return this.buildSuccessResponse(data)
   }
 
   @Get('replay')
-  async queryReplay(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
+  @AuthRequired()
+  async queryReplay(
+    @CurrentUser() user: AuthTokenPayload,
+    @Query() query: unknown,
+  ): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateReplayQueryDto, query, 'Invalid replay query')
-    const data = await this.monitorService.queryReplay(dto)
+    const allowedAppIds = await this.getAllowedAppIds(user.sub, dto.appId)
+    const data = await this.monitorService.queryReplay(dto, allowedAppIds)
     return this.buildSuccessResponse(data)
   }
 
   @Get('stats/overview')
-  async getStatsOverview(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
+  @AuthRequired()
+  async getStatsOverview(
+    @CurrentUser() user: AuthTokenPayload,
+    @Query() query: unknown,
+  ): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
-    const data = await this.monitorService.getStatsOverview(dto)
+    const allowedAppIds = await this.getAllowedAppIds(user.sub, dto.appId)
+    const data = await this.monitorService.getStatsOverview(dto, allowedAppIds)
     return this.buildSuccessResponse(data)
   }
 
   @Get('stats/tracking')
-  async getTrackingStats(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
+  @AuthRequired()
+  async getTrackingStats(
+    @CurrentUser() user: AuthTokenPayload,
+    @Query() query: unknown,
+  ): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
-    const data = await this.monitorService.getTrackingStats(dto)
+    const allowedAppIds = await this.getAllowedAppIds(user.sub, dto.appId)
+    const data = await this.monitorService.getTrackingStats(dto, allowedAppIds)
     return this.buildSuccessResponse(data)
   }
 
   @Get('stats/performance')
-  async getPerformanceStats(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
+  @AuthRequired()
+  async getPerformanceStats(
+    @CurrentUser() user: AuthTokenPayload,
+    @Query() query: unknown,
+  ): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
-    const data = await this.monitorService.getPerformanceStats(dto)
+    const allowedAppIds = await this.getAllowedAppIds(user.sub, dto.appId)
+    const data = await this.monitorService.getPerformanceStats(dto, allowedAppIds)
     return this.buildSuccessResponse(data)
   }
 
   @Get('stats/error')
-  async getErrorStats(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
+  @AuthRequired()
+  async getErrorStats(
+    @CurrentUser() user: AuthTokenPayload,
+    @Query() query: unknown,
+  ): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
-    const data = await this.monitorService.getErrorStats(dto)
+    const allowedAppIds = await this.getAllowedAppIds(user.sub, dto.appId)
+    const data = await this.monitorService.getErrorStats(dto, allowedAppIds)
     return this.buildSuccessResponse(data)
   }
 
   @Get('stats/replay')
-  async getReplayStats(@Query() query: unknown): Promise<{ success: true, data: unknown }> {
+  @AuthRequired()
+  async getReplayStats(
+    @CurrentUser() user: AuthTokenPayload,
+    @Query() query: unknown,
+  ): Promise<{ success: true, data: unknown }> {
     const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
-    const data = await this.monitorService.getReplayStats(dto)
+    const allowedAppIds = await this.getAllowedAppIds(user.sub, dto.appId)
+    const data = await this.monitorService.getReplayStats(dto, allowedAppIds)
+    return this.buildSuccessResponse(data)
+  }
+
+  @Get('stats/root-cause')
+  @AuthRequired()
+  async getRootCauseSummary(
+    @CurrentUser() user: AuthTokenPayload,
+    @Query() query: unknown,
+  ): Promise<{ success: true, data: unknown }> {
+    const dto = this.parseDto(validateStatsQueryDto, query, 'Invalid stats query')
+    const limit = this.parseOptionalLimit(query)
+    const allowedAppIds = await this.getAllowedAppIds(user.sub, dto.appId)
+    const data = await this.monitorService.getRootCauseSummary({
+      ...dto,
+      limit,
+    }, allowedAppIds)
+    return this.buildSuccessResponse(data)
+  }
+
+  @Get('error/:id/root-cause')
+  @AuthRequired()
+  async getErrorRootCause(
+    @CurrentUser() user: AuthTokenPayload,
+    @Param('id') id: string,
+  ): Promise<{ success: true, data: unknown }> {
+    if (!id.trim()) {
+      throw new BadRequestException('Error id is required')
+    }
+
+    const allowedAppIds = await this.getAllowedAppIds(user.sub)
+    const data = await this.monitorService.getErrorRootCause(id, allowedAppIds)
     return this.buildSuccessResponse(data)
   }
 
@@ -234,6 +314,7 @@ export class MonitorController {
   }
 
   @Post('sourcemap')
+  @ProjectApiKeyOptional()
   async uploadSourceMap(
     @Headers('x-monitor-upload-key') uploadKey: string | undefined,
     @Body() body: unknown,
@@ -256,6 +337,13 @@ export class MonitorController {
     return this.buildSuccessResponse(result)
   }
 
+  @Get('ai/status')
+  async aiStatus(@Query() query: unknown): Promise<{ success: true, data: ReturnType<AiService['getStatus']> }> {
+    const dto = this.parseDto(validateAiStatusQueryDto, query, 'Invalid AI status query')
+    const result = this.aiService.getStatus(dto)
+    return this.buildSuccessResponse(result)
+  }
+
   private buildSuccessResponse<T>(data: T): { success: true, data: T } {
     return {
       success: true,
@@ -272,6 +360,25 @@ export class MonitorController {
     }
   }
 
+  private parseOptionalLimit(value: unknown): number | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return undefined
+    }
+
+    const record = value as Record<string, unknown>
+    const raw = record.limit
+    if (raw === undefined) {
+      return undefined
+    }
+
+    const parsed = Number(raw)
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 20) {
+      throw new BadRequestException('limit must be an integer between 1 and 20')
+    }
+
+    return parsed
+  }
+
   private assertUploadAuthorized(uploadKey: string | undefined): void {
     const expectedKey = process.env.MONITOR_SOURCEMAP_UPLOAD_KEY
     if (!expectedKey) {
@@ -281,5 +388,9 @@ export class MonitorController {
     if (!uploadKey || uploadKey !== expectedKey) {
       throw new UnauthorizedException('Invalid SourceMap upload key')
     }
+  }
+
+  private async getAllowedAppIds(userId: string, requestedAppId?: string): Promise<string[]> {
+    return this.authService.getReadableAppIds(userId, requestedAppId)
   }
 }

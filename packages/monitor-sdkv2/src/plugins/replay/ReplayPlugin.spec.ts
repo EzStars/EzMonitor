@@ -2,6 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushReplayOnError, getReplayErrorContext } from './bridge'
 import { ReplayPlugin } from './ReplayPlugin'
 
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
 class MemoryStorage {
   private readonly store = new Map<string, string>()
 
@@ -162,5 +167,79 @@ describe('replay plugin', () => {
         }),
       }),
     })
+  })
+
+  it('restarts rrweb recording after flush so each segment has FullSnapshot', async () => {
+    const storage = new MemoryStorage()
+    const windowMock = createWindowMock(storage)
+    const documentMock = createDocumentMock()
+    const reporter = {
+      flush: vi.fn().mockResolvedValue(undefined),
+      report: vi.fn(),
+      prepare: vi.fn().mockResolvedValue(undefined),
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+      destroy: vi.fn().mockResolvedValue(undefined),
+    }
+
+    vi.stubGlobal('window', windowMock)
+    vi.stubGlobal('document', documentMock)
+    vi.stubGlobal('localStorage', storage)
+    vi.stubGlobal('Event', class {
+      constructor(public type: string) {}
+    })
+
+    const plugin = new ReplayPlugin({
+      recordMode: 'rrweb',
+      captureClick: false,
+      captureRoute: false,
+      captureScroll: false,
+      captureVisibility: false,
+      captureInput: false,
+      captureSnapshot: false,
+      flushIntervalMs: 0,
+      sampleRate: 1,
+    })
+    const pluginState = plugin as unknown as {
+      rrwebEvents: Array<Record<string, unknown>>
+      rrwebStop?: () => void
+      startRrwebRecording: () => Promise<void>
+    }
+    const startRrwebRecordingSpy = vi
+      .spyOn(pluginState, 'startRrwebRecording')
+      .mockImplementation(async () => {
+        const now = Date.now()
+        pluginState.rrwebEvents.push({ type: 4, timestamp: now })
+        pluginState.rrwebEvents.push({ type: 2, timestamp: now + 1 })
+        pluginState.rrwebStop = vi.fn()
+      })
+
+    plugin.setReporter(reporter as never)
+    plugin.init({ enabled: true, appId: 'app-1', sessionId: 'session-rrweb-1' })
+    plugin.start({ enabled: true, appId: 'app-1', sessionId: 'session-rrweb-1' })
+
+    await flushMicrotasks()
+    expect(startRrwebRecordingSpy).toHaveBeenCalledTimes(1)
+
+    pluginState.rrwebEvents.push({ type: 3, timestamp: Date.now() + 2, data: { source: 0 } })
+    flushReplayOnError('error_round_1')
+    await flushMicrotasks()
+
+    expect(startRrwebRecordingSpy).toHaveBeenCalledTimes(2)
+
+    pluginState.rrwebEvents.push({ type: 3, timestamp: Date.now() + 3, data: { source: 0 } })
+    flushReplayOnError('error_round_2')
+    await flushMicrotasks()
+
+    const replayCalls = reporter.report.mock.calls.filter(([type]) => type === 'replay')
+    expect(replayCalls).toHaveLength(2)
+
+    const firstPayload = replayCalls[0][1] as { rrwebEvents?: Array<{ type?: number }> }
+    const secondPayload = replayCalls[1][1] as { rrwebEvents?: Array<{ type?: number }> }
+
+    expect(firstPayload.rrwebEvents?.some(item => item.type === 2)).toBe(true)
+    expect(secondPayload.rrwebEvents?.some(item => item.type === 2)).toBe(true)
+
+    plugin.destroy()
   })
 })

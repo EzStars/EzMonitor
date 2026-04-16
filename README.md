@@ -210,7 +210,10 @@ interface ConfigType {
 | `CORS_ALLOW_LOCALHOST` | `true` | 是否允许 `localhost/127.0.0.1` 任意端口（开发环境建议开启） |
 | `VITE_API_URL` | `http://localhost:3000` | `monitor-app` 查询后端的基础地址 |
 | `VITE_MONITOR_REPORT_URL` | `http://localhost:3000/api/monitor/batch` | `monitor-test` 的上报地址 |
+| `VITE_MONITOR_REPORT_API_KEY` | `` | `monitor-test` 上报时透传的 `x-monitor-api-key` |
 | `MONITOR_MAX_BODY_SIZE` | `8mb` | 后端 JSON 请求体大小上限（影响 sourcemap 上传） |
+| `AUTH_JWT_SECRET` | `replace_with_strong_jwt_secret` | 登录鉴权 JWT 密钥（生产必须替换） |
+| `AUTH_ACCESS_TOKEN_TTL_SEC` | `900` | Access Token 过期时间（秒） |
 
 ### 启动步骤
 
@@ -232,6 +235,13 @@ pnpm --filter monitor-app run dev
 3. 检查浏览器 Network / 控制台，确认请求已发送到 `monitor-node`。
 4. 打开 `monitor-app`，确认列表和统计面板能查到刚写入的数据。
 5. 如有需要，可直接在 MongoDB 中确认数据已落库。
+
+### 鉴权与项目隔离
+
+1. `monitor-app` 新增了注册/登录页面（`/register`、`/login`），登录后才能访问监控看板路由。
+2. 注册时会创建用户首个项目，后端返回项目列表和当前项目；前端切换项目后会按项目 `appId` 查询数据。
+3. 监控查询与告警接口都需要 `Authorization: Bearer <token>`，并按当前用户可访问项目进行服务端过滤。
+4. 监控写入接口（`/api/monitor/tracking|performance|error|replay|batch`）新增 `x-monitor-api-key` 校验，防止伪造 `appId` 写入跨项目数据。
 
 ### 常用开发命令
 

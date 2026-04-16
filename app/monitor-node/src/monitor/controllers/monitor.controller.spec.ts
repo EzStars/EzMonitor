@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 import { BadRequestException } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
-import { AiService } from '../services/ai.service'
+import { AuthService } from '../../auth'
 import { MonitorService } from '../services/monitor.service'
 import { SourceMapService } from '../services/sourcemap.service'
 import { MonitorController } from './monitor.controller'
@@ -14,13 +14,20 @@ describe('monitorController', () => {
     createTracking: jest.fn(),
     createReplay: jest.fn(),
     createBatch: jest.fn(),
+    getErrorRootCause: jest.fn(),
+    getRootCauseSummary: jest.fn(),
   }
   const sourceMapService = {
     saveSourceMap: jest.fn(),
   }
-  const aiService = {
-    isAvailable: jest.fn().mockReturnValue(false),
-    analyzeError: jest.fn().mockResolvedValue({ available: false }),
+  const authService = {
+    getReadableAppIds: jest.fn().mockResolvedValue(['app-1']),
+  }
+  const currentUser = {
+    sub: 'user-1',
+    email: 'user@example.com',
+    iat: 0,
+    exp: 9999999999,
   }
 
   beforeEach(async () => {
@@ -38,8 +45,8 @@ describe('monitorController', () => {
           useValue: sourceMapService,
         },
         {
-          provide: AiService,
-          useValue: aiService,
+          provide: AuthService,
+          useValue: authService,
         },
       ],
     }).compile()
@@ -52,6 +59,8 @@ describe('monitorController', () => {
 
     await expect(
       controller.queryTracking({
+        ...currentUser,
+      }, {
         appId: 'app-1',
         page: '2',
         pageSize: '10',
@@ -62,13 +71,14 @@ describe('monitorController', () => {
       success: true,
       data: { items: [], page: 1 },
     })
+    expect(authService.getReadableAppIds).toHaveBeenCalledWith('user-1', 'app-1')
     expect(monitorService.queryTracking).toHaveBeenCalledWith({
       appId: 'app-1',
       page: 2,
       pageSize: 10,
       sortBy: 'timestamp',
       sortOrder: 'asc',
-    })
+    }, ['app-1'])
   })
 
   it('should return tracking write response', async () => {
@@ -138,6 +148,8 @@ describe('monitorController', () => {
 
     await expect(
       controller.queryReplay({
+        ...currentUser,
+      }, {
         appId: 'app-1',
         page: '1',
         pageSize: '10',
@@ -148,10 +160,82 @@ describe('monitorController', () => {
       success: true,
       data: { items: [], page: 1 },
     })
+    expect(monitorService.queryReplay).toHaveBeenCalledWith({
+      appId: 'app-1',
+      page: 1,
+      pageSize: 10,
+      sortBy: 'timestamp',
+      sortOrder: 'desc',
+    }, ['app-1'])
+  })
+
+  it('should return root cause summary data', async () => {
+    monitorService.getRootCauseSummary.mockResolvedValue([
+      {
+        category: 'error_frequency',
+        title: '高频错误',
+        count: 2,
+      },
+    ])
+
+    await expect(
+      controller.getRootCauseSummary({
+        ...currentUser,
+      }, {
+        appId: 'app-1',
+        startTime: '1712700000000',
+        endTime: '1712786400000',
+        limit: '5',
+      }),
+    ).resolves.toEqual({
+      success: true,
+      data: [
+        {
+          category: 'error_frequency',
+          title: '高频错误',
+          count: 2,
+        },
+      ],
+    })
+    expect(monitorService.getRootCauseSummary).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'app-1',
+        limit: 5,
+      }),
+      ['app-1'],
+    )
+  })
+
+  it('should return root cause detail by error id', async () => {
+    monitorService.getErrorRootCause.mockResolvedValue({
+      rootCause: {
+        category: 'performance_regression',
+        title: '性能回归触发异常',
+      },
+      confidence: 86,
+    })
+
+    await expect(controller.getErrorRootCause(currentUser, 'error-1')).resolves.toEqual({
+      success: true,
+      data: {
+        rootCause: {
+          category: 'performance_regression',
+          title: '性能回归触发异常',
+        },
+        confidence: 86,
+      },
+    })
+    expect(monitorService.getErrorRootCause).toHaveBeenCalledWith('error-1', ['app-1'])
+  })
+
+  it('should reject invalid root cause summary limit', async () => {
+    await expect(controller.getRootCauseSummary(currentUser, { limit: '0' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    )
   })
 
   it('should reject invalid query payloads', async () => {
-    await expect(controller.queryTracking({ page: '0' })).rejects.toBeInstanceOf(
+    await expect(controller.queryTracking(currentUser, { page: '0' })).rejects.toBeInstanceOf(
       BadRequestException,
     )
   })
@@ -161,6 +245,8 @@ describe('monitorController', () => {
 
     await expect(
       controller.queryTracking({
+        ...currentUser,
+      }, {
         appId: 'app-1',
         page: '1',
         pageSize: '10',
