@@ -3,6 +3,7 @@ import type { MenuProps, TableColumnsType } from 'antd'
 import type { ReactNode } from 'react'
 import type {
   AiAnalysisResult,
+  AiStatusResult,
   ErrorRecord,
   ErrorStatsItem,
   PerformanceRecord,
@@ -145,6 +146,97 @@ const navItems: MenuProps['items'] = (Object.keys(routeMeta) as RouteKey[]).map(
 }))
 
 type QueryRange = [string, string]
+
+interface AiConfig {
+  apiKey: string
+  apiBaseUrl: string
+  model: string
+}
+
+const DEFAULT_AI_CONFIG: AiConfig = {
+  apiKey: '',
+  apiBaseUrl: 'https://api.openai.com/v1',
+  model: 'gpt-4o-mini',
+}
+
+const AI_CONFIG_STORAGE_KEY = 'ezmonitor.ai-config'
+
+function readAiConfig(): AiConfig {
+  if (typeof window === 'undefined') {
+    return DEFAULT_AI_CONFIG
+  }
+
+  try {
+    const raw = window.localStorage.getItem(AI_CONFIG_STORAGE_KEY)
+    if (!raw) {
+      return DEFAULT_AI_CONFIG
+    }
+
+    const parsed = JSON.parse(raw) as Partial<AiConfig>
+    return {
+      apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : DEFAULT_AI_CONFIG.apiKey,
+      apiBaseUrl: typeof parsed.apiBaseUrl === 'string' && parsed.apiBaseUrl.trim() ? parsed.apiBaseUrl : DEFAULT_AI_CONFIG.apiBaseUrl,
+      model: typeof parsed.model === 'string' && parsed.model.trim() ? parsed.model : DEFAULT_AI_CONFIG.model,
+    }
+  }
+  catch {
+    return DEFAULT_AI_CONFIG
+  }
+}
+
+function useAiConfig() {
+  const [config, setConfig] = useState<AiConfig>(() => readAiConfig())
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.localStorage.setItem(AI_CONFIG_STORAGE_KEY, JSON.stringify(config))
+  }, [config])
+
+  return { config, setConfig, resetConfig: () => setConfig(DEFAULT_AI_CONFIG) }
+}
+
+function getAiErrorDisplay(result: AiAnalysisResult): { message: string, description: string } {
+  switch (result.errorCode) {
+    case 'missing_api_key':
+      return {
+        message: 'AI 密钥未配置',
+        description: result.error ?? '请在前端填写 AI_API_KEY，或在 monitor-node 服务端 .env 中配置 AI_API_KEY。',
+      }
+    case 'upstream_auth_error':
+      return {
+        message: '上游模型鉴权失败',
+        description: result.error ?? '请检查 AI_API_KEY 是否正确，或对应服务是否允许当前密钥访问。',
+      }
+    case 'upstream_request_error':
+      return {
+        message: '上游请求参数错误',
+        description: result.error ?? '请检查 API Base URL、模型名与请求参数是否匹配目标模型服务。',
+      }
+    case 'upstream_timeout':
+      return {
+        message: '上游模型请求超时',
+        description: result.error ?? '请检查网络连通性，或稍后重试。',
+      }
+    case 'upstream_network_error':
+      return {
+        message: '无法连接上游模型服务',
+        description: result.error ?? '请检查 API Base URL 是否可达，以及服务端网络访问权限。',
+      }
+    case 'upstream_http_error':
+      return {
+        message: '上游模型接口异常',
+        description: result.error ?? '模型服务返回了非预期状态码，请检查服务状态。',
+      }
+    default:
+      return {
+        message: '分析失败',
+        description: result.error ?? '请稍后重试。',
+      }
+  }
+}
 
 function createDefaultRange(days = 7): QueryRange {
   const end = new Date()
@@ -1153,6 +1245,7 @@ function PerformancePage() {
 function ErrorPage() {
   const filters = useCommonFilters()
   const navigate = useNavigate()
+  const { config: aiConfig } = useAiConfig()
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -1181,6 +1274,9 @@ function ErrorPage() {
         stack: record.stack,
         url: record.url,
         frames: record.frames,
+        apiKey: aiConfig.apiKey,
+        apiBaseUrl: aiConfig.apiBaseUrl,
+        model: aiConfig.model,
       })
       setAiResult(result)
     }
@@ -1461,7 +1557,7 @@ function ErrorPage() {
                 {aiLoading && <Spin tip="AI 正在分析中..." />}
                 {!aiLoading && aiResult && (
                   aiResult.error
-                    ? <Alert type="warning" showIcon message="分析失败" description={aiResult.error} />
+                    ? <Alert type="warning" showIcon message={getAiErrorDisplay(aiResult).message} description={getAiErrorDisplay(aiResult).description} />
                     : (
                         <pre className="detail-pre" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                           {aiResult.analysis ?? '-'}
@@ -2165,6 +2261,9 @@ function StatsPage() {
 }
 
 function AiPage() {
+  const { config: aiConfig, setConfig, resetConfig } = useAiConfig()
+  const [aiStatus, setAiStatus] = useState<AiStatusResult | null>(null)
+  const [aiStatusLoading, setAiStatusLoading] = useState(false)
   const [testError, setTestError] = useState<{
     message: string
     errorType: string
@@ -2177,11 +2276,47 @@ function AiPage() {
   const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
 
+  const refreshAiStatus = async () => {
+    setAiStatusLoading(true)
+    try {
+      const status = await monitorService.getAiStatus({
+        hasClientApiKey: Boolean(aiConfig.apiKey.trim()),
+        apiBaseUrl: aiConfig.apiBaseUrl,
+        model: aiConfig.model,
+      })
+      setAiStatus(status)
+    }
+    catch {
+      setAiStatus(null)
+    }
+    finally {
+      setAiStatusLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void refreshAiStatus()
+  }, [aiConfig.apiKey, aiConfig.apiBaseUrl, aiConfig.model])
+
   const handleTest = async () => {
+    if (aiStatus && !aiStatus.available) {
+      setAiResult({
+        available: false,
+        errorCode: 'missing_api_key',
+        error: aiStatus.message ?? 'AI 功能未配置，请在前端或服务端提供 AI_API_KEY。',
+      })
+      return
+    }
+
     setAiLoading(true)
     setAiResult(null)
     try {
-      const result = await monitorService.analyzeError(testError)
+      const result = await monitorService.analyzeError({
+        ...testError,
+        apiKey: aiConfig.apiKey,
+        apiBaseUrl: aiConfig.apiBaseUrl,
+        model: aiConfig.model,
+      })
       setAiResult(result)
     }
     catch (err) {
@@ -2195,31 +2330,48 @@ function AiPage() {
   return (
     <Space direction="vertical" size={16} className="page-stack">
       <SectionCard
-        title="AI 大模型配置说明"
-        description="在 monitor-node 服务端的 .env 文件中配置以下环境变量，即可启用 AI 智能分析功能。"
+        title="AI 大模型配置"
+        description="你可以在前端配置 API Key、接口地址和模型，配置会保存到当前浏览器；后续可接入登录鉴权做服务端托管。"
       >
-        <pre className="detail-pre" style={{ whiteSpace: 'pre-wrap' }}>
-          {[
-            '# AI 大模型配置（支持 OpenAI 兼容接口）',
-            'AI_API_KEY=sk-xxxxxx',
-            'AI_API_BASE_URL=https://api.openai.com/v1',
-            'AI_MODEL=gpt-4o-mini',
-            '',
-            '# 也可使用国内大模型或本地模型：',
-            '# DeepSeek',
-            '# AI_API_BASE_URL=https://api.deepseek.com/v1',
-            '# AI_MODEL=deepseek-chat',
-            '',
-            '# Ollama 本地模型',
-            '# AI_API_BASE_URL=http://localhost:11434/v1',
-            '# AI_MODEL=llama3',
-          ].join('\n')}
-        </pre>
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Input.Password
+            addonBefore="API Key"
+            value={aiConfig.apiKey}
+            onChange={event => setConfig(prev => ({ ...prev, apiKey: event.target.value }))}
+            placeholder="sk-xxxxxx"
+          />
+          <Input
+            addonBefore="API Base URL"
+            value={aiConfig.apiBaseUrl}
+            onChange={event => setConfig(prev => ({ ...prev, apiBaseUrl: event.target.value }))}
+            placeholder="https://api.openai.com/v1"
+          />
+          <Input
+            addonBefore="模型"
+            value={aiConfig.model}
+            onChange={event => setConfig(prev => ({ ...prev, model: event.target.value }))}
+            placeholder="gpt-4o-mini"
+          />
+          <Space wrap>
+            <Button onClick={resetConfig}>恢复默认</Button>
+            <Button onClick={() => void refreshAiStatus()} loading={aiStatusLoading}>检查后端状态</Button>
+            <Tag color="blue">配置会自动保存到当前浏览器</Tag>
+          </Space>
+          {aiStatusLoading && <Spin tip="正在检查后端 AI 状态..." />}
+          {!aiStatusLoading && aiStatus && (
+            aiStatus.available
+              ? <Alert type="success" showIcon message="AI 状态已就绪" description={aiStatus.keySource === 'server' ? `当前使用服务端密钥，模型 ${aiStatus.model}。` : `当前将使用前端密钥，模型 ${aiStatus.model}。`} />
+              : <Alert type="warning" showIcon message="AI 状态未就绪" description={aiStatus.message ?? '请在前端或服务端提供 AI_API_KEY。'} />
+          )}
+          {!aiStatusLoading && !aiStatus && (
+            <Alert type="warning" showIcon message="无法获取后端 AI 状态" description="请确认 monitor-node 服务已启动且 API 地址配置正确。" />
+          )}
+        </Space>
       </SectionCard>
 
       <SectionCard
         title="AI 分析工作原理"
-        description="错误发生时，AI 会综合以下信息进行分析，给出根因、源码位置和修复建议。"
+        description="错误发生时，AI 会综合以下信息进行分析，给出根因、源码位置和修复建议。API Key、接口地址和模型均可由前端配置。"
       >
         <Descriptions bordered column={1} size="small">
           <Descriptions.Item label="错误信息">错误类型、消息文本、发生 URL</Descriptions.Item>
@@ -2227,6 +2379,8 @@ function AiPage() {
           <Descriptions.Item label="源码定位帧">
             通过 SourceMap 还原后的真实源码文件路径、行列号和函数名（originalFile / originalLine）
           </Descriptions.Item>
+          <Descriptions.Item label="前端配置">AI_API_KEY、API Base URL、模型名称</Descriptions.Item>
+          <Descriptions.Item label="服务端配置（可选）">AI_API_KEY（作为后端默认密钥）</Descriptions.Item>
           <Descriptions.Item label="输出格式">
             ## 错误原因 → ## 源码位置 → ## 修复建议（含代码示例）
           </Descriptions.Item>
@@ -2257,7 +2411,7 @@ function AiPage() {
           {aiLoading && <Spin tip="AI 正在分析中..." />}
           {!aiLoading && aiResult && (
             aiResult.error
-              ? <Alert type="warning" showIcon message="分析失败" description={aiResult.error} />
+              ? <Alert type="warning" showIcon message={getAiErrorDisplay(aiResult).message} description={getAiErrorDisplay(aiResult).description} />
               : (
                   <Space direction="vertical" style={{ width: '100%' }}>
                     <Tag color="blue">

@@ -3,6 +3,7 @@ import * as process from 'node:process'
 import { BadRequestException, Body, Controller, Get, Headers, Inject, Post, Query, UnauthorizedException } from '@nestjs/common'
 import {
   validateAiAnalyzeErrorDto,
+  validateAiStatusQueryDto,
   validateCreateErrorLogDto,
   validateCreateMonitorBatchDto,
   validateCreatePerformanceMetricDto,
@@ -253,6 +254,13 @@ export class MonitorController {
   async aiAnalyzeError(@Body() body: unknown): Promise<{ success: true, data: AiAnalysisResult }> {
     const dto = this.parseDto(validateAiAnalyzeErrorDto, body, 'Invalid AI analyze payload')
     const result = await this.aiService.analyzeError(dto)
+    return this.buildSuccessResponse(result)
+  }
+
+  @Get('ai/status')
+  async aiStatus(@Query() query: unknown): Promise<{ success: true, data: ReturnType<AiService['getStatus']> }> {
+    const dto = this.parseDto(validateAiStatusQueryDto, query, 'Invalid AI status query')
+    const result = this.aiService.getStatus(dto)
     return this.buildSuccessResponse(result)
   }
 

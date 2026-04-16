@@ -138,6 +138,9 @@ export interface AiAnalyzeErrorPayload {
   errorType?: string
   stack?: string
   url?: string
+  apiKey?: string
+  apiBaseUrl?: string
+  model?: string
   frames?: Array<{
     file?: string
     line?: number
@@ -155,6 +158,23 @@ export interface AiAnalysisResult {
   model?: string
   analysis?: string
   error?: string
+  errorCode?:
+    | 'missing_api_key'
+    | 'upstream_auth_error'
+    | 'upstream_request_error'
+    | 'upstream_http_error'
+    | 'upstream_timeout'
+    | 'upstream_network_error'
+    | 'unknown'
+}
+
+export interface AiStatusResult {
+  available: boolean
+  hasApiKey: boolean
+  keySource: 'server' | 'client' | 'none'
+  apiBaseUrl: string
+  model: string
+  message?: string
 }
 
 async function unwrap<T>(promise: Promise<AxiosResponse<ApiResponse<T>>>): Promise<T> {
@@ -185,4 +205,6 @@ export const monitorService = {
     unwrap(monitorApi.postBatch<BatchWriteResponse>(items)),
   analyzeError: (payload: AiAnalyzeErrorPayload) =>
     unwrap(monitorApi.postAiAnalyze<AiAnalysisResult>(payload)),
+  getAiStatus: (params?: { hasClientApiKey?: boolean, apiBaseUrl?: string, model?: string }) =>
+    unwrap(monitorApi.getAiStatus<AiStatusResult>(params)),
 }

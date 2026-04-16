@@ -124,6 +124,8 @@ export const monitorApi = {
     request.post<T>('/api/monitor/batch', { items }),
   postAiAnalyze: <T = unknown>(payload: unknown) =>
     request.post<T>('/api/monitor/ai/analyze', payload),
+  getAiStatus: <T = unknown>(params?: { hasClientApiKey?: boolean, apiBaseUrl?: string, model?: string }) =>
+    request.get<T>('/api/monitor/ai/status', { params }),
 }
 
 export { request }

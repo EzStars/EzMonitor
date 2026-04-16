@@ -1,4 +1,4 @@
-import type { AiAnalyzeErrorDto, AiErrorFrameDto } from './ai.dto'
+import type { AiAnalyzeErrorDto, AiErrorFrameDto, AiStatusQueryDto } from './ai.dto'
 import type {
   CreateMonitorBatchDto,
   MonitorBatchItemDto,
@@ -744,5 +744,76 @@ export function validateAiAnalyzeErrorDto(body: unknown): AiAnalyzeErrorDto {
     stack: parseOptionalString(body.stack, 'stack'),
     url: parseOptionalString(body.url, 'url'),
     frames,
+    apiKey: parseOptionalString(body.apiKey, 'apiKey'),
+    apiBaseUrl: (() => {
+      const value = parseOptionalString(body.apiBaseUrl, 'apiBaseUrl')
+      if (!value) {
+        return value
+      }
+
+      let parsedUrl: URL
+      try {
+        parsedUrl = new URL(value)
+      }
+      catch {
+        throw new Error('apiBaseUrl must be a valid URL')
+      }
+
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+        throw new Error('apiBaseUrl must use http or https')
+      }
+
+      return value
+    })(),
+    model: parseOptionalString(body.model, 'model'),
+  }
+}
+
+export function validateAiStatusQueryDto(query: unknown): AiStatusQueryDto {
+  if (!isRecord(query)) {
+    throw new Error('query must be an object')
+  }
+
+  let hasClientApiKey = false
+  if (query.hasClientApiKey !== undefined) {
+    const raw = query.hasClientApiKey
+    if (typeof raw === 'boolean') {
+      hasClientApiKey = raw
+    }
+    else if (typeof raw === 'string') {
+      if (raw === 'true') {
+        hasClientApiKey = true
+      }
+      else if (raw === 'false') {
+        hasClientApiKey = false
+      }
+      else {
+        throw new Error('hasClientApiKey must be true or false')
+      }
+    }
+    else {
+      throw new TypeError('hasClientApiKey must be a boolean')
+    }
+  }
+
+  const apiBaseUrl = parseOptionalString(query.apiBaseUrl, 'apiBaseUrl')
+  if (apiBaseUrl) {
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(apiBaseUrl)
+    }
+    catch {
+      throw new Error('apiBaseUrl must be a valid URL')
+    }
+
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      throw new Error('apiBaseUrl must use http or https')
+    }
+  }
+
+  return {
+    hasClientApiKey,
+    apiBaseUrl,
+    model: parseOptionalString(query.model, 'model'),
   }
 }

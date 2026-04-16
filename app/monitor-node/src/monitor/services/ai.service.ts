@@ -1,4 +1,4 @@
-import type { AiAnalysisResult, AiAnalyzeErrorDto } from '../dto/ai.dto'
+import type { AiAnalysisResult, AiAnalyzeErrorDto, AiStatusQueryDto, AiStatusResult } from '../dto/ai.dto'
 import * as process from 'node:process'
 import { Injectable } from '@nestjs/common'
 
@@ -87,13 +87,44 @@ export class AiService {
     return Boolean(this.apiKey)
   }
 
+  getStatus(query?: AiStatusQueryDto): AiStatusResult {
+    const apiBaseUrl = (query?.apiBaseUrl?.trim() || this.apiBaseUrl).replace(/\/$/, '')
+    const model = query?.model?.trim() || this.model
+    const hasServerApiKey = this.isAvailable()
+    const hasClientApiKey = Boolean(query?.hasClientApiKey)
+    const available = hasServerApiKey || hasClientApiKey
+    const keySource = hasServerApiKey
+      ? 'server'
+      : hasClientApiKey
+        ? 'client'
+        : 'none'
+
+    return {
+      available,
+      hasApiKey: available,
+      keySource,
+      apiBaseUrl,
+      model,
+      message: available
+        ? keySource === 'server'
+          ? 'AI 服务可用（使用服务端密钥）'
+          : 'AI 服务可用（将使用前端配置密钥）'
+        : 'AI 功能未配置，请在前端或服务端提供 AI_API_KEY。',
+    }
+  }
+
   async analyzeError(dto: AiAnalyzeErrorDto): Promise<AiAnalysisResult> {
-    if (!this.isAvailable()) {
+    const apiKey = dto.apiKey?.trim() || this.apiKey
+    if (!apiKey) {
       return {
         available: false,
-        error: 'AI 功能未配置，请在服务端 .env 中设置 AI_API_KEY、AI_API_BASE_URL 和 AI_MODEL。',
+        errorCode: 'missing_api_key',
+        error: 'AI 功能未配置，请在前端配置 AI_API_KEY，或在服务端 .env 中设置 AI_API_KEY。',
       }
     }
+
+    const apiBaseUrl = (dto.apiBaseUrl?.trim() || this.apiBaseUrl).replace(/\/$/, '')
+    const model = dto.model?.trim() || this.model
 
     const messages: LlmMessage[] = [
       { role: 'system', content: buildSystemPrompt() },
@@ -101,14 +132,14 @@ export class AiService {
     ]
 
     try {
-      const response = await fetch(`${this.apiBaseUrl}/chat/completions`, {
+      const response = await fetch(`${apiBaseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: this.model,
+          model,
           messages,
           temperature: 0.2,
           max_tokens: 1024,
@@ -118,9 +149,15 @@ export class AiService {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => response.statusText)
+        const errorCode = response.status === 401 || response.status === 403
+          ? 'upstream_auth_error'
+          : response.status === 400 || response.status === 404 || response.status === 422
+            ? 'upstream_request_error'
+            : 'upstream_http_error'
         return {
           available: true,
-          model: this.model,
+          model,
+          errorCode,
           error: `LLM API 请求失败 (${response.status}): ${errorText}`,
         }
       }
@@ -130,15 +167,22 @@ export class AiService {
 
       return {
         available: true,
-        model: data.model ?? this.model,
+        model: data.model ?? model,
         analysis: content,
       }
     }
     catch (err) {
       const message = err instanceof Error ? err.message : String(err)
+      const lowerMessage = message.toLowerCase()
+      const errorCode = lowerMessage.includes('timeout')
+        ? 'upstream_timeout'
+        : lowerMessage.includes('econnrefused') || lowerMessage.includes('enotfound') || lowerMessage.includes('fetch failed')
+          ? 'upstream_network_error'
+          : 'unknown'
       return {
         available: true,
-        model: this.model,
+        model,
+        errorCode,
         error: `AI 分析请求出错: ${message}`,
       }
     }
