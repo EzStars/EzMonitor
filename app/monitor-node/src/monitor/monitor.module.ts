@@ -19,6 +19,7 @@ import {
   TrackingEventSchema,
 } from './schemas'
 import {
+  AiService,
   AlertEventService,
   AlertRuleService,
   ErrorAnalysisService,
@@ -44,6 +45,7 @@ import {
   providers: [
     MonitorService,
     SourceMapService,
+    AiService,
     AlertRuleService,
     AlertEventService,
     ErrorAnalysisService,

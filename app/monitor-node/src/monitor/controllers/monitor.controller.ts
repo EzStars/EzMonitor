@@ -1,8 +1,11 @@
 import type { AuthTokenPayload } from '../../auth'
+import type { AiAnalysisResult } from '../dto'
 import * as process from 'node:process'
 import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Post, Query, UnauthorizedException } from '@nestjs/common'
 import { AuthRequired, AuthService, CurrentUser, ProjectApiKeyOptional } from '../../auth'
 import {
+  validateAiAnalyzeErrorDto,
+  validateAiStatusQueryDto,
   validateCreateErrorLogDto,
   validateCreateMonitorBatchDto,
   validateCreatePerformanceMetricDto,
@@ -15,6 +18,7 @@ import {
   validateTrackingQueryDto,
   validateUploadSourceMapDto,
 } from '../dto/validation'
+import { AiService } from '../services/ai.service'
 import { MonitorService } from '../services/monitor.service'
 import { SourceMapService } from '../services/sourcemap.service'
 
@@ -23,6 +27,7 @@ export class MonitorController {
   constructor(
     @Inject(MonitorService) private readonly monitorService: MonitorService,
     @Inject(SourceMapService) private readonly sourceMapService: SourceMapService,
+    @Inject(AiService) private readonly aiService: AiService,
     @Inject(AuthService) private readonly authService: AuthService,
   ) {}
 
@@ -322,6 +327,20 @@ export class MonitorController {
     }
 
     const result = await this.sourceMapService.saveSourceMap(dto)
+    return this.buildSuccessResponse(result)
+  }
+
+  @Post('ai/analyze')
+  async aiAnalyzeError(@Body() body: unknown): Promise<{ success: true, data: AiAnalysisResult }> {
+    const dto = this.parseDto(validateAiAnalyzeErrorDto, body, 'Invalid AI analyze payload')
+    const result = await this.aiService.analyzeError(dto)
+    return this.buildSuccessResponse(result)
+  }
+
+  @Get('ai/status')
+  async aiStatus(@Query() query: unknown): Promise<{ success: true, data: ReturnType<AiService['getStatus']> }> {
+    const dto = this.parseDto(validateAiStatusQueryDto, query, 'Invalid AI status query')
+    const result = this.aiService.getStatus(dto)
     return this.buildSuccessResponse(result)
   }
 

@@ -2,6 +2,7 @@ import type { MenuProps, TableColumnsType } from 'antd'
 
 import type { ReactNode } from 'react'
 import type {
+  AiAnalysisResult,
   AlertDedupeStrategy,
   AlertEventRecord,
   AlertRuleRecord,
@@ -150,6 +151,97 @@ const navItems: MenuProps['items'] = (Object.keys(routeMeta) as RouteKey[]).map(
 }))
 
 type QueryRange = [string, string]
+
+interface AiConfig {
+  apiKey: string
+  apiBaseUrl: string
+  model: string
+}
+
+const DEFAULT_AI_CONFIG: AiConfig = {
+  apiKey: '',
+  apiBaseUrl: 'https://api.openai.com/v1',
+  model: 'gpt-4o-mini',
+}
+
+const AI_CONFIG_STORAGE_KEY = 'ezmonitor.ai-config'
+
+function readAiConfig(): AiConfig {
+  if (typeof window === 'undefined') {
+    return DEFAULT_AI_CONFIG
+  }
+
+  try {
+    const raw = window.localStorage.getItem(AI_CONFIG_STORAGE_KEY)
+    if (!raw) {
+      return DEFAULT_AI_CONFIG
+    }
+
+    const parsed = JSON.parse(raw) as Partial<AiConfig>
+    return {
+      apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : DEFAULT_AI_CONFIG.apiKey,
+      apiBaseUrl: typeof parsed.apiBaseUrl === 'string' && parsed.apiBaseUrl.trim() ? parsed.apiBaseUrl : DEFAULT_AI_CONFIG.apiBaseUrl,
+      model: typeof parsed.model === 'string' && parsed.model.trim() ? parsed.model : DEFAULT_AI_CONFIG.model,
+    }
+  }
+  catch {
+    return DEFAULT_AI_CONFIG
+  }
+}
+
+function useAiConfig() {
+  const [config, setConfig] = useState<AiConfig>(() => readAiConfig())
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.localStorage.setItem(AI_CONFIG_STORAGE_KEY, JSON.stringify(config))
+  }, [config])
+
+  return { config, setConfig, resetConfig: () => setConfig(DEFAULT_AI_CONFIG) }
+}
+
+function getAiErrorDisplay(result: AiAnalysisResult): { message: string, description: string } {
+  switch (result.errorCode) {
+    case 'missing_api_key':
+      return {
+        message: 'AI 密钥未配置',
+        description: result.error ?? '请在前端填写 AI_API_KEY，或在 monitor-node 服务端 .env 中配置 AI_API_KEY。',
+      }
+    case 'upstream_auth_error':
+      return {
+        message: '上游模型鉴权失败',
+        description: result.error ?? '请检查 AI_API_KEY 是否正确，或对应服务是否允许当前密钥访问。',
+      }
+    case 'upstream_request_error':
+      return {
+        message: '上游请求参数错误',
+        description: result.error ?? '请检查 API Base URL、模型名与请求参数是否匹配目标模型服务。',
+      }
+    case 'upstream_timeout':
+      return {
+        message: '上游模型请求超时',
+        description: result.error ?? '请检查网络连通性，或稍后重试。',
+      }
+    case 'upstream_network_error':
+      return {
+        message: '无法连接上游模型服务',
+        description: result.error ?? '请检查 API Base URL 是否可达，以及服务端网络访问权限。',
+      }
+    case 'upstream_http_error':
+      return {
+        message: '上游模型接口异常',
+        description: result.error ?? '模型服务返回了非预期状态码，请检查服务状态。',
+      }
+    default:
+      return {
+        message: '分析失败',
+        description: result.error ?? '请稍后重试。',
+      }
+  }
+}
 
 function createDefaultRange(days = 7): QueryRange {
   const end = new Date()
@@ -1290,10 +1382,13 @@ function ErrorPage() {
   const canEditAppId = useUserControlledAppId()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const { config: aiConfig } = useAiConfig()
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [selected, setSelected] = useState<ErrorRecord | null>(null)
+  const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
   const timeParams = useMemo(() => buildTimeParams(filters.appId, filters.range), [filters.appId, filters.range])
   const listParams = useMemo(
     () => ({ ...timeParams, page, pageSize, sortBy: 'timestamp', sortOrder: 'desc' as const }),
@@ -1306,6 +1401,33 @@ function ErrorPage() {
   useEffect(() => {
     setPage(1)
   }, [timeParams])
+
+  const handleAiAnalyze = async (record: ErrorRecord) => {
+    setAiLoading(true)
+    setAiResult(null)
+    try {
+      const result = await monitorService.analyzeError({
+        message: record.message,
+        errorType: record.errorType,
+        stack: record.stack,
+        url: record.url,
+        frames: record.frames,
+        apiKey: aiConfig.apiKey,
+        apiBaseUrl: aiConfig.apiBaseUrl,
+        model: aiConfig.model,
+      })
+      setAiResult(result)
+    }
+    catch (err) {
+      setAiResult({
+        available: false,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+    finally {
+      setAiLoading(false)
+    }
+  }
 
   useEffect(() => {
     const appIdFromQuery = searchParams.get('appId')?.trim()
@@ -1397,11 +1519,22 @@ function ErrorPage() {
     {
       title: '操作',
       render: (_, record) => (
-        <Button type="link" onClick={() => setSelected(record)}>
-          详情
-        </Button>
+        <Space>
+          <Button type="link" onClick={() => setSelected(record)}>
+            详情
+          </Button>
+          <Button
+            type="link"
+            onClick={() => {
+              setSelected(record)
+              void handleAiAnalyze(record)
+            }}
+          >
+            AI 分析
+          </Button>
+        </Space>
       ),
-      width: 100,
+      width: 160,
     },
   ]
 
@@ -1618,7 +1751,10 @@ function ErrorPage() {
         open={selected !== null}
         title={selected?.message ?? '错误详情'}
         subtitle={selected ? formatDateTime(selected.timestamp) : undefined}
-        onClose={() => setSelected(null)}
+        onClose={() => {
+          setSelected(null)
+          setAiResult(null)
+        }}
         items={[
           { label: 'appId', value: selected?.appId ?? '-' },
           { label: '错误类型', value: selected?.errorType ?? '-' },
@@ -1683,6 +1819,40 @@ function ErrorPage() {
           },
         ]}
         sections={[
+          {
+            title: 'AI 智能分析',
+            content: (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Space>
+                  <Button
+                    type="primary"
+                    loading={aiLoading}
+                    onClick={() => selected && void handleAiAnalyze(selected)}
+                  >
+                    {aiResult ? '重新分析' : 'AI 分析此错误'}
+                  </Button>
+                  {aiResult && !aiLoading && (
+                    <Tag color={aiResult.available ? 'blue' : 'orange'}>
+                      {aiResult.available ? `模型: ${aiResult.model ?? '-'}` : '未配置'}
+                    </Tag>
+                  )}
+                </Space>
+                {aiLoading && <Spin tip="AI 正在分析中..." />}
+                {!aiLoading && aiResult && (
+                  aiResult.error
+                    ? <Alert type="warning" showIcon message={getAiErrorDisplay(aiResult).message} description={getAiErrorDisplay(aiResult).description} />
+                    : (
+                        <pre className="detail-pre" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                          {aiResult.analysis ?? '-'}
+                        </pre>
+                      )
+                )}
+                {!aiLoading && !aiResult && (
+                  <Text type="secondary">点击「AI 分析此错误」，AI 将根据错误信息和源码定位帧给出根因分析和修复建议。</Text>
+                )}
+              </Space>
+            ),
+          },
           {
             title: 'root cause analysis',
             content: rootCauseDetailQuery.loading

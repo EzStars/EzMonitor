@@ -178,6 +178,12 @@ export const monitorApi = {
     request.patch<T>(`/api/monitor/alerts/events/${id}/status`, { status }),
   getLatestAlerts: <T = unknown>(params?: LatestAlertQueryParams) =>
     request.get<T>('/api/monitor/events/latest-alerts', { params }),
+  postBatch: <T = unknown>(items: unknown[]) =>
+    request.post<T>('/api/monitor/batch', { items }),
+  postAiAnalyze: <T = unknown>(payload: unknown) =>
+    request.post<T>('/api/monitor/ai/analyze', payload),
+  getAiStatus: <T = unknown>(params?: { hasClientApiKey?: boolean, apiBaseUrl?: string, model?: string }) =>
+    request.get<T>('/api/monitor/ai/status', { params }),
 }
 
 export { request }

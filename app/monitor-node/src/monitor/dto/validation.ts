@@ -1,3 +1,4 @@
+import type { AiAnalyzeErrorDto, AiErrorFrameDto, AiStatusQueryDto } from './ai.dto'
 import type {
   AlertEventQueryDto,
   AlertEventStatus,
@@ -865,4 +866,127 @@ function validateBatchItem(body: unknown): MonitorBatchItemDto {
   }
 
   return item
+}
+
+export function validateAiAnalyzeErrorDto(body: unknown): AiAnalyzeErrorDto {
+  if (!isRecord(body)) {
+    throw new Error('body must be an object')
+  }
+
+  if (!isString(body.message)) {
+    throw new Error('message is required')
+  }
+
+  const frames: AiErrorFrameDto[] | undefined = body.frames === undefined
+    ? undefined
+    : (() => {
+        if (!Array.isArray(body.frames)) {
+          throw new TypeError('frames must be an array')
+        }
+        return (body.frames as unknown[]).map((entry, index) => {
+          if (!isRecord(entry)) {
+            throw new Error(`frames[${index}] must be an object`)
+          }
+          const frame: AiErrorFrameDto = {}
+          const stringFields: (keyof AiErrorFrameDto)[] = ['file', 'functionName', 'originalFile', 'originalFunctionName']
+          const numberFields: (keyof AiErrorFrameDto)[] = ['line', 'column', 'originalLine', 'originalColumn']
+          for (const field of stringFields) {
+            if (entry[field] !== undefined) {
+              if (!isString(entry[field])) {
+                throw new Error(`frames[${index}].${field} must be a string`)
+              }
+              (frame as Record<string, unknown>)[field] = entry[field]
+            }
+          }
+          for (const field of numberFields) {
+            if (entry[field] !== undefined) {
+              const val = entry[field]
+              if (!isNumber(val as unknown)) {
+                throw new Error(`frames[${index}].${field} must be a number`)
+              }
+              (frame as Record<string, unknown>)[field] = val
+            }
+          }
+          return frame
+        })
+      })()
+
+  return {
+    message: body.message,
+    errorType: parseOptionalString(body.errorType, 'errorType'),
+    stack: parseOptionalString(body.stack, 'stack'),
+    url: parseOptionalString(body.url, 'url'),
+    frames,
+    apiKey: parseOptionalString(body.apiKey, 'apiKey'),
+    apiBaseUrl: (() => {
+      const value = parseOptionalString(body.apiBaseUrl, 'apiBaseUrl')
+      if (!value) {
+        return value
+      }
+
+      let parsedUrl: URL
+      try {
+        parsedUrl = new URL(value)
+      }
+      catch {
+        throw new Error('apiBaseUrl must be a valid URL')
+      }
+
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+        throw new Error('apiBaseUrl must use http or https')
+      }
+
+      return value
+    })(),
+    model: parseOptionalString(body.model, 'model'),
+  }
+}
+
+export function validateAiStatusQueryDto(query: unknown): AiStatusQueryDto {
+  if (!isRecord(query)) {
+    throw new Error('query must be an object')
+  }
+
+  let hasClientApiKey = false
+  if (query.hasClientApiKey !== undefined) {
+    const raw = query.hasClientApiKey
+    if (typeof raw === 'boolean') {
+      hasClientApiKey = raw
+    }
+    else if (typeof raw === 'string') {
+      if (raw === 'true') {
+        hasClientApiKey = true
+      }
+      else if (raw === 'false') {
+        hasClientApiKey = false
+      }
+      else {
+        throw new Error('hasClientApiKey must be true or false')
+      }
+    }
+    else {
+      throw new TypeError('hasClientApiKey must be a boolean')
+    }
+  }
+
+  const apiBaseUrl = parseOptionalString(query.apiBaseUrl, 'apiBaseUrl')
+  if (apiBaseUrl) {
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(apiBaseUrl)
+    }
+    catch {
+      throw new Error('apiBaseUrl must be a valid URL')
+    }
+
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      throw new Error('apiBaseUrl must use http or https')
+    }
+  }
+
+  return {
+    hasClientApiKey,
+    apiBaseUrl,
+    model: parseOptionalString(query.model, 'model'),
+  }
 }

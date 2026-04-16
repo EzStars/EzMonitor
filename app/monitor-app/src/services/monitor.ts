@@ -242,6 +242,50 @@ export interface UpdateAlertRulePayload {
   fingerprint?: string
 }
 
+export interface AiAnalyzeErrorPayload {
+  message: string
+  errorType?: string
+  stack?: string
+  url?: string
+  apiKey?: string
+  apiBaseUrl?: string
+  model?: string
+  frames?: Array<{
+    file?: string
+    line?: number
+    column?: number
+    functionName?: string
+    originalFile?: string
+    originalLine?: number
+    originalColumn?: number
+    originalFunctionName?: string
+  }>
+}
+
+export interface AiAnalysisResult {
+  available: boolean
+  model?: string
+  analysis?: string
+  error?: string
+  errorCode?:
+    | 'missing_api_key'
+    | 'upstream_auth_error'
+    | 'upstream_request_error'
+    | 'upstream_http_error'
+    | 'upstream_timeout'
+    | 'upstream_network_error'
+    | 'unknown'
+}
+
+export interface AiStatusResult {
+  available: boolean
+  hasApiKey: boolean
+  keySource: 'server' | 'client' | 'none'
+  apiBaseUrl: string
+  model: string
+  message?: string
+}
+
 async function unwrap<T>(promise: Promise<AxiosResponse<ApiResponse<T>>>): Promise<T> {
   const response = await promise
   return response.data.data as T
@@ -284,4 +328,10 @@ export const monitorService = {
     unwrap(monitorApi.updateAlertEventStatus<AlertEventRecord>(id, status)),
   getLatestAlerts: (params?: LatestAlertQueryParams) =>
     unwrap(monitorApi.getLatestAlerts<AlertEventRecord[]>(params)),
+  sendBatch: (items: unknown[]) =>
+    unwrap(monitorApi.postBatch<{ writtenCount: number, summary: Record<string, number>, data: Record<string, number> }>(items)),
+  analyzeError: (payload: AiAnalyzeErrorPayload) =>
+    unwrap(monitorApi.postAiAnalyze<AiAnalysisResult>(payload)),
+  getAiStatus: (params?: { hasClientApiKey?: boolean, apiBaseUrl?: string, model?: string }) =>
+    unwrap(monitorApi.getAiStatus<AiStatusResult>(params)),
 }
