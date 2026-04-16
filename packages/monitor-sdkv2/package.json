@@ -27,6 +27,7 @@
     "./plugins/performance": "./dist/plugins/performance/index.mjs",
     "./plugins/replay": "./dist/plugins/replay/index.mjs",
     "./plugins/tracking": "./dist/plugins/tracking/index.mjs",
+    "./vite": "./dist/vite/index.mjs",
     "./package.json": "./package.json"
   },
   "main": "./dist/index.mjs",

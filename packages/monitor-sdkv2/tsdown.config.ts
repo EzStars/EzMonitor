@@ -3,6 +3,7 @@ import { defineConfig } from 'tsdown'
 export default defineConfig({
   entry: [
     'src/index.ts',
+    'src/vite/index.ts',
     'src/core/index.ts',
     'src/plugins/error/index.ts',
     'src/plugins/performance/index.ts',
