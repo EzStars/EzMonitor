@@ -8,13 +8,20 @@ import {
 
 const DEFAULT_API_URL = 'http://localhost:3000'
 const DEFAULT_RELEASE = 'monitor-test-local'
+const DEFAULT_APP_ID = 'monitor-test-app'
 const apiUrl = import.meta.env.VITE_API_URL?.trim() || DEFAULT_API_URL
 const reportUrl = import.meta.env.VITE_MONITOR_REPORT_URL?.trim() || `${apiUrl}/api/monitor/batch`
 const release = import.meta.env.VITE_MONITOR_RELEASE?.trim() || DEFAULT_RELEASE
+const appId = import.meta.env.VITE_MONITOR_APP_ID?.trim() || DEFAULT_APP_ID
 const reportApiKey = import.meta.env.VITE_MONITOR_REPORT_API_KEY?.trim()
 
+if (!reportApiKey) {
+  // monitor-node 开启写入鉴权后，缺少 key 会导致 401 且无数据落库。
+  console.warn('[monitor-test] VITE_MONITOR_REPORT_API_KEY is empty. If monitor-node write auth is enabled, ingest requests will be rejected.')
+}
+
 const sdk = createSDK({
-  appId: 'monitor-test-app',
+  appId,
   appVersion: release,
   release,
   debug: true,

@@ -1,7 +1,7 @@
 import type { AuthTokenPayload } from '../types'
 import { Buffer } from 'node:buffer'
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import process from 'node:process'
+import { env } from 'node:process'
 import { Injectable, UnauthorizedException } from '@nestjs/common'
 
 interface JwtHeader {
@@ -31,8 +31,8 @@ function decodeObject<T>(payload: string): T {
 
 @Injectable()
 export class JwtService {
-  private readonly secret = process.env.AUTH_JWT_SECRET?.trim() || 'dev-change-me-auth-jwt-secret'
-  private readonly expiresInSeconds = this.parseExpiresIn(process.env.AUTH_ACCESS_TOKEN_TTL_SEC)
+  private readonly secret = env.AUTH_JWT_SECRET?.trim() || 'dev-change-me-auth-jwt-secret'
+  private readonly expiresInSeconds = this.parseExpiresIn(env.AUTH_ACCESS_TOKEN_TTL_SEC)
 
   getExpiresInSeconds(): number {
     return this.expiresInSeconds
