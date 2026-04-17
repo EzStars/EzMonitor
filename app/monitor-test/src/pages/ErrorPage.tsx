@@ -13,6 +13,7 @@ interface ErrorLog {
 const WHITE_SCREEN_WINDOW_MS = 6000
 const WHITE_SCREEN_INTERVAL_MS = 1000
 const WHITE_SCREEN_THRESHOLD = 0.95
+const WHITE_SCREEN_MASK_DURATION_MS = 7000
 const ROOT_SELECTORS = ['#root', '.portal-shell']
 const SKELETON_SELECTORS = ['.skeleton', '.loading', '[data-skeleton]']
 
@@ -169,7 +170,7 @@ export default function ErrorPage() {
         url: typeof window !== 'undefined' ? window.location.href : undefined,
       })
       whiteScreenStartedAtRef.current = null
-      pushLog('white-screen', '白屏检测上报', `已达到 ${WHITE_SCREEN_WINDOW_MS}ms 阈值并完成 error_white_screen 上报`, snapshot)
+      pushLog('white-screen', '白屏检测上报', `已达到 ${WHITE_SCREEN_WINDOW_MS}ms 阈值并完成 white_screen（error_white_screen）上报`, snapshot)
     }
     finally {
       whiteScreenCheckingRef.current = false
@@ -204,8 +205,8 @@ export default function ErrorPage() {
 
   const showWhiteMask = async () => {
     setIsWhiteMaskVisible(true)
-    pushLog('white-screen', '白屏模拟开始', '已显示 7 秒白屏遮罩，可用于触发自动检测', { durationMs: 7000 })
-    await new Promise(resolve => window.setTimeout(resolve, 7000))
+    pushLog('white-screen', '白屏模拟开始', `已显示 ${WHITE_SCREEN_MASK_DURATION_MS / 1000} 秒白屏遮罩，可用于触发自动检测`, { durationMs: WHITE_SCREEN_MASK_DURATION_MS })
+    await new Promise(resolve => window.setTimeout(resolve, WHITE_SCREEN_MASK_DURATION_MS))
     setIsWhiteMaskVisible(false)
     pushLog('white-screen', '白屏模拟结束', '白屏遮罩已移除', {})
   }
