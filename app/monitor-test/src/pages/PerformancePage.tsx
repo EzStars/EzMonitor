@@ -3,7 +3,7 @@ import { useMonitorSDK } from '../hooks/useMonitorSDK'
 
 interface PerfLog {
   id: number
-  kind: 'long-task' | 'metrics' | 'observer' | 'cls'
+  kind: 'long-task' | 'metrics' | 'observer' | 'cls' | 'interaction'
   title: string
   detail: string
   payload: unknown
@@ -226,11 +226,31 @@ export default function PerformancePage() {
     }
   }
 
+  const collectInteractionLatency = async () => {
+    const startedAt = performance.now()
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        resolve()
+      })
+    })
+    const afterRaf = performance.now()
+    const delay = Number((afterRaf - startedAt).toFixed(2))
+    const metrics = {
+      page: '/performance',
+      interactionDelay: delay,
+      hint: '对标 Sentry/NewRelic 的交互延迟观测，补充 INP 场景验证',
+      timestamp: Date.now(),
+    }
+    const payload = await trackEvent('performance_interaction_delay', metrics)
+    pushLog('interaction', '交互延迟采样', '已采样一次 requestAnimationFrame 延迟，可辅助验证 INP 场景', payload ?? metrics)
+  }
+
   const metricCases = [
     { title: '轻量 Long Task (80ms)', run: () => emitLongTask('轻量 Long Task', 80, 'light-blocking-work') },
     { title: '标准 Long Task (180ms)', run: () => emitLongTask('标准 Long Task', 180, 'standard-blocking-work') },
     { title: '观测 Long Task', run: observeLongTask },
     { title: '触发 CLS 变化', run: triggerClsShift },
+    { title: '交互延迟采样', run: collectInteractionLatency },
     { title: '导航指标采集', run: collectNavigationMetrics },
     { title: '资源概览采集', run: collectResourceSummary },
     { title: '用户计时采集', run: collectUserTiming },

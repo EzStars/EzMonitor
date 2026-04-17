@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ensureSDKStarted,
   flushReplay,
+  flushReportQueue,
+  getReportQueueStorageKey,
   getSDKStatus,
+  readPersistedReportQueue,
   reportError,
   trackEvent,
   trackPage,
@@ -26,7 +29,10 @@ export function useMonitorSDK() {
 
   return useMemo(() => ({
     status,
+    flushReportQueue,
     flushReplay,
+    getReportQueueStorageKey,
+    readPersistedReportQueue,
     reportError,
     trackEvent,
     trackPage,
