@@ -212,12 +212,14 @@ export default function ErrorPage() {
 
   useEffect(() => {
     const handleOnline = () => {
-      void flushReportQueue().then(() => {
+      const flushWhenOnline = async () => {
+        await flushReportQueue()
         refreshQueueInfo()
         pushLog('offline', '网络恢复自动刷新', '检测到 online 事件，已自动尝试重发本地队列', {
           queue: readPersistedReportQueue(),
         })
-      })
+      }
+      void flushWhenOnline()
     }
     const handleOffline = () => {
       refreshQueueInfo()

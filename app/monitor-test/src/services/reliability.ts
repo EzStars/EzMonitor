@@ -3,6 +3,8 @@ export interface Point {
   y: number
 }
 
+const RATIO_PRECISION_MULTIPLIER = 1000
+
 function normalizeClassName(value: string): string[] {
   return value
     .trim()
@@ -86,7 +88,7 @@ export function collectWhiteScreenSnapshot(
   return {
     total,
     containerHits,
-    ratio: total === 0 ? 0 : Math.round((containerHits * 1000) / total) / 1000,
+    ratio: total === 0 ? 0 : Math.round((containerHits * RATIO_PRECISION_MULTIPLIER) / total) / RATIO_PRECISION_MULTIPLIER,
     points,
   }
 }
