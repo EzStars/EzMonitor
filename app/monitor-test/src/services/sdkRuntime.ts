@@ -60,6 +60,11 @@ type TrackPageResult = Awaited<ReturnType<typeof trackingPlugin.trackPage>>
 type TrackUserResult = Awaited<ReturnType<typeof trackingPlugin.trackUser>>
 type TrackUvResult = Awaited<ReturnType<typeof trackingPlugin.trackUv>>
 
+interface PersistedReportQueue {
+  savedAt?: number
+  items?: Array<{ type?: string, timestamp?: number }>
+}
+
 let startPromise: Promise<void> | null = null
 
 export async function ensureSDKStarted() {
@@ -173,5 +178,62 @@ export async function reportError(
 export async function flushReplay(reason = 'manual_debug') {
   await ensureSDKStarted()
   replayPlugin.flushForError(reason)
+  await sdk.getReporter().flush()
+}
+
+export function getReportQueueStorageKey() {
+  return String(sdk.getConfig().localStorageKey ?? 'ez_monitor_report_queue')
+}
+
+export function readPersistedReportQueue() {
+  const key = getReportQueueStorageKey()
+  if (typeof localStorage === 'undefined') {
+    return {
+      key,
+      supported: false,
+      itemCount: 0,
+      savedAt: undefined,
+      sampleTypes: [] as string[],
+    }
+  }
+
+  const raw = localStorage.getItem(key)
+  if (!raw) {
+    return {
+      key,
+      supported: true,
+      itemCount: 0,
+      savedAt: undefined,
+      sampleTypes: [] as string[],
+    }
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as PersistedReportQueue
+    const items = Array.isArray(parsed.items) ? parsed.items : []
+    return {
+      key,
+      supported: true,
+      itemCount: items.length,
+      savedAt: parsed.savedAt,
+      sampleTypes: items
+        .slice(0, 8)
+        .map(item => item.type)
+        .filter((item): item is string => typeof item === 'string' && item.length > 0),
+    }
+  }
+  catch {
+    return {
+      key,
+      supported: true,
+      itemCount: 0,
+      savedAt: undefined,
+      sampleTypes: ['<invalid-json>'],
+    }
+  }
+}
+
+export async function flushReportQueue() {
+  await ensureSDKStarted()
   await sdk.getReporter().flush()
 }

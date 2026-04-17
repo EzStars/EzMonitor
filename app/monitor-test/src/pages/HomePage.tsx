@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
-import { getReportUrl } from '../services/sdkRuntime'
 import { useMonitorSDK } from '../hooks/useMonitorSDK'
+import { getReportUrl } from '../services/sdkRuntime'
 
 export default function HomePage() {
   const { status } = useMonitorSDK()
@@ -16,7 +16,10 @@ export default function HomePage() {
           {status}
         </strong>
       </p>
-      <p className="muted">上报地址：{getReportUrl()}</p>
+      <p className="muted">
+        上报地址：
+        {getReportUrl()}
+      </p>
       <div className="grid">
         <article className="tile">
           <h3>Tracking</h3>
@@ -30,7 +33,7 @@ export default function HomePage() {
         </article>
         <article className="tile">
           <h3>错误监控</h3>
-          <p>验证同步错误、Promise rejection、资源加载错误的捕获与回显。</p>
+          <p>验证同步错误、Promise rejection、资源加载错误，并覆盖离线恢复上传与白屏检测。</p>
           <Link to="/error">进入测试页</Link>
         </article>
         <article className="tile">

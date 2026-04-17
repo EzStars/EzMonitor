@@ -12,8 +12,8 @@ monitor-test 是 EzMonitor SDK 的测试门户应用，不是单一 demo 页面�
 
 - `/`：测试主页
 - `/tracking`：TrackingPlugin（track / trackPage / trackUser）
-- `/performance`：性能测试（long task、Navigation/Resource/User Timing，含 Core Web Vitals 自动采集）
-- `/error`：错误测试（同步错误、Promise rejection、资源错误）
+- `/performance`：性能测试（long task、Navigation/Resource/User Timing、交互延迟，含 Core Web Vitals 自动采集）
+- `/error`：错误测试（同步错误、Promise rejection、资源错误、离线恢复上传、白屏检测）
 - `/data-generator`：批量数据生成器
 
 ## 运行
@@ -37,9 +37,11 @@ pnpm --filter monitor-test run dev
 
 1. 打开主页，确认可跳转到所有专题页。
 2. 在 tracking 页分别触发 track、trackPage、trackUser，确认页面日志有回显。
-3. 在 performance 页触发 long task，确认耗时显示并触发事件上报。
+3. 在 performance 页触发 long task/交互延迟采样，确认耗时显示并触发事件上报。
 4. 在 error 页触发三类错误，确认错误回显区域可见记录。
-5. 运行构建与 lint：
+5. 在 error 页断网后触发“发送离线探针事件”，再恢复网络，确认本地队列可被刷新重传。
+6. 在 error 页启动白屏检测并触发“显示 7 秒白屏遮罩”，确认出现 `error_white_screen` 上报日志。
+7. 运行构建与 lint：
 
 ```bash
 pnpm --filter monitor-test run build
@@ -93,6 +95,12 @@ pnpm --filter monitor-test run preview
 - **没有数据上报**：确认 `monitor-node` 已启动且 `VITE_MONITOR_REPORT_URL` 指向正确。
 - **跨域失败**：确认前端端口在后端 CORS 白名单中。
 - **端口冲突**：如果 `monitor-app` 同时运行，Vite 可能自动切换到 `5174`。
+
+## 对标补齐说明（Sentry / New Relic / OpenTelemetry Browser）
+
+- **离线恢复上传**：支持本地队列可视化、online 事件自动 flush、手动 flush。
+- **白屏检测**：支持 18 点采样 + 持续时间阈值触发 `error_white_screen`。
+- **交互延迟验证**：补充 `performance_interaction_delay` 用于辅助 INP 场景回归。
 
 ## 目录结构
 
