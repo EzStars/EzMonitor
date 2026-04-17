@@ -6,10 +6,8 @@ import {
   TrackingPlugin,
 } from '@ezstars/monitor-sdkv2'
 
-const DEFAULT_API_URL = 'http://localhost:3000'
 const DEFAULT_RELEASE = 'monitor-test-local'
-const apiUrl = import.meta.env.VITE_API_URL?.trim() || DEFAULT_API_URL
-const reportUrl = import.meta.env.VITE_MONITOR_REPORT_URL?.trim() || `${apiUrl}/api/monitor/batch`
+const reportUrl = import.meta.env.VITE_MONITOR_REPORT_URL?.trim() || '/api/monitor/batch'
 const release = import.meta.env.VITE_MONITOR_RELEASE?.trim() || DEFAULT_RELEASE
 
 const sdk = createSDK({

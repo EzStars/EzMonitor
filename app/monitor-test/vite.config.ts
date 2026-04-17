@@ -6,12 +6,25 @@ import { createAutoSourcemapUploadPlugin } from './build/autoSourcemapUploadPlug
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '../../', '')
-  const baseUrl = env.VITE_API_URL?.trim() || 'http://localhost:3000'
+  const backendPort = env.PORT?.trim() || '3000'
+  const baseUrl = env.VITE_API_URL?.trim() || `http://localhost:${backendPort}`
   const release = env.MONITOR_RELEASE?.trim() || env.VITE_MONITOR_RELEASE?.trim() || 'monitor-test-local'
+  const apiProxy = {
+    '/api': {
+      target: baseUrl,
+      changeOrigin: true,
+    },
+  }
 
   return {
     build: {
       sourcemap: true,
+    },
+    server: {
+      proxy: apiProxy,
+    },
+    preview: {
+      proxy: apiProxy,
     },
     envDir: '../../',
     plugins: [
