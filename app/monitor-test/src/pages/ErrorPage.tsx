@@ -31,6 +31,7 @@ export default function ErrorPage() {
   const [whiteScreenMonitoring, setWhiteScreenMonitoring] = useState(false)
   const whiteScreenTimerRef = useRef<number | null>(null)
   const whiteScreenStartedAtRef = useRef<number | null>(null)
+  const whiteScreenCheckingRef = useRef(false)
 
   const pushLog = useCallback((kind: ErrorLog['kind'], title: string, detail: string, payload: unknown) => {
     setLogs(prev => [
@@ -132,37 +133,47 @@ export default function ErrorPage() {
   }
 
   const runWhiteScreenCheck = async () => {
-    const snapshot = collectWhiteScreenSnapshot(ROOT_SELECTORS, SKELETON_SELECTORS)
-    const isPotentialWhiteScreen = snapshot.ratio >= WHITE_SCREEN_THRESHOLD
-    if (!isPotentialWhiteScreen) {
+    if (whiteScreenCheckingRef.current) {
+      return
+    }
+    whiteScreenCheckingRef.current = true
+
+    try {
+      const snapshot = collectWhiteScreenSnapshot(ROOT_SELECTORS, SKELETON_SELECTORS)
+      const isPotentialWhiteScreen = snapshot.ratio >= WHITE_SCREEN_THRESHOLD
+      if (!isPotentialWhiteScreen) {
+        whiteScreenStartedAtRef.current = null
+        pushLog('white-screen', '白屏检测采样', '当前页面存在内容，未命中白屏阈值', snapshot)
+        return
+      }
+
+      if (whiteScreenStartedAtRef.current === null) {
+        whiteScreenStartedAtRef.current = Date.now()
+        pushLog('white-screen', '白屏检测采样', '首次命中潜在白屏阈值，进入持续观察', snapshot)
+        return
+      }
+
+      const duration = Date.now() - whiteScreenStartedAtRef.current
+      if (duration < WHITE_SCREEN_WINDOW_MS) {
+        pushLog('white-screen', '白屏检测采样', `持续命中 ${duration}ms，尚未达到 ${WHITE_SCREEN_WINDOW_MS}ms 上报阈值`, snapshot)
+        return
+      }
+
+      await reportError('white_screen', {
+        message: 'Potential white screen detected in monitor-test',
+        detail: {
+          duration,
+          thresholdRatio: WHITE_SCREEN_THRESHOLD,
+          sample: snapshot,
+        },
+        url: typeof window !== 'undefined' ? window.location.href : undefined,
+      })
       whiteScreenStartedAtRef.current = null
-      pushLog('white-screen', '白屏检测采样', '当前页面存在内容，未命中白屏阈值', snapshot)
-      return
+      pushLog('white-screen', '白屏检测上报', `已达到 ${WHITE_SCREEN_WINDOW_MS}ms 阈值并完成 error_white_screen 上报`, snapshot)
     }
-
-    if (whiteScreenStartedAtRef.current === null) {
-      whiteScreenStartedAtRef.current = Date.now()
-      pushLog('white-screen', '白屏检测采样', '首次命中潜在白屏阈值，进入持续观察', snapshot)
-      return
+    finally {
+      whiteScreenCheckingRef.current = false
     }
-
-    const duration = Date.now() - whiteScreenStartedAtRef.current
-    if (duration < WHITE_SCREEN_WINDOW_MS) {
-      pushLog('white-screen', '白屏检测采样', `持续命中 ${duration}ms，尚未达到 ${WHITE_SCREEN_WINDOW_MS}ms 上报阈值`, snapshot)
-      return
-    }
-
-    await reportError('white_screen', {
-      message: 'Potential white screen detected in monitor-test',
-      detail: {
-        duration,
-        thresholdRatio: WHITE_SCREEN_THRESHOLD,
-        sample: snapshot,
-      },
-      url: typeof window !== 'undefined' ? window.location.href : undefined,
-    })
-    whiteScreenStartedAtRef.current = null
-    pushLog('white-screen', '白屏检测上报', `已达到 ${WHITE_SCREEN_WINDOW_MS}ms 阈值并完成 error_white_screen 上报`, snapshot)
   }
 
   const startWhiteScreenMonitoring = () => {

@@ -86,7 +86,7 @@ export function collectWhiteScreenSnapshot(
   return {
     total,
     containerHits,
-    ratio: total === 0 ? 0 : Number((containerHits / total).toFixed(3)),
+    ratio: total === 0 ? 0 : Math.round((containerHits * 1000) / total) / 1000,
     points,
   }
 }
