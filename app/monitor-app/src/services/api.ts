@@ -77,6 +77,11 @@ api.interceptors.response.use(
     }
 
     if (status === 401 && globalThis.window) {
+      let reason = '会话已失效，请重新登录。'
+      if (apiError.message.includes('No accessible project')) {
+        reason = '当前账号暂无可访问项目，请联系管理员分配项目权限。'
+      }
+
       globalThis.window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
       globalThis.window.localStorage.removeItem(AUTH_USER_STORAGE_KEY)
       globalThis.window.localStorage.removeItem(AUTH_PROJECTS_STORAGE_KEY)
@@ -84,11 +89,13 @@ api.interceptors.response.use(
 
       if (!globalThis.window.location.pathname.startsWith('/login')) {
         const next = `${globalThis.window.location.pathname}${globalThis.window.location.search}`
-        globalThis.window.location.href = `/login?next=${encodeURIComponent(next)}`
+        globalThis.window.location.href = `/login?next=${encodeURIComponent(next)}&reason=${encodeURIComponent(reason)}`
       }
     }
 
-    message.error(apiError.message)
+    if (status !== 401) {
+      message.error(apiError.message)
+    }
     return Promise.reject(apiError)
   },
 )

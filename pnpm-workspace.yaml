@@ -100,3 +100,5 @@ catalogs:
     typescript-eslint: ^8.57.0
   conflicts_vitest_h4_0_0:
     vitest: ^4.0.0
+  conflicts_react-router-dom_h7_9_4:
+    react-router-dom: ^7.9.4

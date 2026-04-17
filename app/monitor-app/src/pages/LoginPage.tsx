@@ -25,12 +25,23 @@ function getNextPath(search: string): string {
   return next
 }
 
+function getLoginReason(search: string): string | null {
+  const params = new URLSearchParams(search)
+  const reason = params.get('reason')
+  if (!reason) {
+    return null
+  }
+
+  return reason.trim() || null
+}
+
 export default function LoginPage() {
   const { token, login } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
+  const loginReason = getLoginReason(location.search)
 
   if (token) {
     return <Navigate to="/dashboard" replace />
@@ -63,6 +74,8 @@ export default function LoginPage() {
             <Title level={3}>登录 EzMonitor</Title>
             <Text type="secondary">登录后可按项目查看监控数据，避免跨项目数据泄漏。</Text>
           </Space>
+
+          {loginReason ? <Alert type="info" showIcon message={loginReason} /> : null}
 
           {error ? <Alert type="error" showIcon message={error} /> : null}
 

@@ -559,7 +559,7 @@ export class MonitorService {
     const requested = requestedAppId?.trim()
     const allowed = this.normalizeAllowedAppIds(allowedAppIds)
     if (!allowed.length) {
-      return requested ? { appId: requested } : {}
+      throw new UnauthorizedException('No accessible project')
     }
 
     if (requested) {

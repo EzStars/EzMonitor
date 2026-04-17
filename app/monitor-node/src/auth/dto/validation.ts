@@ -1,4 +1,4 @@
-import type { LoginRequestDto, RegisterRequestDto } from './auth.dto'
+import type { JoinProjectRequestDto, LoginRequestDto, RegisterRequestDto } from './auth.dto'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -81,5 +81,30 @@ export function validateLoginRequestDto(value: unknown): LoginRequestDto {
   return {
     email,
     password,
+  }
+}
+
+export function validateJoinProjectRequestDto(value: unknown): JoinProjectRequestDto {
+  if (!isRecord(value)) {
+    throw new Error('body must be an object')
+  }
+
+  const rawProjectId = parseOptionalString(value.projectId, 'projectId')
+  const appId = parseOptionalString(value.appId, 'appId')
+
+  if (!rawProjectId && !appId) {
+    throw new Error('projectId or appId is required')
+  }
+
+  // Backward compatibility: callers may accidentally pass appId in projectId.
+  if (rawProjectId && !/^[a-f\d]{24}$/i.test(rawProjectId) && !appId) {
+    return {
+      appId: rawProjectId,
+    }
+  }
+
+  return {
+    projectId: rawProjectId,
+    appId,
   }
 }

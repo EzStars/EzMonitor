@@ -1,5 +1,5 @@
 import type { Model } from 'mongoose'
-import type { LoginRequestDto, RegisterRequestDto } from '../dto'
+import type { JoinProjectRequestDto, LoginRequestDto, RegisterRequestDto } from '../dto'
 import type { Project, ProjectMember, User } from '../schemas'
 import type { AuthSessionPayload, AuthTokenPayload, ProjectAccess, ProjectRole, ProjectScopeResult, UserProfile } from '../types'
 import { BadRequestException, ConflictException, Inject, Injectable, UnauthorizedException } from '@nestjs/common'
@@ -69,6 +69,9 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password')
     }
 
+    // Self-heal: historical data may miss project_member rows for owned projects.
+    await this.ensureOwnerMembershipsForOwnedProjects(this.getStringId(user._id))
+
     return this.buildAuthSession({
       userId: this.getStringId(user._id),
       email: user.email,
@@ -136,6 +139,54 @@ export class AuthService {
       selectedAppId: resolved.appId,
       selectedProjectId: resolved.projectId,
       projects,
+    }
+  }
+
+  async joinProject(userId: string, payload: JoinProjectRequestDto): Promise<{
+    projects: ProjectAccess[]
+    currentProjectId: string
+  }> {
+    let normalizedProjectId = payload.projectId?.trim()
+    let normalizedAppId = payload.appId?.trim()
+
+    if (normalizedProjectId && !/^[a-f\d]{24}$/i.test(normalizedProjectId) && !normalizedAppId) {
+      normalizedAppId = normalizedProjectId
+      normalizedProjectId = undefined
+    }
+
+    if (!normalizedProjectId && !normalizedAppId) {
+      throw new BadRequestException('projectId or appId is required')
+    }
+
+    const project = normalizedProjectId
+      ? await this.projectModel.findById(normalizedProjectId).lean().exec()
+      : await this.projectModel.findOne({ appId: normalizedAppId, enabled: true }).lean().exec()
+
+    if (!project || !project.enabled) {
+      throw new BadRequestException('Project is not found or disabled')
+    }
+
+    const targetProjectId = this.getStringId(project._id)
+
+    const existing = await this.projectMemberModel.findOne({ userId, projectId: targetProjectId }).lean().exec()
+    if (!existing) {
+      await this.projectMemberModel.updateOne(
+        { userId, projectId: targetProjectId },
+        {
+          $set: {
+            userId,
+            projectId: targetProjectId,
+            role: 'viewer' as const,
+          },
+        },
+        { upsert: true },
+      ).exec()
+    }
+
+    const scope = await this.resolveProjectScope(userId, project.appId, targetProjectId)
+    return {
+      projects: scope.projects,
+      currentProjectId: scope.selectedProjectId,
     }
   }
 
@@ -225,9 +276,13 @@ export class AuthService {
   }
 
   private async getUserProjectAccess(userId: string): Promise<ProjectAccess[]> {
-    const memberships = await this.projectMemberModel.find({ userId }).lean().exec()
+    let memberships = await this.projectMemberModel.find({ userId }).lean().exec()
     if (!memberships.length) {
-      return []
+      await this.ensureOwnerMembershipsForOwnedProjects(userId)
+      memberships = await this.projectMemberModel.find({ userId }).lean().exec()
+      if (!memberships.length) {
+        return []
+      }
     }
 
     const projectIds = memberships.map(item => item.projectId).filter(Boolean)
@@ -253,6 +308,26 @@ export class AuthService {
     }
 
     return access
+  }
+
+  private async ensureOwnerMembershipsForOwnedProjects(userId: string): Promise<void> {
+    const ownedProjects = await this.projectModel.find({ ownerUserId: userId, enabled: true }).select({ _id: 1 }).lean().exec()
+    if (!ownedProjects.length) {
+      return
+    }
+
+    await Promise.all(
+      ownedProjects.map((project) => {
+        const projectId = this.getStringId(project._id)
+        return this.projectMemberModel
+          .updateOne(
+            { userId, projectId },
+            { $set: { userId, projectId, role: 'owner' as const } },
+            { upsert: true },
+          )
+          .exec()
+      }),
+    )
   }
 
   private pickCurrentProject(

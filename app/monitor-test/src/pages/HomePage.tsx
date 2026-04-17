@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom'
-import { getReportUrl } from '../services/sdkRuntime'
 import { useMonitorSDK } from '../hooks/useMonitorSDK'
+import { getReportUrl, hasReportApiKey } from '../services/sdkRuntime'
 
 export default function HomePage() {
   const { status } = useMonitorSDK()
+  const configured = hasReportApiKey()
 
   return (
     <section className="page-card">
@@ -16,7 +17,22 @@ export default function HomePage() {
           {status}
         </strong>
       </p>
-      <p className="muted">上报地址：{getReportUrl()}</p>
+      <p className="muted">
+        上报地址：
+        {getReportUrl()}
+      </p>
+      <p>
+        写入鉴权 Key：
+        <strong className={configured ? 'ok' : 'warn'}>
+          {' '}
+          {configured ? '已配置' : '未配置'}
+        </strong>
+      </p>
+      {!configured && (
+        <p className="warn">
+          当前未配置 VITE_MONITOR_REPORT_API_KEY。若 monitor-node 启用默认写入鉴权，点击测试后 /api/monitor/batch 会返回 401。
+        </p>
+      )}
       <div className="grid">
         <article className="tile">
           <h3>Tracking</h3>

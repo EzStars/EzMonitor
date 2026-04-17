@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { message } from 'antd'
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { request } from '../services/api'
 import {
   ACCESS_TOKEN_STORAGE_KEY,
@@ -51,9 +51,11 @@ interface AuthContextValue {
   currentProjectId: string | null
   currentProject: ProjectAccess | null
   currentAppId: string | null
+  projectAccessStatus: 'ready' | 'none' | 'syncing'
   initialized: boolean
   register: (payload: RegisterPayload) => Promise<void>
   login: (payload: LoginPayload) => Promise<void>
+  joinProjectById: (projectId: string) => Promise<void>
   logout: () => void
   switchProject: (projectId: string) => void
 }
@@ -94,6 +96,7 @@ function getInitialState() {
       user: null as AuthUser | null,
       projects: [] as ProjectAccess[],
       currentProjectId: null as string | null,
+      projectAccessStatus: 'none' as const,
       initialized: true,
     }
   }
@@ -103,25 +106,48 @@ function getInitialState() {
   const projects = parseStoredJson<ProjectAccess[]>(localStorage.getItem(AUTH_PROJECTS_STORAGE_KEY)) ?? []
   const currentProjectId = localStorage.getItem(AUTH_CURRENT_PROJECT_STORAGE_KEY)
 
-  if (!token || !user || projects.length === 0 || !currentProjectId) {
+  if (!token || !user) {
     clearSession()
     return {
       token: null,
       user: null,
       projects: [] as ProjectAccess[],
       currentProjectId: null,
+      projectAccessStatus: 'none' as const,
+      initialized: true,
+    }
+  }
+
+  if (!projects.length) {
+    return {
+      token,
+      user,
+      projects,
+      currentProjectId: null,
+      projectAccessStatus: 'none' as const,
+      initialized: true,
+    }
+  }
+
+  if (!currentProjectId) {
+    return {
+      token,
+      user,
+      projects,
+      currentProjectId: projects[0]?.id ?? null,
+      projectAccessStatus: projects.length > 0 ? ('ready' as const) : ('none' as const),
       initialized: true,
     }
   }
 
   const hasCurrent = projects.some(item => item.id === currentProjectId)
   if (!hasCurrent) {
-    clearSession()
     return {
-      token: null,
-      user: null,
-      projects: [] as ProjectAccess[],
-      currentProjectId: null,
+      token,
+      user,
+      projects,
+      currentProjectId: projects[0]?.id ?? null,
+      projectAccessStatus: projects.length > 0 ? ('ready' as const) : ('none' as const),
       initialized: true,
     }
   }
@@ -131,6 +157,7 @@ function getInitialState() {
     user,
     projects,
     currentProjectId,
+    projectAccessStatus: 'ready' as const,
     initialized: true,
   }
 }
@@ -141,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(initial.user)
   const [projects, setProjects] = useState<ProjectAccess[]>(initial.projects)
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(initial.currentProjectId)
+  const [projectAccessStatus, setProjectAccessStatus] = useState<'ready' | 'none' | 'syncing'>(initial.projectAccessStatus)
   const [initialized] = useState<boolean>(initial.initialized)
 
   const applySession = useCallback((session: AuthSessionResponse) => {
@@ -149,6 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(session.user)
     setProjects(session.projects)
     setCurrentProjectId(session.currentProjectId)
+    setProjectAccessStatus(session.projects.length > 0 ? 'ready' : 'none')
   }, [])
 
   const register = useCallback(async (payload: RegisterPayload) => {
@@ -176,12 +205,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     message.success('登录成功')
   }, [applySession])
 
+  const joinProjectById = useCallback(async (projectId: string) => {
+    const normalizedProjectId = projectId.trim()
+    if (!normalizedProjectId) {
+      throw new Error('请输入 projectId')
+    }
+
+    const response = await request.post<{ projects: ProjectAccess[], currentProjectId: string }>('/api/auth/projects/join', {
+      projectId: normalizedProjectId,
+    })
+    const data = response.data.data
+    if (!data) {
+      throw new Error('添加项目权限失败：响应缺少 data')
+    }
+
+    if (!token || !user) {
+      throw new Error('当前登录态无效，请重新登录')
+    }
+
+    applySession({
+      accessToken: token,
+      expiresIn: 0,
+      user,
+      projects: data.projects,
+      currentProjectId: data.currentProjectId,
+      projectApiKey: undefined,
+    })
+    message.success('项目权限已添加')
+  }, [applySession, token, user])
+
   const logout = useCallback(() => {
     clearSession()
     setToken(null)
     setUser(null)
     setProjects([])
     setCurrentProjectId(null)
+    setProjectAccessStatus('none')
   }, [])
 
   const switchProject = useCallback((projectId: string) => {
@@ -200,6 +259,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
   const currentAppId = currentProject?.appId ?? null
 
+  useEffect(() => {
+    if (!token) {
+      return
+    }
+
+    let cancelled = false
+    setProjectAccessStatus('syncing')
+
+    const syncSessionFromServer = async () => {
+      try {
+        const response = await request.get<Omit<AuthSessionResponse, 'projectApiKey'>>('/api/auth/me')
+        const data = response.data.data
+        if (!data || cancelled) {
+          return
+        }
+
+        const hasCurrent = currentProjectId ? data.projects.some(project => project.id === currentProjectId) : false
+        applySession({
+          ...data,
+          accessToken: token,
+          expiresIn: 0,
+          currentProjectId: hasCurrent ? (currentProjectId as string) : data.currentProjectId,
+          projectApiKey: undefined,
+        })
+      }
+      catch {
+        if (!cancelled) {
+          setProjectAccessStatus(projects.length > 0 ? 'ready' : 'none')
+        }
+        // Ignore sync failure; interceptor handles auth errors.
+      }
+    }
+
+    void syncSessionFromServer()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, currentProjectId, applySession, projects.length])
+
   const value = useMemo<AuthContextValue>(() => ({
     token,
     user,
@@ -207,12 +306,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     currentProjectId,
     currentProject,
     currentAppId,
+    projectAccessStatus,
     initialized,
     register,
     login,
+    joinProjectById,
     logout,
     switchProject,
-  }), [token, user, projects, currentProjectId, currentProject, currentAppId, initialized, register, login, logout, switchProject])
+  }), [token, user, projects, currentProjectId, currentProject, currentAppId, projectAccessStatus, initialized, register, login, joinProjectById, logout, switchProject])
 
   return (
     <AuthContext.Provider value={value}>

@@ -1,6 +1,7 @@
 import type { MenuProps, TableColumnsType } from 'antd'
 
 import type { ReactNode } from 'react'
+import type { ProjectAccess } from './auth/AuthProvider'
 import type {
   AiAnalysisResult,
   AlertDedupeStrategy,
@@ -31,6 +32,7 @@ import {
   Layout,
   List,
   Menu,
+  message,
   Modal,
   Row,
   Select,
@@ -70,7 +72,7 @@ import './App.css'
 const { Header, Sider, Content } = Layout
 const { Title, Text, Paragraph } = Typography
 
-type RouteKey = '/dashboard' | '/tracking' | '/performance' | '/error' | '/replay' | '/alerts' | '/stats'
+type RouteKey = '/dashboard' | '/tracking' | '/performance' | '/error' | '/replay' | '/alerts' | '/stats' | '/workspace'
 
 const routeMeta: Record<RouteKey, { title: string, description: string }> = {
   '/dashboard': {
@@ -100,6 +102,10 @@ const routeMeta: Record<RouteKey, { title: string, description: string }> = {
   '/stats': {
     title: '统计分析页面',
     description: '统一时间范围与应用筛选，查看多维统计分析。',
+  },
+  '/workspace': {
+    title: '用户管理',
+    description: '管理项目权限与 AI 分析配置。',
   },
 }
 
@@ -347,6 +353,7 @@ function ShellLayout() {
   const auth = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
+  const hasProjects = auth.projects.length > 0
   const selectedKey
     = (Object.keys(routeMeta) as RouteKey[]).find(path => location.pathname.startsWith(path)) ?? '/dashboard'
   const current = routeMeta[selectedKey]
@@ -376,8 +383,14 @@ function ShellLayout() {
               }))}
               onChange={value => auth.switchProject(value)}
               style={{ minWidth: 240 }}
+              disabled={!hasProjects}
               placeholder="选择项目"
             />
+            {auth.projectAccessStatus === 'syncing'
+              ? <Tag color="processing">正在同步项目权限</Tag>
+              : !hasProjects
+                  ? <Tag color="warning">当前账号暂无可访问项目</Tag>
+                  : <Tag color="success">项目权限已就绪</Tag>}
             <Text type="secondary">{auth.user?.email}</Text>
             <Button onClick={() => {
               auth.logout()
@@ -396,11 +409,175 @@ function ShellLayout() {
 
         <Content className="app-content">
           <AppErrorBoundary>
-            <Outlet />
+            {!hasProjects
+              ? (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="当前账号暂无项目权限"
+                    description="请联系管理员将你的账号加入目标项目，或使用注册时自动创建项目的账号登录。权限同步后刷新页面即可恢复数据展示。"
+                    action={(
+                      <Button type="primary" onClick={() => window.location.reload()}>
+                        刷新权限
+                      </Button>
+                    )}
+                  />
+                )
+              : <Outlet />}
           </AppErrorBoundary>
         </Content>
       </Layout>
     </Layout>
+  )
+}
+
+function UserManagementPage() {
+  const auth = useAuth()
+  const { config: aiConfig, setConfig: setAiConfig, resetConfig: resetAiConfig } = useAiConfig()
+  const [joinProjectId, setJoinProjectId] = useState('')
+  const [joining, setJoining] = useState(false)
+  const [joinError, setJoinError] = useState<string | null>(null)
+  const [aiDraft, setAiDraft] = useState<AiConfig>(aiConfig)
+
+  useEffect(() => {
+    setAiDraft(aiConfig)
+  }, [aiConfig])
+
+  const hasAiChanges
+    = aiDraft.apiKey !== aiConfig.apiKey
+      || aiDraft.apiBaseUrl !== aiConfig.apiBaseUrl
+      || aiDraft.model !== aiConfig.model
+
+  const handleJoinProject = async () => {
+    setJoinError(null)
+    setJoining(true)
+    try {
+      await auth.joinProjectById(joinProjectId)
+      setJoinProjectId('')
+    }
+    catch (error) {
+      setJoinError(error instanceof Error ? error.message : '添加项目权限失败')
+    }
+    finally {
+      setJoining(false)
+    }
+  }
+
+  const projectColumns: TableColumnsType<ProjectAccess> = [
+    {
+      title: '项目名称',
+      dataIndex: 'name',
+      render: (value: string, record: ProjectAccess) => (
+        <Space>
+          <Text>{value}</Text>
+          {record.id === auth.currentProjectId ? <Tag color="blue">当前项目</Tag> : null}
+        </Space>
+      ),
+    },
+    {
+      title: 'appId',
+      dataIndex: 'appId',
+    },
+    {
+      title: '角色',
+      dataIndex: 'role',
+      render: (role: ProjectAccess['role']) => (
+        <Tag color={role === 'owner' ? 'gold' : role === 'admin' ? 'purple' : 'default'}>{role}</Tag>
+      ),
+      width: 120,
+    },
+    {
+      title: 'projectId',
+      dataIndex: 'id',
+      ellipsis: true,
+      width: 280,
+    },
+  ]
+
+  const handleSaveAiConfig = () => {
+    const nextConfig: AiConfig = {
+      apiKey: aiDraft.apiKey.trim(),
+      apiBaseUrl: aiDraft.apiBaseUrl.trim() || DEFAULT_AI_CONFIG.apiBaseUrl,
+      model: aiDraft.model.trim() || DEFAULT_AI_CONFIG.model,
+    }
+    setAiConfig(nextConfig)
+    message.success('AI 配置已保存到当前浏览器')
+  }
+
+  const handleResetAiConfig = () => {
+    resetAiConfig()
+    message.success('AI 配置已恢复默认值')
+  }
+
+  return (
+    <Space direction="vertical" size={16} className="page-stack">
+      <SectionCard title="账户信息" description="当前登录用户与项目权限状态。">
+        <Descriptions bordered size="small" column={1}>
+          <Descriptions.Item label="邮箱">{auth.user?.email ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="用户名">{auth.user?.name ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="当前项目">{auth.currentProject ? `${auth.currentProject.name} (${auth.currentProject.appId})` : '-'}</Descriptions.Item>
+          <Descriptions.Item label="权限状态">
+            {auth.projectAccessStatus === 'syncing'
+              ? <Tag color="processing">syncing</Tag>
+              : auth.projectAccessStatus === 'ready'
+                ? <Tag color="success">ready</Tag>
+                : <Tag color="warning">none</Tag>}
+          </Descriptions.Item>
+        </Descriptions>
+      </SectionCard>
+
+      <SectionCard title="项目权限管理" description="按 projectId 或 appId 添加当前账号到目标项目（默认 viewer）。">
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Space wrap>
+            <Input
+              placeholder="例如：69e2683c8e27d8554d41ed7a 或 monitor-test-app"
+              value={joinProjectId}
+              onChange={event => setJoinProjectId(event.target.value)}
+              disabled={joining}
+              style={{ width: 380, maxWidth: '100%' }}
+            />
+            <Button type="primary" loading={joining} onClick={() => void handleJoinProject()}>
+              添加项目权限
+            </Button>
+          </Space>
+          {joinError ? <Alert type="error" showIcon message={joinError} /> : null}
+          <Table<ProjectAccess>
+            rowKey={record => record.id}
+            pagination={false}
+            dataSource={auth.projects}
+            columns={projectColumns}
+            locale={getTableLocale('当前账号暂无可访问项目')}
+            scroll={{ x: 860 }}
+          />
+        </Space>
+      </SectionCard>
+
+      <SectionCard title="AI 配置" description="用于错误详情中的 AI 根因分析。配置仅保存在当前浏览器。">
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Input.Password
+            value={aiDraft.apiKey}
+            placeholder="输入 AI Token（如 OpenAI API Key）"
+            onChange={event => setAiDraft(prev => ({ ...prev, apiKey: event.target.value }))}
+          />
+          <Input
+            value={aiDraft.apiBaseUrl}
+            placeholder="API Base URL，例如 https://api.openai.com/v1"
+            onChange={event => setAiDraft(prev => ({ ...prev, apiBaseUrl: event.target.value }))}
+          />
+          <Input
+            value={aiDraft.model}
+            placeholder="模型名，例如 gpt-4o-mini"
+            onChange={event => setAiDraft(prev => ({ ...prev, model: event.target.value }))}
+          />
+          <Space>
+            <Button type="primary" onClick={handleSaveAiConfig} disabled={!hasAiChanges}>
+              保存 AI 配置
+            </Button>
+            <Button onClick={handleResetAiConfig}>恢复默认</Button>
+          </Space>
+        </Space>
+      </SectionCard>
+    </Space>
   )
 }
 
@@ -3111,6 +3288,7 @@ function App() {
           <Route path="replay" element={<ReplayPage />} />
           <Route path="alerts" element={<AlertsPage />} />
           <Route path="stats" element={<StatsPage />} />
+          <Route path="workspace" element={<UserManagementPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />

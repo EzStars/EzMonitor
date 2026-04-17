@@ -10,3 +10,8 @@ export interface LoginRequestDto {
   email: string
   password: string
 }
+
+export interface JoinProjectRequestDto {
+  projectId?: string
+  appId?: string
+}

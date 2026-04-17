@@ -1,7 +1,7 @@
 import type { AuthSessionPayload, AuthTokenPayload } from './types'
 import { BadRequestException, Body, Controller, Get, Inject, Post } from '@nestjs/common'
 import { AuthRequired, CurrentUser } from './decorators'
-import { validateLoginRequestDto, validateRegisterRequestDto } from './dto'
+import { validateJoinProjectRequestDto, validateLoginRequestDto, validateRegisterRequestDto } from './dto'
 import { AuthService } from './services'
 
 @Controller('api/auth')
@@ -55,6 +55,20 @@ export class AuthController {
     return {
       success: true,
       data: safeData,
+    }
+  }
+
+  @Post('projects/join')
+  @AuthRequired()
+  async joinProject(
+    @CurrentUser() user: AuthTokenPayload,
+    @Body() body: unknown,
+  ): Promise<{ success: true, data: { projects: AuthSessionPayload['projects'], currentProjectId: string } }> {
+    const dto = this.parseDto(validateJoinProjectRequestDto, body, 'Invalid join project payload')
+    const data = await this.authService.joinProject(user.sub, dto)
+    return {
+      success: true,
+      data,
     }
   }
 

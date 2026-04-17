@@ -13,6 +13,12 @@ const reportUrl = import.meta.env.VITE_MONITOR_REPORT_URL?.trim() || `${apiUrl}/
 const release = import.meta.env.VITE_MONITOR_RELEASE?.trim() || DEFAULT_RELEASE
 const reportApiKey = import.meta.env.VITE_MONITOR_REPORT_API_KEY?.trim()
 
+if (!reportApiKey && import.meta.env.DEV) {
+  console.warn(
+    '[monitor-test] VITE_MONITOR_REPORT_API_KEY 未配置。后端开启写入鉴权时，/api/monitor/batch 将返回 401。',
+  )
+}
+
 const sdk = createSDK({
   appId: 'monitor-test-app',
   appVersion: release,
@@ -118,6 +124,10 @@ export function getSDKStatus() {
 
 export function getReportUrl() {
   return reportUrl
+}
+
+export function hasReportApiKey() {
+  return Boolean(reportApiKey)
 }
 
 export function getRelease() {

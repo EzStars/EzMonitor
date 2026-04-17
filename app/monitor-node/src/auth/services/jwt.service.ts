@@ -1,7 +1,7 @@
 import type { AuthTokenPayload } from '../types'
 import { Buffer } from 'node:buffer'
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import process from 'node:process'
+import * as process from 'node:process'
 import { Injectable, UnauthorizedException } from '@nestjs/common'
 
 interface JwtHeader {

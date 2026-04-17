@@ -32,7 +32,12 @@ pnpm --filter monitor-test run dev
 3. 启动本应用
 
 默认上报地址为 `${VITE_API_URL || http://localhost:3000}/api/monitor/batch`，可通过 `VITE_MONITOR_REPORT_URL` 覆盖。
-如后端启用了项目写入鉴权，请同时配置 `VITE_MONITOR_REPORT_API_KEY`（会透传为 `x-monitor-api-key` 请求头）。
+当前 `monitor-node` 默认启用项目写入鉴权，必须配置 `VITE_MONITOR_REPORT_API_KEY`（会透传为 `x-monitor-api-key` 请求头），否则 `/api/monitor/batch` 会返回 401。
+
+可用 API key 来源：
+
+- 首次调用 `POST /api/auth/register` 成功时返回的 `projectApiKey`
+- 已有项目的管理端/初始化流程中保存的项目 API key
 
 ## 验收步骤
 
@@ -51,7 +56,7 @@ pnpm --filter monitor-test run lint
 
 - 默认：`${VITE_API_URL || http://localhost:3000}/api/monitor/batch`
 - 覆盖：设置 `VITE_MONITOR_REPORT_URL`
-- 写入鉴权：设置 `VITE_MONITOR_REPORT_API_KEY`
+- 写入鉴权：设置 `VITE_MONITOR_REPORT_API_KEY`（默认后端策略下必填）
 
 ## SourceMap 定位验证
 
@@ -93,6 +98,7 @@ pnpm --filter monitor-test run preview
 ## 排查
 
 - **没有数据上报**：确认 `monitor-node` 已启动且 `VITE_MONITOR_REPORT_URL` 指向正确。
+- **401 / Project API key is required**：确认根目录 `.env` 已配置 `VITE_MONITOR_REPORT_API_KEY`，并重启 `monitor-test` 开发服务。
 - **跨域失败**：确认前端端口在后端 CORS 白名单中。
 - **端口冲突**：如果 `monitor-app` 同时运行，Vite 可能自动切换到 `5174`。
 
