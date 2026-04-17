@@ -135,3 +135,17 @@ catalogs:
     typescript: ^5.7.3
   conflicts_typescript-eslint_h8_20_0:
     typescript-eslint: ^8.20.0
+  conflicts_react-router-dom_h6_28_0:
+    react-router-dom: ^6.28.0
+  conflicts_@eslint/js_h9_18_0:
+    '@eslint/js': ^9.18.0
+  conflicts_conflicts_@types/node_h24_12_0_h22_10_7:
+    '@types/node': ^22.10.7
+  conflicts_conflicts_eslint_h9_39_4_h9_18_0:
+    eslint: ^9.18.0
+  conflicts_conflicts_globals_h17_4_0_h16_0_0:
+    globals: ^16.0.0
+  conflicts_conflicts_typescript_t5_9_3_h5_7_3:
+    typescript: ^5.7.3
+  conflicts_conflicts_typescript-eslint_h8_57_0_h8_20_0:
+    typescript-eslint: ^8.20.0
