@@ -1,13 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
 :root {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Sora', 'IBM Plex Sans', sans-serif;
+  --font-body: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+
+  --bg-page: #050b12;
+  --bg-page-alt: #07131d;
+  --bg-surface: rgba(9, 17, 26, 0.88);
+  --bg-surface-strong: rgba(13, 24, 36, 0.96);
+  --bg-auth-start: #07111b;
+  --bg-auth-end: #0d1b28;
+  --text-primary: #eff6ff;
+  --text-secondary: #93a4b7;
+  --text-tertiary: #6f8197;
+  --border-soft: rgba(149, 176, 202, 0.16);
+  --border-strong: rgba(149, 176, 202, 0.24);
+
+  --accent-primary: #73f0b7;
+  --accent-primary-hover: #4fd99d;
+  --accent-secondary: #74c9ff;
+  --accent-warning: #f7c66f;
+  --accent-danger: #ff7a90;
+  --accent-muted: rgba(115, 240, 183, 0.14);
+  --accent-glow: rgba(115, 240, 183, 0.24);
+  --shadow-soft: 0 24px 60px rgba(0, 0, 0, 0.34);
+  --shadow-halo: 0 0 0 1px rgba(115, 240, 183, 0.08), 0 18px 42px rgba(2, 8, 18, 0.34);
+  --radius-card: 20px;
+  --radius-inner: 14px;
+
+  font-family: var(--font-body);
   line-height: 1.5;
   font-weight: 400;
-  color: rgba(17, 24, 39, 0.88);
-  background: #f5f7fb;
+  color: var(--text-primary);
+  background: var(--bg-page);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: dark;
 }
 
 html,
@@ -20,11 +51,47 @@ body,
 
 body {
   min-height: 100vh;
+  font-family: var(--font-body);
+  background:
+    radial-gradient(circle at top left, rgba(115, 240, 183, 0.16), transparent 38%),
+    radial-gradient(circle at 82% 12%, rgba(116, 201, 255, 0.12), transparent 32%),
+    linear-gradient(180deg, var(--bg-page) 0%, var(--bg-page-alt) 100%);
+  position: relative;
+  isolation: isolate;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 176, 202, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 176, 202, 0.07) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.32));
+  opacity: 0.4;
+  z-index: -1;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: auto 0 0;
+  height: 180px;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(5, 11, 18, 0.5));
+  z-index: -1;
 }
 
 a {
   color: inherit;
   text-decoration: none;
+  transition: color 160ms ease;
+}
+
+a:hover {
+  color: var(--accent-primary);
 }
 
 h1,
@@ -33,4 +100,44 @@ h3,
 h4,
 p {
   margin-top: 0;
+}
+
+.ant-typography h1,
+.ant-typography h2,
+.ant-typography h3,
+.ant-typography h4,
+.ant-typography h5,
+.ant-typography h6,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(115, 240, 183, 0.28);
+  color: #f8fafc;
+}
+
+code,
+pre,
+.ant-typography code {
+  font-family: var(--font-mono);
+}
+
+#root {
+  position: relative;
+  z-index: 0;
 }

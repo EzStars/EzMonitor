@@ -7,6 +7,11 @@
 ## Working Language
 - Prefer Chinese in explanations, commit summaries, and PR notes unless explicitly requested otherwise.
 
+## Skill Installation Rules
+- Never create custom/local skills for user requests unless the user explicitly asks to author a new skill from scratch.
+- For skill discovery and installation, always use the `find-skills` workflow first (`npx skills find ...` -> quality check -> `npx skills add ...`).
+- If a remote install fails, retry with an official skill source or ask the user before any local workaround.
+
 ## Repository Layout
 - `packages/monitor-sdkv2`: core SDK (TypeScript, plugin architecture, `tsdown` build).
 - `packages/monitor-app`: Next.js demo/dashboard app that consumes `@ezstars/monitor-sdkv2` via workspace dependency.

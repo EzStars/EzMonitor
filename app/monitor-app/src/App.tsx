@@ -2,6 +2,7 @@ import type { MenuProps, TableColumnsType } from 'antd'
 
 import type { ReactNode } from 'react'
 import type { ProjectAccess } from './auth/AuthProvider'
+import type { QueryRange } from './contexts/FilterContext'
 import type {
   AiAnalysisResult,
   AlertDedupeStrategy,
@@ -50,6 +51,7 @@ import { Component, useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from './auth/AuthProvider'
 import ProtectedRoute from './auth/ProtectedRoute'
+import { createDefaultRange, FilterProvider, useFilterContext } from './contexts/FilterContext'
 import { useAlertStream } from './hooks/useAlertStream'
 import { useMonitorQuery } from './hooks/useMonitorQuery'
 import LoginPage from './pages/LoginPage'
@@ -156,8 +158,6 @@ const navItems: MenuProps['items'] = (Object.keys(routeMeta) as RouteKey[]).map(
   label: <NavLink to={path}>{routeMeta[path].title}</NavLink>,
 }))
 
-type QueryRange = [string, string]
-
 interface AiConfig {
   apiKey: string
   apiBaseUrl: string
@@ -249,19 +249,6 @@ function getAiErrorDisplay(result: AiAnalysisResult): { message: string, descrip
   }
 }
 
-function createDefaultRange(days = 7): QueryRange {
-  const end = new Date()
-  end.setHours(23, 59, 59, 999)
-  const start = new Date(end)
-  start.setDate(end.getDate() - (days - 1))
-  start.setHours(0, 0, 0, 0)
-  return [formatDateInput(start), formatDateInput(end)]
-}
-
-function formatDateInput(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-
 function toStartTimestamp(value: string) {
   if (!value) {
     return undefined
@@ -287,6 +274,15 @@ function buildTimeParams(appId: string, range: QueryRange) {
   }
 }
 
+function formatRangeSummary(range: QueryRange) {
+  const defaultRange = createDefaultRange()
+  if (range[0] === defaultRange[0] && range[1] === defaultRange[1]) {
+    return '最近 7 天'
+  }
+
+  return `${range[0]} 至 ${range[1]}`
+}
+
 function isThirdPartySourcePath(path?: string): boolean {
   if (!path) {
     return false
@@ -295,25 +291,9 @@ function isThirdPartySourcePath(path?: string): boolean {
   return path.includes('/node_modules/') || path.includes('\\node_modules\\') || path.includes('.pnpm/') || path.includes('.pnpm\\')
 }
 
-function useCommonFilters() {
-  const [appId, setAppId] = useState('')
-  const [range, setRange] = useState<QueryRange>(createDefaultRange())
-
-  return {
-    appId,
-    setAppId,
-    range,
-    setRange,
-    reset: () => {
-      setAppId('')
-      setRange(createDefaultRange())
-    },
-  }
-}
-
 function useProjectScopedFilters() {
   const auth = useAuth()
-  const filters = useCommonFilters()
+  const filters = useFilterContext()
   const effectiveAppId = auth.currentAppId ?? filters.appId
 
   const setAppId = useCallback((value: string) => {
@@ -351,6 +331,7 @@ function useUserControlledAppId() {
 
 function ShellLayout() {
   const auth = useAuth()
+  const filters = useProjectScopedFilters()
   const location = useLocation()
   const navigate = useNavigate()
   const hasProjects = auth.projects.length > 0
@@ -362,19 +343,20 @@ function ShellLayout() {
     <Layout className="app-shell">
       <Sider width={252} breakpoint="lg" collapsedWidth={0} className="app-sider">
         <div className="brand">
+          <span className="brand-badge">Monitor</span>
           <Title level={4}>EzMonitor</Title>
           <Text type="secondary">监控控制台</Text>
         </div>
-        <Menu mode="inline" selectedKeys={[selectedKey]} items={navItems} onClick={({ key }) => navigate(key)} />
+        <Menu className="app-nav-menu" mode="inline" selectedKeys={[selectedKey]} items={navItems} onClick={({ key }) => navigate(key)} />
       </Sider>
 
       <Layout className="app-main">
         <Header className="app-header">
-          <Space direction="vertical" size={2}>
+          <Space direction="vertical" size={2} className="page-heading">
             <Text type="secondary">当前页面</Text>
             <Title level={3}>{current.title}</Title>
           </Space>
-          <Space wrap>
+          <Space wrap className="header-tools">
             <Select
               value={auth.currentProjectId ?? undefined}
               options={auth.projects.map(project => ({
@@ -382,6 +364,7 @@ function ShellLayout() {
                 value: project.id,
               }))}
               onChange={value => auth.switchProject(value)}
+              className="project-switch"
               style={{ minWidth: 240 }}
               disabled={!hasProjects}
               placeholder="选择项目"
@@ -399,32 +382,62 @@ function ShellLayout() {
             >
               退出登录
             </Button>
-            {(Object.keys(routeMeta) as RouteKey[]).map(path => (
-              <Button key={path} type={selectedKey === path ? 'primary' : 'default'} onClick={() => navigate(path)}>
-                {routeMeta[path].title}
-              </Button>
-            ))}
+            <div className="header-quick-nav">
+              {(Object.keys(routeMeta) as RouteKey[]).map(path => (
+                <Button key={path} type={selectedKey === path ? 'primary' : 'default'} onClick={() => navigate(path)}>
+                  {routeMeta[path].title}
+                </Button>
+              ))}
+            </div>
           </Space>
         </Header>
 
         <Content className="app-content">
-          <AppErrorBoundary>
-            {!hasProjects
-              ? (
-                  <Alert
-                    type="warning"
-                    showIcon
-                    message="当前账号暂无项目权限"
-                    description="请联系管理员将你的账号加入目标项目，或使用注册时自动创建项目的账号登录。权限同步后刷新页面即可恢复数据展示。"
-                    action={(
-                      <Button type="primary" onClick={() => window.location.reload()}>
-                        刷新权限
-                      </Button>
-                    )}
-                  />
-                )
-              : <Outlet />}
-          </AppErrorBoundary>
+          <div className="page-shell">
+            <Card bordered={false} className="page-hero">
+              <Space direction="vertical" size={10} className="page-hero-copy">
+                <Text type="secondary" className="page-path">{selectedKey.replace('/', '') || 'dashboard'}</Text>
+                <Title level={2}>{current.title}</Title>
+                <Paragraph type="secondary">{current.description}</Paragraph>
+                <Space wrap size={8} className="page-hero-meta">
+                  <Tag className="page-hero-tag" color="green">
+                    项目：
+                    {auth.currentProject?.name ?? '未选择'}
+                  </Tag>
+                  <Tag className="page-hero-tag" color="blue">
+                    appId：
+                    {filters.appId.trim() || '全部应用'}
+                  </Tag>
+                  <Tag className="page-hero-tag" color="gold">
+                    时间范围：
+                    {formatRangeSummary(filters.range)}
+                  </Tag>
+                </Space>
+              </Space>
+              <Space wrap size={8} className="page-hero-actions">
+                <Button onClick={filters.reset}>重置筛选</Button>
+                <Button type="primary" onClick={() => window.location.reload()}>刷新当前页</Button>
+              </Space>
+            </Card>
+
+            <AppErrorBoundary>
+              {!hasProjects
+                ? (
+                    <Alert
+                      type="warning"
+                      showIcon
+                      message="当前账号暂无项目权限"
+                      description="请联系管理员将你的账号加入目标项目，或使用注册时自动创建项目的账号登录。权限同步后刷新页面即可恢复数据展示。"
+                      action={(
+                        <Button type="primary" onClick={() => window.location.reload()}>
+                          刷新权限
+                        </Button>
+                      )}
+                    />
+                  )
+                : <Outlet />}
+            </AppErrorBoundary>
+          </div>
         </Content>
       </Layout>
     </Layout>
@@ -3275,24 +3288,26 @@ function StatsPage() {
 
 function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route element={<ProtectedRoute />}>
-        <Route path="/" element={<ShellLayout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="tracking" element={<TrackingPage />} />
-          <Route path="performance" element={<PerformancePage />} />
-          <Route path="error" element={<ErrorPage />} />
-          <Route path="replay" element={<ReplayPage />} />
-          <Route path="alerts" element={<AlertsPage />} />
-          <Route path="stats" element={<StatsPage />} />
-          <Route path="workspace" element={<UserManagementPage />} />
+    <FilterProvider>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<ShellLayout />}>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="tracking" element={<TrackingPage />} />
+            <Route path="performance" element={<PerformancePage />} />
+            <Route path="error" element={<ErrorPage />} />
+            <Route path="replay" element={<ReplayPage />} />
+            <Route path="alerts" element={<AlertsPage />} />
+            <Route path="stats" element={<StatsPage />} />
+            <Route path="workspace" element={<UserManagementPage />} />
+          </Route>
         </Route>
-      </Route>
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </FilterProvider>
   )
 }
 

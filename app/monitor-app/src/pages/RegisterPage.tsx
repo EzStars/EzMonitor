@@ -50,6 +50,7 @@ export default function RegisterPage() {
     <div className="auth-page">
       <Card className="auth-card">
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Text className="page-path" type="secondary">创建工作区 · 立即可用</Text>
           <Space direction="vertical" size={4}>
             <Title level={3}>注册 EzMonitor</Title>
             <Text type="secondary">注册时创建你的第一个项目，后续所有监控数据将按项目隔离。</Text>

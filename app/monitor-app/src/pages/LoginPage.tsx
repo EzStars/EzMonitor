@@ -70,6 +70,7 @@ export default function LoginPage() {
     <div className="auth-page">
       <Card className="auth-card">
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Text className="page-path" type="secondary">安全登录 · 项目隔离</Text>
           <Space direction="vertical" size={4}>
             <Title level={3}>登录 EzMonitor</Title>
             <Text type="secondary">登录后可按项目查看监控数据，避免跨项目数据泄漏。</Text>
